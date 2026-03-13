@@ -16,6 +16,5 @@ config:
   allowedOrigins: {{ .StateValues.allowedOrigins | toJson | quote }}
 
 secret:
-  encryptionKey: {{ .Values.encryptionKey | quote }}
   kubeconfig: |
 {{ .Values.kubeconfig | indent 4 }}

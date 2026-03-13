@@ -22,11 +22,10 @@ class TaskService:
         cipher: SecretCipher | None = None,
     ) -> None:
         self.db = db
-        settings = get_settings()
         self.helm = helm or HelmClient()
         self.kube = kube or KubeClient()
-        self.cipher = cipher or SecretCipher(settings.encryption_key)
-        self.settings = settings
+        self.cipher = cipher or SecretCipher()
+        self.settings = get_settings()
 
     def list_tasks(self) -> list[TaskSummary]:
         tasks = self.db.query(Task).options(joinedload(Task.secret)).order_by(Task.updated_at.desc()).all()
@@ -52,8 +51,8 @@ class TaskService:
             release_name="pending",
         )
         task.secret = TaskSecret(
-            database_password_encrypted=self.cipher.encrypt(payload.databasePassword),
-            destination_aws_secret_access_key_encrypted=self.cipher.encrypt(payload.destinationAwsSecretAccessKey),
+            database_password_encrypted=payload.databasePassword,
+            destination_aws_secret_access_key_encrypted=payload.destinationAwsSecretAccessKey,
         )
         self.db.add(task)
         self.db.flush()
@@ -87,16 +86,10 @@ class TaskService:
                 setattr(task, target, changes[source])
 
         if "databasePassword" in changes:
-            task.secret.database_password_encrypted = (
-                self.cipher.encrypt(changes["databasePassword"]) if changes["databasePassword"] else None
-            )
+            task.secret.database_password_encrypted = changes["databasePassword"] or None
 
         if "destinationAwsSecretAccessKey" in changes:
-            task.secret.destination_aws_secret_access_key_encrypted = (
-                self.cipher.encrypt(changes["destinationAwsSecretAccessKey"])
-                if changes["destinationAwsSecretAccessKey"]
-                else None
-            )
+            task.secret.destination_aws_secret_access_key_encrypted = changes["destinationAwsSecretAccessKey"] or None
 
         self.db.commit()
 
@@ -185,13 +178,11 @@ class TaskService:
                 "BACKUPS_SCHEDULE": task.schedule,
                 "DB_BACKUPS_FILENAME_PREFIX": task.db_backups_filename_prefix,
                 "DATABASE_HOST": task.database_host,
-                "DATABASE_PASSWORD": self.cipher.decrypt(task.secret.database_password_encrypted or ""),
+                "DATABASE_PASSWORD": task.secret.database_password_encrypted or "",
                 "DATABASE_USERNAME": task.database_username,
                 "DATABASE_NAME": task.database_name,
                 "DESTINATION_DB_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id,
-                "DESTINATION_DB_AWS_SECRET_ACCESS_KEY": self.cipher.decrypt(
-                    task.secret.destination_aws_secret_access_key_encrypted or ""
-                ),
+                "DESTINATION_DB_AWS_SECRET_ACCESS_KEY": task.secret.destination_aws_secret_access_key_encrypted or "",
                 "DESTINATION_DB_AWS_BUCKET_NAME": task.destination_aws_bucket_name,
                 "DESTINATION_DB_AWS_ENDPOINT": task.destination_aws_endpoint,
             },

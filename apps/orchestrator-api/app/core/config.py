@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ORCHESTRATOR_", env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/orchestrator"
-    encryption_key: str = "change-me-change-me-change-me-32b"
     kubeconfig: str = ".diploma-cluster-kubeconfig"
     helm_binary: str = "helm"
     kubectl_binary: str = "kubectl"

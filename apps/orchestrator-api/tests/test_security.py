@@ -1,10 +1,8 @@
 from app.core.security import SecretCipher
 
 
-def test_encrypt_decrypt_roundtrip() -> None:
-    cipher = SecretCipher("top-secret")
+def test_secret_cipher_is_passthrough_in_dev_mode() -> None:
+    cipher = SecretCipher()
 
-    encrypted = cipher.encrypt("value")
-
-    assert encrypted != "value"
-    assert cipher.decrypt(encrypted) == "value"
+    assert cipher.encrypt("top-secret") == "top-secret"
+    assert cipher.decrypt("top-secret") == "top-secret"
