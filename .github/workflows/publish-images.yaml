@@ -3,9 +3,7 @@ name: Publish Images
 on:
   push:
     branches:
-      - main
-    tags:
-      - 'v*'
+      - master
   workflow_dispatch:
 
 permissions:
