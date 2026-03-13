@@ -2,7 +2,7 @@ namespace: {{ env "ORCHESTRATOR_NAMESPACE" | default "diploma-system" }}
 
 apiImageRepository: {{ env "API_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-api" }}
 apiImageTag: {{ env "API_IMAGE_TAG" | default "latest" }}
-apiImagePullPolicy: IfNotPresent
+apiImagePullPolicy: Always
 apiPort: 8000
 
 postgresql:
@@ -15,7 +15,7 @@ postgresql:
 
 backupImage:
   registry: ghcr.io
-  repository: Yam1x/diploma-db-backupper
+  repository: yam1x/diploma-db-backupper
   tag: latest
   pullPolicy: Always
 
@@ -28,7 +28,7 @@ minio:
 
 uiImageRepository: {{ env "UI_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-ui" }}
 uiImageTag: {{ env "UI_IMAGE_TAG" | default "latest" }}
-uiImagePullPolicy: IfNotPresent
+uiImagePullPolicy: Always
 uiPort: 80
 
 ingress:
