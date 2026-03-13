@@ -23,13 +23,3 @@ spec:
           envFrom:
             - configMapRef:
                 name: diploma-orchestrator-api-config
-            - secretRef:
-                name: diploma-orchestrator-api-secret
-          volumeMounts:
-            - name: kubeconfig
-              mountPath: /app/config
-              readOnly: true
-      volumes:
-        - name: kubeconfig
-          secret:
-            secretName: diploma-orchestrator-api-secret

@@ -16,7 +16,6 @@ class KubeClient:
         "kube-system",
         "local-path-storage",
     }
-    KUBECONFIG_PATH = "/app/config/kubeconfig"
 
     def list_namespaces(self) -> list[str]:
         command = [
@@ -25,8 +24,6 @@ class KubeClient:
             "namespaces",
             "-o",
             "json",
-            "--kubeconfig",
-            self.KUBECONFIG_PATH,
         ]
         output = self._run(command)
         payload = json.loads(output)

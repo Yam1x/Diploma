@@ -18,7 +18,6 @@ backupImage:
   repository: Yam1x/diploma-db-backupper
   tag: latest
   pullPolicy: Always
-kubeconfig: ""
 
 uiImageRepository: {{ env "UI_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-ui" }}
 uiImageTag: {{ env "UI_IMAGE_TAG" | default "latest" }}

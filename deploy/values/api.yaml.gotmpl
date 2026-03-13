@@ -15,7 +15,3 @@ config:
     repository: {{ .Values.backupImage.repository | quote }}
     tag: {{ .Values.backupImage.tag | quote }}
     pullPolicy: {{ .Values.backupImage.pullPolicy | quote }}
-
-secret:
-  kubeconfig: |
-{{ .Values.kubeconfig | indent 4 }}

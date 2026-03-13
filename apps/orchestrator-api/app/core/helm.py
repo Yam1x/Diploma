@@ -12,8 +12,7 @@ class HelmError(RuntimeError):
 
 
 class HelmClient:
-    KUBECONFIG_PATH = "/app/config/kubeconfig"
-    BACKUP_CHART_PATH = Path(__file__).resolve().parents[3] / "diploma-db-backupper" / "ci"
+    BACKUP_CHART_PATH = Path("/app/diploma-db-backupper/ci")
 
     def upgrade_install(self, release_name: str, namespace: str, values: dict) -> str:
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as handle:
@@ -30,8 +29,6 @@ class HelmClient:
                 namespace,
                 "-f",
                 values_path,
-                "--kubeconfig",
-                self.KUBECONFIG_PATH,
             ]
             return self._run(command)
         finally:
@@ -44,8 +41,6 @@ class HelmClient:
             release_name,
             "--namespace",
             namespace,
-            "--kubeconfig",
-            self.KUBECONFIG_PATH,
         ]
         return self._run(command)
 
@@ -56,8 +51,6 @@ class HelmClient:
             release_name,
             "--namespace",
             namespace,
-            "--kubeconfig",
-            self.KUBECONFIG_PATH,
         ]
         return self._run(command)
 
