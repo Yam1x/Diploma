@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: {{ .Values.uiImageRepository }}
+  tag: {{ .Values.uiImageTag }}
+  pullPolicy: {{ .Values.uiImagePullPolicy }}
+
+service:
+  port: {{ .Values.uiPort }}
+
+config:
+  apiBaseUrl: {{ .Values.uiApiBaseUrl | quote }}
+
+ingress:
+  enabled: true
+  className: nginx
+  host: {{ .Values.ingress.host | quote }}

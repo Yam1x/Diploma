@@ -1,0 +1,32 @@
+namespace: {{ env "ORCHESTRATOR_NAMESPACE" | default "diploma-system" }}
+
+apiImageRepository: {{ env "API_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-api" }}
+apiImageTag: {{ env "API_IMAGE_TAG" | default "latest" }}
+apiImagePullPolicy: IfNotPresent
+apiPort: 8000
+
+postgresql:
+  auth:
+    postgresPassword: postgres
+    database: orchestrator
+  service:
+    host: diploma-orchestrator-postgresql
+    port: 5432
+
+kubeconfigPath: /app/config/kubeconfig
+backupChartPath: /app/diploma-db-backupper/ci
+releasePrefix: db-backupper
+allowedOrigins:
+  - http://localhost:5173
+encryptionKey: change-me-change-me-change-me-32b
+kubeconfig: ""
+
+uiImageRepository: {{ env "UI_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-ui" }}
+uiImageTag: {{ env "UI_IMAGE_TAG" | default "latest" }}
+uiImagePullPolicy: IfNotPresent
+uiPort: 80
+uiApiBaseUrl: /api
+
+ingress:
+  host: localhost
+  externalPort: 40110

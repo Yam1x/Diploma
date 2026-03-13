@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: diploma-orchestrator-api
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: diploma-orchestrator-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: diploma-orchestrator-api
+    spec:
+      serviceAccountName: diploma-orchestrator-api
+      containers:
+        - name: api
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          envFrom:
+            - configMapRef:
+                name: diploma-orchestrator-api-config
+            - secretRef:
+                name: diploma-orchestrator-api-secret
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: diploma-orchestrator-api-secret

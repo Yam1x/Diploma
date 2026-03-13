@@ -1,0 +1,10 @@
+controller:
+  service:
+    type: NodePort
+    ports:
+      http: "{{ .Values.ingress.externalPort }}"
+    nodePorts:
+      http: "30080"
+      https:
+  admissionWebhooks:
+    enabled: false

@@ -1,0 +1,7 @@
+auth:
+  postgresPassword: "{{ .StateValues.postgresql.auth.postgresPassword }}"
+  database: "{{ .StateValues.postgresql.auth.database }}"
+
+primary:
+  persistence:
+    enabled: false

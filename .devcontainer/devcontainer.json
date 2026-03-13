@@ -1,0 +1,62 @@
+{
+  "name": "Diploma",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "workspaceFolder": "/workspaces/Diploma",
+  "onCreateCommand": "helm plugin install https://github.com/databus23/helm-diff --version=3.14.1 --verify=false && helm plugin install https://github.com/aslafy-z/helm-git --version 1.5.1 --verify=false",
+  "remoteUser": "root",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1.6.5": {
+      "version": "29.1.2",
+      "enableNonRootDocker": "true",
+      "moby": "true"
+    },
+    "ghcr.io/devcontainers/features/git:1.2.0": {
+      "ppa": true,
+      "version": "os-provided"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1.2.2": {
+      "version": "1.33.1",
+      "helm": "4.0.2",
+      "minikube": "none"
+    },
+    "ghcr.io/mpriscella/features/kind:1.0.1": {
+      "version": "v0.30.0"
+    },
+    "ghcr.io/devcontainers-extra/features/helmfile:1.0.0": {
+      "version": "v1.2.2"
+    },
+    "ghcr.io/eitsupi/devcontainer-features/jq-likes:2.1.1": {
+      "jqVersion": "none",
+      "yqVersion": "4.45.1",
+      "gojqVersion": "none",
+      "xqVersion": "none"
+    }
+  },
+  "remoteEnv": {
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+  },
+  "runArgs": [
+    "--network=host",
+    "--env-file",
+    ".devcontainer/devcontainer.env"
+  ],
+  "containerEnv": {
+    "KUBECONFIG": "/workspaces/Diploma/.diploma-cluster-kubeconfig"
+  },
+  "mounts": [
+    "source=/mnt/c/Users/rychk/.codex,target=/mnt/host-codex,type=bind,consistency=consistent"
+  ],
+  "shutdownAction": "none",
+  "postCreateCommand": "bash .devcontainer/scripts/sync-codex-session.sh /workspaces/Diploma",
+  "postStartCommand": "bash .devcontainer/scripts/sync-codex-session.sh /workspaces/Diploma",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "openai.chatgpt"
+      ]
+    }
+  }
+}

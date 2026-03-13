@@ -1,0 +1,14 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+__pycache__/
+.pytest_cache/
+.venv/
+node_modules/
+dist/
+coverage/
+
+.diploma-cluster-kubeconfig
+.vscode/
+*.tsbuildinfo
