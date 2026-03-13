@@ -121,6 +121,17 @@ export function TasksListPage() {
                       Включить
                     </button>
                   )}
+                  <button
+                    className="button ghost"
+                    onClick={() => {
+                      if (!window.confirm(`Удалить задачу "${task.name}"?`)) {
+                        return;
+                      }
+                      void runAction(() => api.deleteTask(String(task.id)));
+                    }}
+                  >
+                    Удалить
+                  </button>
                 </td>
               </tr>
             ))}

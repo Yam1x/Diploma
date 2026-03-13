@@ -51,3 +51,8 @@ def disable_task(task_id: int, service: TaskService = Depends(get_task_service))
 @api_router.post("/tasks/{task_id}/refresh", response_model=TaskDetail)
 def refresh_task(task_id: int, service: TaskService = Depends(get_task_service)) -> TaskDetail:
     return service.refresh_task(task_id)
+
+
+@api_router.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int, service: TaskService = Depends(get_task_service)) -> None:
+    service.delete_task(task_id)

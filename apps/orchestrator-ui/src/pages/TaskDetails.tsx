@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api, TaskDetail } from "../api/client";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
@@ -29,6 +29,7 @@ function formatServiceType(serviceType: string) {
 
 export function TaskDetailsPage() {
   const { taskId } = useParams();
+  const navigate = useNavigate();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +60,22 @@ export function TaskDetailsPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!task) {
+      return;
+    }
+    if (!window.confirm(`Удалить задачу "${task.name}"?`)) {
+      return;
+    }
+    try {
+      await api.deleteTask(String(task.id));
+      setError(null);
+      navigate("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить задачу");
+    }
+  }
+
   if (!task) {
     return <section className="stack">{error ? <div className="alert">{error}</div> : <p>Загрузка...</p>}</section>;
   }
@@ -86,6 +103,9 @@ export function TaskDetailsPage() {
               Включить
             </button>
           )}
+          <button className="button ghost" onClick={() => void handleDelete()}>
+            Удалить
+          </button>
         </div>
       </div>
 

@@ -73,5 +73,6 @@ export const api = {
   enableTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/enable`, { method: "POST" }),
   disableTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/disable`, { method: "POST" }),
   refreshTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/refresh`, { method: "POST" }),
+  deleteTask: (taskId: string) => request<void>(`/tasks/${taskId}`, { method: "DELETE" }),
   listNamespaces: () => request<{ namespaces: string[] }>("/namespaces"),
 };

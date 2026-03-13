@@ -139,11 +139,32 @@ class TaskService:
         self.db.commit()
         return self._to_detail(task)
 
+    def delete_task(self, task_id: int) -> None:
+        task = self._get_task_model(task_id)
+        self._cleanup_release(task)
+        self.db.delete(task)
+        self.db.commit()
+
     def list_namespaces(self) -> list[str]:
         try:
             return self.kube.list_namespaces()
         except KubernetesError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    def _cleanup_release(self, task: Task) -> None:
+        if not task.release_name:
+            return
+        try:
+            self.helm.uninstall(task.release_name, task.namespace)
+        except HelmError as exc:
+            if self._is_missing_release_error(str(exc)):
+                return
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @staticmethod
+    def _is_missing_release_error(message: str) -> bool:
+        lowered = message.lower()
+        return "not found" in lowered or "release: not found" in lowered
 
     def _apply_release(self, task: Task) -> None:
         self._validate_required_secrets(task)
