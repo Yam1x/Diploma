@@ -1,0 +1,21 @@
+# Based on TourmalineCore/pelican-local-env MinIO setup
+
+image:
+  repository: bitnamilegacy/minio
+
+auth:
+  rootPassword: {{ .StateValues.minio.auth.rootPassword | quote }}
+
+defaultBuckets: {{ .StateValues.minio.defaultBuckets | quote }}
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hostname: {{ printf "%s.%s" .StateValues.minio.consoleHost .StateValues.ingress.host | quote }}
+  path: /
+
+apiIngress:
+  enabled: true
+  ingressClassName: nginx
+  hostname: {{ printf "%s.%s" .StateValues.minio.apiHost .StateValues.ingress.host | quote }}
+  path: /

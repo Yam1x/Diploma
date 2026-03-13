@@ -20,6 +20,14 @@ releases:
     values:
       - values/ingress-nginx.yaml.gotmpl
 
+  - name: diploma-orchestrator-minio
+    namespace: {{ .Values.namespace }}
+    chart: bitnami/minio
+    version: 14.8.5
+    wait: true
+    values:
+      - values/minio.yaml.gotmpl
+
   - name: diploma-orchestrator-postgresql
     namespace: {{ .Values.namespace }}
     chart: bitnami/postgresql

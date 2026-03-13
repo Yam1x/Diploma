@@ -19,6 +19,13 @@ backupImage:
   tag: latest
   pullPolicy: Always
 
+minio:
+  auth:
+    rootPassword: minio123456
+  defaultBuckets: backups
+  apiHost: minio-s3
+  consoleHost: minio-s3-console
+
 uiImageRepository: {{ env "UI_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-ui" }}
 uiImageTag: {{ env "UI_IMAGE_TAG" | default "latest" }}
 uiImagePullPolicy: IfNotPresent
