@@ -77,3 +77,11 @@ class HealthResponse(BaseModel):
 
 class NamespaceListResponse(BaseModel):
     namespaces: list[str]
+
+
+class NamespaceCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class NamespaceResponse(BaseModel):
+    name: str

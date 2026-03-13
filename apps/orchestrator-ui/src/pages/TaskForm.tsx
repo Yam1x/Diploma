@@ -73,6 +73,23 @@ export function TaskFormPage() {
     void load();
   }, [isEditMode, selectedTaskType, taskId]);
 
+  async function handleCreateNamespace() {
+    const name = window.prompt("Введите имя namespace");
+    const namespace = name?.trim();
+    if (!namespace) {
+      return;
+    }
+    try {
+      const response = await api.createNamespace({ name: namespace });
+      const namespaceList = await api.listNamespaces();
+      setNamespaces(namespaceList.namespaces);
+      setValue((current) => ({ ...current, namespace: response.name }));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось создать namespace");
+    }
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     try {
@@ -118,6 +135,7 @@ export function TaskFormPage() {
           namespaceOptions={namespaces}
           passwordConfigured={passwordConfigured}
           secretConfigured={secretConfigured}
+          onCreateNamespace={() => void handleCreateNamespace()}
         />
         <div className="toolbar-actions">
           <button className="button primary" type="submit" disabled={!isEditMode && !selectedTaskType}>

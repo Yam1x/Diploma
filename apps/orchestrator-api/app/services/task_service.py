@@ -151,6 +151,15 @@ class TaskService:
         except KubernetesError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    def create_namespace(self, namespace: str) -> str:
+        try:
+            return self.kube.create_namespace(namespace)
+        except KubernetesError as exc:
+            message = str(exc)
+            if "already exists" in message.lower():
+                raise HTTPException(status_code=409, detail=f"Namespace '{namespace}' уже существует") from exc
+            raise HTTPException(status_code=502, detail=message) from exc
+
     def _cleanup_release(self, task: Task) -> None:
         if not task.release_name:
             return

@@ -45,6 +45,22 @@ export function TasksListPage() {
 
   const visibleTasks = selectedNamespace ? tasks.filter((task) => task.namespace === selectedNamespace) : tasks;
 
+  async function handleCreateNamespace() {
+    const name = window.prompt("Введите имя namespace");
+    const namespace = name?.trim();
+    if (!namespace) {
+      return;
+    }
+    try {
+      const response = await api.createNamespace({ name: namespace });
+      await load();
+      setSelectedNamespace(response.name);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось создать namespace");
+    }
+  }
+
   async function runAction(action: () => Promise<unknown>) {
     try {
       await action();
@@ -71,6 +87,9 @@ export function TasksListPage() {
               </option>
             ))}
           </select>
+          <button className="button ghost" onClick={() => void handleCreateNamespace()}>
+            Создать namespace
+          </button>
           <Link className="button primary" to="/tasks/new">
             Создать задачу
           </Link>

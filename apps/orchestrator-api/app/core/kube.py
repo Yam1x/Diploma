@@ -36,6 +36,19 @@ class KubeClient:
     def namespace_exists(self, namespace: str) -> bool:
         return namespace in self.list_namespaces()
 
+    def create_namespace(self, namespace: str) -> str:
+        command = [
+            "kubectl",
+            "create",
+            "namespace",
+            namespace,
+            "-o",
+            "json",
+        ]
+        output = self._run(command)
+        payload = json.loads(output)
+        return payload["metadata"]["name"]
+
     def _run(self, command: list[str]) -> str:
         completed = subprocess.run(command, capture_output=True, text=True, check=False)
         if completed.returncode != 0:

@@ -134,6 +134,20 @@ select {
   align-items: center;
 }
 
+.namespace-field {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.namespace-field select {
+  flex: 1 1 auto;
+}
+
+.namespace-field .button {
+  flex: 0 0 auto;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--line);

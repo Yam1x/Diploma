@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.deps import get_task_service
-from app.schemas.task import HealthResponse, NamespaceListResponse, TaskCreate, TaskDetail, TaskSummary, TaskUpdate
+from app.schemas.task import HealthResponse, NamespaceCreateRequest, NamespaceListResponse, NamespaceResponse, TaskCreate, TaskDetail, TaskSummary, TaskUpdate
 from app.services.task_service import TaskService
 
 
@@ -16,6 +16,11 @@ def health() -> HealthResponse:
 @api_router.get("/namespaces", response_model=NamespaceListResponse)
 def list_namespaces(service: TaskService = Depends(get_task_service)) -> NamespaceListResponse:
     return NamespaceListResponse(namespaces=service.list_namespaces())
+
+
+@api_router.post("/namespaces", response_model=NamespaceResponse, status_code=201)
+def create_namespace(payload: NamespaceCreateRequest, service: TaskService = Depends(get_task_service)) -> NamespaceResponse:
+    return NamespaceResponse(name=service.create_namespace(payload.name))
 
 
 @api_router.get("/tasks", response_model=list[TaskSummary])

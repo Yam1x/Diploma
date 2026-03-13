@@ -27,6 +27,10 @@ export type TaskDetail = TaskSummary & {
   hasDestinationAwsSecretAccessKey: boolean;
 };
 
+export type NamespacePayload = {
+  name: string;
+};
+
 export type TaskPayload = {
   name: string;
   namespace: string;
@@ -75,4 +79,5 @@ export const api = {
   refreshTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/refresh`, { method: "POST" }),
   deleteTask: (taskId: string) => request<void>(`/tasks/${taskId}`, { method: "DELETE" }),
   listNamespaces: () => request<{ namespaces: string[] }>("/namespaces"),
+  createNamespace: (payload: NamespacePayload) => request<{ name: string }>("/namespaces", { method: "POST", body: JSON.stringify(payload) }),
 };

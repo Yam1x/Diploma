@@ -8,9 +8,10 @@ type Props = {
   namespaceOptions: string[];
   passwordConfigured?: boolean;
   secretConfigured?: boolean;
+  onCreateNamespace?: () => void;
 };
 
-export function TaskFormFields({ value, onChange, namespaceOptions, passwordConfigured, secretConfigured }: Props) {
+export function TaskFormFields({ value, onChange, namespaceOptions, passwordConfigured, secretConfigured, onCreateNamespace }: Props) {
   const update = (key: keyof TaskPayload) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     onChange({ ...value, [key]: event.target.value });
   };
@@ -25,14 +26,19 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
       <label>
         <span>Namespace</span>
         <small className="field-help">Namespace Kubernetes, в который будет задеплоен сервис резервного копирования.</small>
-        <select value={value.namespace} onChange={update("namespace")}>
-          <option value="">Выберите namespace</option>
-          {namespaceOptions.map((namespace) => (
-            <option key={namespace} value={namespace}>
-              {namespace}
-            </option>
-          ))}
-        </select>
+        <div className="namespace-field">
+          <select value={value.namespace} onChange={update("namespace")}>
+            <option value="">Выберите namespace</option>
+            {namespaceOptions.map((namespace) => (
+              <option key={namespace} value={namespace}>
+                {namespace}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="button ghost" onClick={onCreateNamespace}>
+            Создать namespace
+          </button>
+        </div>
       </label>
       <label>
         <span>Расписание</span>
