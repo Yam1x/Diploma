@@ -1,0 +1,16 @@
+name: build and push to dockerhub
+
+on:
+  push:
+    branches:
+      - master
+      - feature/*
+  pull_request:
+  # to allow to wait for a docker image to be published to proceed in another workflow
+  workflow_call:
+
+jobs:
+  push_to_registry:
+    uses: Yam1x/diploma-github-workflows/.github/workflows/docker-build-and-push.yml@master
+    # without this it cannot login to the registry
+    secrets: inherit

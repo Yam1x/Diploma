@@ -1,0 +1,36 @@
+name: Trigger Local And Prod Envs
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  # this is needed to wait for the new docker image to be build and published to the registry
+  # so that we can use the image to run ui of the needed commit related version as part of local-env
+  # the idea is taken from here https://stackoverflow.com/a/71489231
+  push_to_registry:
+    uses: ./.github/workflows/docker-build-and-push.yml
+    # without this it cannot login to the registry
+    secrets: inherit
+
+  trigger_local_env:
+    needs: push_to_registry
+    uses: Yam1x/diploma-github-workflows/.github/workflows/sync-env.yml@master
+    with:
+      # diploma-env is used to define which env will be synced
+      diploma-env: diploma-local-env
+      # path-to-values is used to define where the values files is stored
+      path-to-values: deploy/values-diploma-db-backupper.yaml.gotmpl
+      # path-to-helmfile is used to define where the helmfile is stored
+      path-to-helmfile: deploy/helmfile.yaml
+    secrets: inherit
+
+  trigger_prod_env:
+    needs: push_to_registry
+    uses: Yam1x/diploma-github-workflows/.github/workflows/sync-env.yml@master
+    with: 
+      diploma-env: diploma-prod-env
+      path-to-values: deploy/values-diploma-db-backupper.yaml.gotmpl
+      path-to-helmfile: deploy/helmfile.yaml
+    secrets: inherit

@@ -1,0 +1,4 @@
+.helmignore
+
+# we don't need values.yaml in the chart which is for local/prod deployment
+values.yaml

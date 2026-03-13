@@ -1,0 +1,40 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
+{
+	"name": "Helm",
+	"image": "mcr.microsoft.com/devcontainers/base:bullseye",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1.4.5": {
+			"version": "20.10",
+			"enableNonRootDocker": "true",
+			"moby": "true"
+		},
+		"ghcr.io/devcontainers/features/git:1.2.0": {
+			"ppa": true,
+			"version": "os-provided"
+		},
+		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1.1.9": {
+			"version": "1.30.0",
+			"helm": "3.14.4",
+			"minikube": "none"
+		}
+	},
+	"runArgs": [
+		"--network=host"
+	],
+	"remoteEnv": {
+		// https://stackoverflow.com/q/65343518
+		// the original host directory which is needed for volume mount commands from inside the container (Docker in Docker)
+		"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+	}
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+	// Uncomment the next line to run commands after the container is created.
+	// "postCreateCommand": "cat /etc/os-release",
+	// Configure tool-specific properties.
+	// "customizations": {},
+	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "devcontainer"
+}

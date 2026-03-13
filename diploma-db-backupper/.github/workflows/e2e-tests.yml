@@ -1,0 +1,67 @@
+name: Run E2E tests
+
+# ToDo should it be triggered only as part of an open PR?
+# currently it triggers for any commit in a FB
+on: 
+  push:
+    branches:
+      - feature/*
+
+jobs:
+  # this is needed to wait for the new docker image to be build and published to the registry
+  # so that we can use the image to run ui of the needed commit related version as part of local-env
+  # the idea is taken from here https://stackoverflow.com/a/71489231
+  push_to_registry:
+    uses: ./.github/workflows/docker-build-and-push.yml
+    # without this it cannot login to the registry
+    secrets: inherit
+  run-tests:
+    runs-on: ubuntu-24.04
+    needs: push_to_registry
+    steps:
+      - name: Checkout local-env
+        uses: actions/checkout@v4
+        with:
+          repository: Yam1x/diploma-local-env
+
+      - name: Deploy Local Env to Kind k8s
+        uses: devcontainers/ci@v0.3
+        with:
+          runCmd: |
+            # we need to override "latest" image tag of service inside local-env to run tests against the current commit service version and not against latest from master
+            # We tried to use yq to change the image tag, but in the values files for helmfile we have non-yaml code that yq can`t parse or ignore
+            # so for that reason we use Stream EDitor which can find needeed string using regular expressions and change it to a new value
+            # The -i flag is needed to write new image tag directly to values file
+            sed -i "0,/tag:.*/s//tag: \"sha-${{ github.sha }}\"/" deploy/values-diploma-db-backupper.yaml.gotmpl
+
+            # we need to override "latest" ref of service chart inside local-env to run tests against the current commit service chart version and not against latest from master
+            sed -i "0,/git+https:\/\/github.com\/Yam1x\/${{ github.event.repository.name }}.git?ref=.*/s//git+https:\/\/github.com\/Yam1x\/${{ github.event.repository.name }}.git?ref=${{ github.sha }}/" deploy/helmfile.yaml
+            
+            sed -i "0,/git::https:\/\/github.com\/Yam1x\/${{ github.event.repository.name }}.git@\/ci\/values.yaml?ref=.*/s//git::https:\/\/github.com\/Yam1x\/${{ github.event.repository.name }}.git@\/ci\/values.yaml?ref=${{ github.sha }}/" deploy/helmfile.yaml
+
+            # we need to overrive backup schedule of backupper inside local-env to run cronjob every minute 
+            sed -i "0,/BACKUPS_SCHEDULE:.*/s//BACKUPS_SCHEDULE: \"*\/1 * * * *\"/" deploy/values-diploma-db-backupper.yaml.gotmpl
+
+            kind create cluster --name diploma --config kind-local-config.yaml --kubeconfig ./.diploma-cluster-kubeconfig
+            
+            export KUBECONFIG=$(pwd)/.diploma-cluster-kubeconfig
+
+            helmfile --environment local --namespace local -f deploy/helmfile.yaml apply
+          push: never
+
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+
+        # Wait 60 seconds to make sure that backup was created
+      - name: Wait 60 seconds
+        run: sleep 60
+
+      - name: Run E2E tests
+        run: python e2e-tests.py
+        env: 
+          DB_AWS_ACCESS_KEY_ID: admin
+          DB_AWS_SECRET_ACCESS_KEY: rootPassword
+          DB_AWS_ENDPOINT: http://minio-s3.localhost:40110
+          DB_AWS_BUCKET_NAME: diploma-backups
+          DB_BACKUPS_FILENAME_PREFIX: diploma-local-env-db
+          
