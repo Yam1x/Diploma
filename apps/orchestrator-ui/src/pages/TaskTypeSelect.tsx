@@ -15,6 +15,14 @@ export function TaskTypeSelectPage() {
         </Link>
       </div>
 
+      <div className="form-intro card">
+        <div>
+          <p className="eyebrow">Service Catalog</p>
+          <h3>Выберите тип управляемого сервиса</h3>
+          <p className="subtle">Сейчас доступно резервное копирование базы данных, но интерфейс уже готов к расширению под новые сервисы.</p>
+        </div>
+      </div>
+
       <div className="task-type-grid">
         {taskTypes.map((taskType) => (
           <article className="card task-type-card" key={taskType.routeType}>

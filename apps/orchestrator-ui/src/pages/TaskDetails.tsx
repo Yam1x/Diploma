@@ -82,6 +82,24 @@ export function TaskDetailsPage() {
 
   return (
     <section className="stack">
+      <div className="metrics-grid details-metrics">
+        <article className="metric-card">
+          <span className="metric-label">Статус релиза</span>
+          <strong>{formatApplyStatus(task.lastApplyStatus)}</strong>
+          <p className="subtle">Текущее состояние последнего применения конфигурации.</p>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">Namespace</span>
+          <strong>{task.namespace}</strong>
+          <p className="subtle">Целевое пространство Kubernetes для этого сервиса.</p>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">Желаемое состояние</span>
+          <strong>{task.enabled ? "Включено" : "Выключено"}</strong>
+          <p className="subtle">То состояние, которое интерфейс пытается поддерживать в кластере.</p>
+        </article>
+      </div>
+
       <div className="toolbar">
         <div>
           <h2>{task.name}</h2>
@@ -95,7 +113,7 @@ export function TaskDetailsPage() {
             Обновить
           </button>
           {task.enabled ? (
-            <button className="button danger" onClick={() => void run(() => api.disableTask(String(task.id))) }>
+            <button className="button danger" onClick={() => void run(() => api.disableTask(String(task.id)))}>
               Выключить
             </button>
           ) : (
@@ -116,7 +134,7 @@ export function TaskDetailsPage() {
           <h3>Желаемое состояние</h3>
           <dl>
             <dt>Включена</dt>
-            <dd>{formatBoolean(task.enabled)}</dd>
+            <dd><span className={task.enabled ? "status-badge success" : "status-badge"}>{formatBoolean(task.enabled)}</span></dd>
             <dt>Тип сервиса</dt>
             <dd>{formatServiceType(task.serviceType)}</dd>
             <dt>Расписание</dt>
@@ -129,9 +147,9 @@ export function TaskDetailsPage() {
           <h3>Состояние деплоя</h3>
           <dl>
             <dt>Задеплоена</dt>
-            <dd>{formatBoolean(task.deployed)}</dd>
+            <dd><span className={task.deployed ? "status-badge success" : "status-badge"}>{formatBoolean(task.deployed)}</span></dd>
             <dt>Статус последнего применения</dt>
-            <dd>{formatApplyStatus(task.lastApplyStatus)}</dd>
+            <dd><span className={task.lastApplyStatus === "failed" ? "status-badge danger" : "status-badge"}>{formatApplyStatus(task.lastApplyStatus)}</span></dd>
             <dt>Последнее применение</dt>
             <dd>{task.lastAppliedAt ? new Date(task.lastAppliedAt).toLocaleString() : "Никогда"}</dd>
             <dt>Последнее сообщение</dt>

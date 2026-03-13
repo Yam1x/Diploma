@@ -128,6 +128,15 @@ export function TaskFormPage() {
         </Link>
       </div>
       {error ? <div className="alert">{error}</div> : null}
+      <div className="form-intro card">
+        <div>
+          <p className="eyebrow">Configuration</p>
+          <h3>{taskId ? "Тонкая настройка существующей задачи" : "Создание новой конфигурации"}</h3>
+          <p className="subtle">
+            Заполните параметры подключения, место хранения резервных копий и желаемое состояние деплоя.
+          </p>
+        </div>
+      </div>
       <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
         <TaskFormFields
           value={value}

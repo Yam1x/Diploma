@@ -44,6 +44,9 @@ export function TasksListPage() {
   }, []);
 
   const visibleTasks = selectedNamespace ? tasks.filter((task) => task.namespace === selectedNamespace) : tasks;
+  const enabledCount = tasks.filter((task) => task.enabled).length;
+  const deployedCount = tasks.filter((task) => task.deployed).length;
+  const failedCount = tasks.filter((task) => task.lastApplyStatus === "failed").length;
 
   async function handleCreateNamespace() {
     const name = window.prompt("Введите имя namespace");
@@ -73,6 +76,29 @@ export function TasksListPage() {
 
   return (
     <section className="stack">
+      <div className="metrics-grid">
+        <article className="metric-card">
+          <span className="metric-label">Всего задач</span>
+          <strong>{tasks.length}</strong>
+          <p className="subtle">Все сохранённые конфигурации оркестратора.</p>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">Активные</span>
+          <strong>{enabledCount}</strong>
+          <p className="subtle">Задачи с включённым желаемым состоянием.</p>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">Задеплоены</span>
+          <strong>{deployedCount}</strong>
+          <p className="subtle">Релизы, успешно присутствующие в кластере.</p>
+        </article>
+        <article className="metric-card">
+          <span className="metric-label">С ошибкой</span>
+          <strong>{failedCount}</strong>
+          <p className="subtle">Конфигурации, которым нужно внимание администратора.</p>
+        </article>
+      </div>
+
       <div className="toolbar">
         <div>
           <h2>Задачи</h2>
@@ -116,13 +142,23 @@ export function TasksListPage() {
             {visibleTasks.map((task) => (
               <tr key={task.id}>
                 <td>
-                  <Link to={`/tasks/${task.id}`}>{task.name}</Link>
+                  <Link className="table-link" to={`/tasks/${task.id}`}>
+                    {task.name}
+                  </Link>
                 </td>
                 <td>{task.namespace}</td>
-                <td>{formatBoolean(task.enabled)}</td>
-                <td>{formatBoolean(task.deployed)}</td>
+                <td>
+                  <span className={task.enabled ? "status-badge success" : "status-badge"}>{formatBoolean(task.enabled)}</span>
+                </td>
+                <td>
+                  <span className={task.deployed ? "status-badge success" : "status-badge"}>{formatBoolean(task.deployed)}</span>
+                </td>
                 <td>{task.schedule}</td>
-                <td>{formatApplyStatus(task.lastApplyStatus)}</td>
+                <td>
+                  <span className={task.lastApplyStatus === "failed" ? "status-badge danger" : "status-badge"}>
+                    {formatApplyStatus(task.lastApplyStatus)}
+                  </span>
+                </td>
                 <td>{new Date(task.updatedAt).toLocaleString()}</td>
                 <td className="row-actions">
                   <Link className="button ghost" to={`/tasks/${task.id}/edit`}>
