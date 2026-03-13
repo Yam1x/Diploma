@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 import subprocess
 
-from app.core.config import get_settings
-
 
 class KubernetesError(RuntimeError):
     pass
@@ -18,19 +16,17 @@ class KubeClient:
         "kube-system",
         "local-path-storage",
     }
-
-    def __init__(self) -> None:
-        self.settings = get_settings()
+    KUBECONFIG_PATH = "/app/config/kubeconfig"
 
     def list_namespaces(self) -> list[str]:
         command = [
-            self.settings.kubectl_binary,
+            "kubectl",
             "get",
             "namespaces",
             "-o",
             "json",
             "--kubeconfig",
-            self.settings.kubeconfig,
+            self.KUBECONFIG_PATH,
         ]
         output = self._run(command)
         payload = json.loads(output)

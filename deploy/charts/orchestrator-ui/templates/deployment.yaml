@@ -19,11 +19,3 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.port }}
-          volumeMounts:
-            - name: runtime-config
-              mountPath: /usr/share/nginx/html/env.js
-              subPath: env.js
-      volumes:
-        - name: runtime-config
-          configMap:
-            name: diploma-orchestrator-ui-config

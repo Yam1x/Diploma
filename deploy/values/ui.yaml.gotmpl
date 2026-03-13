@@ -8,9 +8,6 @@ image:
 service:
   port: {{ .Values.uiPort }}
 
-config:
-  apiBaseUrl: {{ .Values.uiApiBaseUrl | quote }}
-
 ingress:
   enabled: true
   className: nginx

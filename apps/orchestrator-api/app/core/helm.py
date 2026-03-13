@@ -6,16 +6,14 @@ from pathlib import Path
 
 import yaml
 
-from app.core.config import get_settings
-
 
 class HelmError(RuntimeError):
     pass
 
 
 class HelmClient:
-    def __init__(self) -> None:
-        self.settings = get_settings()
+    KUBECONFIG_PATH = "/app/config/kubeconfig"
+    BACKUP_CHART_PATH = Path(__file__).resolve().parents[3] / "diploma-db-backupper" / "ci"
 
     def upgrade_install(self, release_name: str, namespace: str, values: dict) -> str:
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as handle:
@@ -23,17 +21,17 @@ class HelmClient:
             values_path = handle.name
         try:
             command = [
-                self.settings.helm_binary,
+                "helm",
                 "upgrade",
                 "--install",
                 release_name,
-                str(Path(self.settings.backup_chart_path)),
+                str(self.BACKUP_CHART_PATH),
                 "--namespace",
                 namespace,
                 "-f",
                 values_path,
                 "--kubeconfig",
-                self.settings.kubeconfig,
+                self.KUBECONFIG_PATH,
             ]
             return self._run(command)
         finally:
@@ -41,25 +39,25 @@ class HelmClient:
 
     def uninstall(self, release_name: str, namespace: str) -> str:
         command = [
-            self.settings.helm_binary,
+            "helm",
             "uninstall",
             release_name,
             "--namespace",
             namespace,
             "--kubeconfig",
-            self.settings.kubeconfig,
+            self.KUBECONFIG_PATH,
         ]
         return self._run(command)
 
     def status(self, release_name: str, namespace: str) -> str:
         command = [
-            self.settings.helm_binary,
+            "helm",
             "status",
             release_name,
             "--namespace",
             namespace,
             "--kubeconfig",
-            self.settings.kubeconfig,
+            self.KUBECONFIG_PATH,
         ]
         return self._run(command)
 

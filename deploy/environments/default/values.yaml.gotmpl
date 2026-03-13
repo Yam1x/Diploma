@@ -13,18 +13,17 @@ postgresql:
     host: diploma-orchestrator-postgresql
     port: 5432
 
-kubeconfigPath: /app/config/kubeconfig
-backupChartPath: /app/diploma-db-backupper/ci
-releasePrefix: db-backupper
-allowedOrigins:
-  - http://localhost:5173
+backupImage:
+  registry: ghcr.io
+  repository: Yam1x/diploma-db-backupper
+  tag: latest
+  pullPolicy: Always
 kubeconfig: ""
 
 uiImageRepository: {{ env "UI_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-ui" }}
 uiImageTag: {{ env "UI_IMAGE_TAG" | default "latest" }}
 uiImagePullPolicy: IfNotPresent
 uiPort: 80
-uiApiBaseUrl: /api
 
 ingress:
   host: localhost

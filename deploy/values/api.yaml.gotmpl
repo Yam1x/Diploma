@@ -10,10 +10,11 @@ service:
 
 config:
   databaseUrl: {{ printf "postgresql+psycopg://postgres:%s@%s:%v/%s" .StateValues.postgresql.auth.postgresPassword .StateValues.postgresql.service.host .StateValues.postgresql.service.port .StateValues.postgresql.auth.database | quote }}
-  kubeconfigPath: {{ .Values.kubeconfigPath | quote }}
-  backupChartPath: {{ .Values.backupChartPath | quote }}
-  releasePrefix: {{ .Values.releasePrefix | quote }}
-  allowedOrigins: {{ .StateValues.allowedOrigins | toJson | quote }}
+  backupImage:
+    registry: {{ .Values.backupImage.registry | quote }}
+    repository: {{ .Values.backupImage.repository | quote }}
+    tag: {{ .Values.backupImage.tag | quote }}
+    pullPolicy: {{ .Values.backupImage.pullPolicy | quote }}
 
 secret:
   kubeconfig: |

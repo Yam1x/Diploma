@@ -1,12 +1,4 @@
-declare global {
-  interface Window {
-    __APP_CONFIG__?: {
-      API_BASE_URL?: string;
-    };
-  }
-}
-
-const API_BASE_URL = window.__APP_CONFIG__?.API_BASE_URL ?? import.meta.env.VITE_API_BASE_URL ?? "/api";
+const API_BASE_URL = "/api";
 
 export type TaskSummary = {
   id: number;

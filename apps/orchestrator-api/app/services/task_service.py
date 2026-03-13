@@ -165,10 +165,10 @@ class TaskService:
     def _build_values(self, task: Task) -> dict:
         return {
             "image": {
-                "registry": "ghcr.io",
-                "repository": "Yam1x/diploma-db-backupper",
-                "tag": "latest",
-                "pullPolicy": "Always",
+                "registry": self.settings.backup_image_registry,
+                "repository": self.settings.backup_image_repository,
+                "tag": self.settings.backup_image_tag,
+                "pullPolicy": self.settings.backup_image_pull_policy,
             },
             "resources": {
                 "limits": {"cpu": "200m", "memory": "512Mi"},
@@ -202,7 +202,7 @@ class TaskService:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     def _build_release_name(self, task_id: int) -> str:
-        return f"{self.settings.release_prefix}-{task_id}"[:53]
+        return f"db-backupper-{task_id}"[:53]
 
     def _get_task_model(self, task_id: int) -> Task:
         task = self.db.query(Task).options(joinedload(Task.secret)).filter(Task.id == task_id).one_or_none()

@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   ORCHESTRATOR_DATABASE_URL: {{ .Values.config.databaseUrl | quote }}
-  ORCHESTRATOR_KUBECONFIG: {{ .Values.config.kubeconfigPath | quote }}
-  ORCHESTRATOR_BACKUP_CHART_PATH: {{ .Values.config.backupChartPath | quote }}
-  ORCHESTRATOR_RELEASE_PREFIX: {{ .Values.config.releasePrefix | quote }}
-  ORCHESTRATOR_ALLOWED_ORIGINS: {{ .Values.config.allowedOrigins | quote }}
+  ORCHESTRATOR_BACKUP_IMAGE_REGISTRY: {{ .Values.config.backupImage.registry | quote }}
+  ORCHESTRATOR_BACKUP_IMAGE_REPOSITORY: {{ .Values.config.backupImage.repository | quote }}
+  ORCHESTRATOR_BACKUP_IMAGE_TAG: {{ .Values.config.backupImage.tag | quote }}
+  ORCHESTRATOR_BACKUP_IMAGE_PULL_POLICY: {{ .Values.config.backupImage.pullPolicy | quote }}
