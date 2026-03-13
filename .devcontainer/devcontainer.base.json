@@ -35,9 +35,6 @@
       "xqVersion": "none"
     }
   },
-  "remoteEnv": {
-    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
-  },
   "runArgs": [
     "--network=host",
     "--env-file",
@@ -46,17 +43,5 @@
   "containerEnv": {
     "KUBECONFIG": "/workspaces/Diploma/.diploma-cluster-kubeconfig"
   },
-  "mounts": [
-    "source=/mnt/c/Users/rychk/.codex,target=/mnt/host-codex,type=bind,consistency=consistent"
-  ],
-  "shutdownAction": "none",
-  "postCreateCommand": "bash .devcontainer/scripts/sync-codex-session.sh /workspaces/Diploma",
-  "postStartCommand": "bash .devcontainer/scripts/sync-codex-session.sh /workspaces/Diploma",
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "openai.chatgpt"
-      ]
-    }
-  }
+  "shutdownAction": "none"
 }

@@ -12,3 +12,5 @@ coverage/
 .diploma-cluster-kubeconfig
 .vscode/
 *.tsbuildinfo
+.devcontainer/scripts/task-*.sh
+.devcontainer/devcontainer.json
