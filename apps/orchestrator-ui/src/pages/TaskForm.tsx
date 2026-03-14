@@ -9,7 +9,7 @@ const emptyPayload: TaskPayload = {
   name: "",
   namespace: "",
   enabled: false,
-  schedule: "",
+  schedule: "0 0 * * *",
   dbBackupsFilenamePrefix: "",
   databaseHost: "",
   databaseName: "",

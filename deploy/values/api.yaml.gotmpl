@@ -1,12 +1,12 @@
 replicaCount: 1
 
 image:
-  repository: {{ .Values.apiImageRepository }}
-  tag: {{ .Values.apiImageTag }}
-  pullPolicy: {{ .Values.apiImagePullPolicy }}
+  repository: ghcr.io/yam1x/diploma-orchestrator-api
+  tag: "latest"
+  pullPolicy: Always
 
 service:
-  port: {{ .Values.apiPort }}
+  port: 8000
 
 config:
   databaseUrl: {{ printf "postgresql+psycopg://postgres:%s@%s:%v/%s" .StateValues.postgresql.auth.postgresPassword .StateValues.postgresql.service.host .StateValues.postgresql.service.port .StateValues.postgresql.auth.database | quote }}

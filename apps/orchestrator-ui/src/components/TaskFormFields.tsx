@@ -1,6 +1,7 @@
-import { ChangeEvent } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 
 import { TaskPayload } from "../api/client";
+import { buildSchedule, parseSchedule, ScheduleDraft, ScheduleMode } from "../utils/schedule";
 
 type Props = {
   value: TaskPayload;
@@ -11,10 +12,73 @@ type Props = {
   onCreateNamespace?: () => void;
 };
 
+const scheduleModeOptions: Array<{ value: ScheduleMode; label: string }> = [
+  { value: "hourly", label: "Каждый час" },
+  { value: "daily", label: "Каждый день" },
+  { value: "weekly", label: "Каждую неделю" },
+  { value: "monthly", label: "Каждый месяц" },
+  { value: "custom", label: "Свой cron" },
+];
+
+const weekdayOptions = [
+  { value: "1", label: "Понедельник" },
+  { value: "2", label: "Вторник" },
+  { value: "3", label: "Среда" },
+  { value: "4", label: "Четверг" },
+  { value: "5", label: "Пятница" },
+  { value: "6", label: "Суббота" },
+  { value: "0", label: "Воскресенье" },
+];
+
+function getNormalizedSchedule(draft: ScheduleDraft): string {
+  return draft.mode === "custom" ? draft.custom.trim() : buildSchedule(draft);
+}
+
 export function TaskFormFields({ value, onChange, namespaceOptions, passwordConfigured, secretConfigured, onCreateNamespace }: Props) {
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft>(() => parseSchedule(value.schedule));
+
+  useEffect(() => {
+    setScheduleDraft((current) => {
+      const currentSchedule = getNormalizedSchedule(current);
+      const nextSchedule = value.schedule.trim();
+
+      if (currentSchedule === nextSchedule) {
+        return current;
+      }
+
+      return parseSchedule(value.schedule);
+    });
+  }, [value.schedule]);
+
+  useEffect(() => {
+    if (scheduleDraft.mode === "custom") {
+      return;
+    }
+
+    const nextSchedule = buildSchedule(scheduleDraft);
+    if (nextSchedule !== value.schedule) {
+      onChange({ ...value, schedule: nextSchedule });
+    }
+  }, [onChange, scheduleDraft, value]);
+
   const update = (key: keyof TaskPayload) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     onChange({ ...value, [key]: event.target.value });
   };
+
+  const updateScheduleDraft = (patch: Partial<ScheduleDraft>) => {
+    setScheduleDraft((current) => ({ ...current, ...patch }));
+  };
+
+  const handleScheduleModeChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextMode = event.target.value as ScheduleMode;
+    setScheduleDraft((current) => ({
+      ...current,
+      mode: nextMode,
+      custom: current.custom || value.schedule,
+    }));
+  };
+
+  const cronPreview = getNormalizedSchedule(scheduleDraft) || "Не задано";
 
   return (
     <div className="card form-grid">
@@ -40,11 +104,94 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
           </button>
         </div>
       </label>
-      <label>
-        <span>Расписание</span>
-        <small className="field-help">Cron-выражение, определяющее частоту запуска резервного копирования.</small>
-        <input value={value.schedule} onChange={update("schedule")} placeholder="0 * * * *" required />
-      </label>
+      <div className="schedule-field">
+        <div>
+          <span>Расписание</span>
+          <small className="field-help">Выберите готовый режим запуска, а интерфейс сам соберет cron-выражение.</small>
+        </div>
+        <div className="schedule-grid">
+          <label>
+            <span>Режим</span>
+            <select value={scheduleDraft.mode} onChange={handleScheduleModeChange}>
+              {scheduleModeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {scheduleDraft.mode === "hourly" ? (
+            <label>
+              <span>Минута часа</span>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                value={scheduleDraft.minute}
+                onChange={(event) => updateScheduleDraft({ minute: event.target.value })}
+              />
+            </label>
+          ) : null}
+
+          {scheduleDraft.mode === "daily" || scheduleDraft.mode === "weekly" || scheduleDraft.mode === "monthly" ? (
+            <label>
+              <span>Время</span>
+              <input
+                type="time"
+                value={scheduleDraft.time}
+                onChange={(event) => updateScheduleDraft({ time: event.target.value })}
+              />
+            </label>
+          ) : null}
+
+          {scheduleDraft.mode === "weekly" ? (
+            <label>
+              <span>День недели</span>
+              <select value={scheduleDraft.weekday} onChange={(event) => updateScheduleDraft({ weekday: event.target.value })}>
+                {weekdayOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {scheduleDraft.mode === "monthly" ? (
+            <label>
+              <span>День месяца</span>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={scheduleDraft.monthDay}
+                onChange={(event) => updateScheduleDraft({ monthDay: event.target.value })}
+              />
+            </label>
+          ) : null}
+
+          {scheduleDraft.mode === "custom" ? (
+            <label className="schedule-grid-full">
+              <span>Cron-выражение</span>
+              <input
+                value={scheduleDraft.custom}
+                onChange={(event) => {
+                  const nextCustom = event.target.value;
+                  updateScheduleDraft({ custom: nextCustom });
+                  onChange({ ...value, schedule: nextCustom });
+                }}
+                placeholder="0 * * * *"
+                required
+              />
+            </label>
+          ) : null}
+        </div>
+        <div className="schedule-preview">
+          <span>Итоговый cron</span>
+          <code>{cronPreview}</code>
+        </div>
+      </div>
       <label>
         <span>Префикс имени файла</span>
         <small className="field-help">Префикс, который будет добавляться к имени каждого созданного дампа.</small>

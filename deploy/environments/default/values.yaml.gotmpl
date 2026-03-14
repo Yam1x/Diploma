@@ -1,16 +1,11 @@
 namespace: {{ env "ORCHESTRATOR_NAMESPACE" | default "diploma-system" }}
 
-apiImageRepository: {{ env "API_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-api" }}
-apiImageTag: {{ env "API_IMAGE_TAG" | default "latest" }}
-apiImagePullPolicy: Always
-apiPort: 8000
-
 postgresql:
   auth:
     postgresPassword: postgres
     database: orchestrator
   service:
-    host: diploma-orchestrator-postgresql
+    host: postgresql
     port: 5432
 
 backupImage:
@@ -30,11 +25,6 @@ minio:
   defaultBuckets: backups
   apiHost: minio-s3
   consoleHost: minio-s3-console
-
-uiImageRepository: {{ env "UI_IMAGE_REPOSITORY" | default "ghcr.io/yam1x/diploma-orchestrator-ui" }}
-uiImageTag: {{ env "UI_IMAGE_TAG" | default "latest" }}
-uiImagePullPolicy: Always
-uiPort: 80
 
 ingress:
   host: localhost
