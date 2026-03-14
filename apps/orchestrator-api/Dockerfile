@@ -16,7 +16,6 @@ COPY apps/orchestrator-api/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY apps/orchestrator-api /app
-COPY diploma-db-backupper /app/diploma-db-backupper
 
 EXPOSE 8000
 

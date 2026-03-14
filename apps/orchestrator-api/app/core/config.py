@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     backup_image_repository: str = "Yam1x/diploma-db-backupper"
     backup_image_tag: str = "latest"
     backup_image_pull_policy: str = "Always"
+    backup_chart_repository_url: str = "https://github.com/Yam1x/Diploma.git"
+    backup_chart_ref: str = "master"
+    backup_chart_path: str = "diploma-db-backupper/ci"
 
 
 @lru_cache

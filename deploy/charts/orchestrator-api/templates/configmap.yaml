@@ -9,3 +9,6 @@ data:
   ORCHESTRATOR_BACKUP_IMAGE_REPOSITORY: {{ .Values.config.backupImage.repository | quote }}
   ORCHESTRATOR_BACKUP_IMAGE_TAG: {{ .Values.config.backupImage.tag | quote }}
   ORCHESTRATOR_BACKUP_IMAGE_PULL_POLICY: {{ .Values.config.backupImage.pullPolicy | quote }}
+  ORCHESTRATOR_BACKUP_CHART_REPOSITORY_URL: {{ .Values.config.backupChart.repositoryUrl | quote }}
+  ORCHESTRATOR_BACKUP_CHART_REF: {{ .Values.config.backupChart.ref | quote }}
+  ORCHESTRATOR_BACKUP_CHART_PATH: {{ .Values.config.backupChart.path | quote }}

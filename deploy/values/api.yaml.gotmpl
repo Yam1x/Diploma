@@ -15,3 +15,7 @@ config:
     repository: {{ .Values.backupImage.repository | quote }}
     tag: {{ .Values.backupImage.tag | quote }}
     pullPolicy: {{ .Values.backupImage.pullPolicy | quote }}
+  backupChart:
+    repositoryUrl: {{ .Values.backupChart.repositoryUrl | quote }}
+    ref: {{ .Values.backupChart.ref | quote }}
+    path: {{ .Values.backupChart.path | quote }}
