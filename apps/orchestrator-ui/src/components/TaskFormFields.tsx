@@ -50,32 +50,30 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
     });
   }, [value.schedule]);
 
-  useEffect(() => {
-    if (scheduleDraft.mode === "custom") {
-      return;
-    }
-
-    const nextSchedule = buildSchedule(scheduleDraft);
-    if (nextSchedule !== value.schedule) {
-      onChange({ ...value, schedule: nextSchedule });
-    }
-  }, [onChange, scheduleDraft, value]);
-
   const update = (key: keyof TaskPayload) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     onChange({ ...value, [key]: event.target.value });
   };
 
+  const applyScheduleDraft = (nextDraft: ScheduleDraft) => {
+    setScheduleDraft(nextDraft);
+
+    const nextSchedule = getNormalizedSchedule(nextDraft);
+    if (nextSchedule !== value.schedule) {
+      onChange({ ...value, schedule: nextSchedule });
+    }
+  };
+
   const updateScheduleDraft = (patch: Partial<ScheduleDraft>) => {
-    setScheduleDraft((current) => ({ ...current, ...patch }));
+    applyScheduleDraft({ ...scheduleDraft, ...patch });
   };
 
   const handleScheduleModeChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const nextMode = event.target.value as ScheduleMode;
-    setScheduleDraft((current) => ({
-      ...current,
+    applyScheduleDraft({
+      ...scheduleDraft,
       mode: nextMode,
-      custom: current.custom || value.schedule,
-    }));
+      custom: scheduleDraft.custom || value.schedule,
+    });
   };
 
   const cronPreview = getNormalizedSchedule(scheduleDraft) || "Не задано";
@@ -178,8 +176,7 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
                 value={scheduleDraft.custom}
                 onChange={(event) => {
                   const nextCustom = event.target.value;
-                  updateScheduleDraft({ custom: nextCustom });
-                  onChange({ ...value, schedule: nextCustom });
+                  applyScheduleDraft({ ...scheduleDraft, custom: nextCustom });
                 }}
                 placeholder="0 * * * *"
                 required
