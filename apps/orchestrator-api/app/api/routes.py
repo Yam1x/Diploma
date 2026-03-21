@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_minio_browser_service, get_task_service
 from app.schemas.minio import MinioObjectsResponse
@@ -46,6 +47,27 @@ def list_minio_objects(
     service: MinioBrowserService = Depends(get_minio_browser_service),
 ) -> MinioObjectsResponse:
     return service.list_objects(prefix)
+
+
+@api_router.get("/minio/objects/download")
+def download_minio_object(
+    key: str = Query(min_length=1, max_length=1024),
+    service: MinioBrowserService = Depends(get_minio_browser_service),
+) -> StreamingResponse:
+    stream, filename, content_type = service.get_object_stream(key)
+    return StreamingResponse(
+        stream,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@api_router.delete("/minio/objects", status_code=204)
+def delete_minio_object(
+    key: str = Query(min_length=1, max_length=1024),
+    service: MinioBrowserService = Depends(get_minio_browser_service),
+) -> None:
+    service.delete_object(key)
 
 
 @api_router.get("/tasks", response_model=list[TaskSummary])

@@ -167,5 +167,7 @@ export const api = {
     const query = prefix ? `?prefix=${encodeURIComponent(prefix)}` : "";
     return request<MinioObjectsResponse>(`/minio/objects${query}`);
   },
+  buildMinioObjectDownloadUrl: (key: string) => `${API_BASE_URL}/minio/objects/download?key=${encodeURIComponent(key)}`,
+  deleteMinioObject: (key: string) => request<void>(`/minio/objects?key=${encodeURIComponent(key)}`, { method: "DELETE" }),
   createNamespace: (payload: NamespacePayload) => request<{ name: string }>("/namespaces", { method: "POST", body: JSON.stringify(payload) }),
 };

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from pathlib import PurePosixPath
+
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
@@ -49,3 +52,33 @@ class MinioBrowserService:
             prefix=normalized_prefix,
             objects=objects,
         )
+
+    def delete_object(self, key: str) -> None:
+        normalized_key = self._normalize_key(key)
+
+        try:
+            self.client.delete_object(Bucket=self.settings.minio_bucket_name, Key=normalized_key)
+        except (BotoCoreError, ClientError) as exc:
+            raise HTTPException(status_code=502, detail=f"Не удалось удалить файл MinIO: {exc}") from exc
+
+    def get_object_stream(self, key: str) -> tuple[Iterator[bytes], str, str]:
+        normalized_key = self._normalize_key(key)
+
+        try:
+            response = self.client.get_object(Bucket=self.settings.minio_bucket_name, Key=normalized_key)
+        except self.client.exceptions.NoSuchKey as exc:
+            raise HTTPException(status_code=404, detail="Файл MinIO не найден") from exc
+        except (BotoCoreError, ClientError) as exc:
+            raise HTTPException(status_code=502, detail=f"Не удалось скачать файл MinIO: {exc}") from exc
+
+        body = response["Body"]
+        content_type = response.get("ContentType") or "application/octet-stream"
+        filename = PurePosixPath(normalized_key).name or "download"
+        return body.iter_chunks(), filename, content_type
+
+    @staticmethod
+    def _normalize_key(key: str) -> str:
+        normalized_key = key.strip()
+        if not normalized_key:
+            raise HTTPException(status_code=400, detail="Ключ файла MinIO не указан")
+        return normalized_key

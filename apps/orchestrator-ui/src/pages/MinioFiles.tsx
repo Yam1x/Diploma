@@ -21,6 +21,7 @@ export function MinioFilesPage() {
   const [appliedPrefix, setAppliedPrefix] = useState("");
   const [objects, setObjects] = useState<MinioObjectSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load(nextPrefix = appliedPrefix) {
@@ -45,6 +46,23 @@ export function MinioFilesPage() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     void load(prefix);
+  }
+
+  async function handleDelete(key: string) {
+    if (!window.confirm(`Удалить файл \"${key}\"?`)) {
+      return;
+    }
+
+    try {
+      setBusyKey(key);
+      await api.deleteMinioObject(key);
+      await load(appliedPrefix);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить файл MinIO");
+    } finally {
+      setBusyKey(null);
+    }
   }
 
   return (
@@ -98,20 +116,33 @@ export function MinioFilesPage() {
               <th>Размер</th>
               <th>Изменён</th>
               <th>ETag</th>
+              <th />
             </tr>
           </thead>
           <tbody>
-            {objects.map((object) => (
-              <tr key={object.key}>
-                <td>{object.key}</td>
-                <td>{formatSize(object.size)}</td>
-                <td>{object.lastModified ? new Date(object.lastModified).toLocaleString() : "Неизвестно"}</td>
-                <td>{object.etag ?? "-"}</td>
-              </tr>
-            ))}
+            {objects.map((object) => {
+              const isBusy = busyKey === object.key;
+
+              return (
+                <tr key={object.key}>
+                  <td>{object.key}</td>
+                  <td>{formatSize(object.size)}</td>
+                  <td>{object.lastModified ? new Date(object.lastModified).toLocaleString() : "Неизвестно"}</td>
+                  <td>{object.etag ?? "-"}</td>
+                  <td className="row-actions">
+                    <a className="button ghost" href={api.buildMinioObjectDownloadUrl(object.key)}>
+                      Скачать
+                    </a>
+                    <button className="button danger" type="button" disabled={isBusy} onClick={() => void handleDelete(object.key)}>
+                      {isBusy ? "Удаляем..." : "Удалить"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {objects.length === 0 ? (
               <tr>
-                <td className="empty-state" colSpan={4}>
+                <td className="empty-state" colSpan={5}>
                   {loading ? "Загружаем список файлов..." : "Файлы по выбранному префиксу не найдены."}
                 </td>
               </tr>
