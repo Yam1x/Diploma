@@ -105,7 +105,7 @@ function buildDbHostOptions(discovery: ServiceDiscoveryResponse): DiscoveryOptio
   }));
 }
 
-function buildSourceS3EndpointOptions(discovery: ServiceDiscoveryResponse): DiscoveryOption[] {
+function buildS3EndpointOptions(discovery: ServiceDiscoveryResponse): DiscoveryOption[] {
   return discovery.services.flatMap((service) => service.endpoints);
 }
 
@@ -247,7 +247,7 @@ export function TaskFormPage() {
 
   const activeTaskType = value ? getTaskTypeByServiceType(value.serviceType) : selectedTaskType;
   const dbHostOptions = useMemo(() => buildDbHostOptions(serviceDiscovery), [serviceDiscovery]);
-  const sourceS3EndpointOptions = useMemo(() => buildSourceS3EndpointOptions(serviceDiscovery), [serviceDiscovery]);
+  const s3EndpointOptions = useMemo(() => buildS3EndpointOptions(serviceDiscovery), [serviceDiscovery]);
 
   return (
     <section className="stack">
@@ -273,7 +273,7 @@ export function TaskFormPage() {
             namespaceOptions={namespaces}
             configuredSecrets={configuredSecrets}
             dbHostOptions={dbHostOptions}
-            sourceS3EndpointOptions={sourceS3EndpointOptions}
+            s3EndpointOptions={s3EndpointOptions}
             serviceDiscoveryLoading={serviceDiscoveryLoading}
             serviceDiscoveryError={serviceDiscoveryError}
             onCreateNamespace={() => void handleCreateNamespace()}

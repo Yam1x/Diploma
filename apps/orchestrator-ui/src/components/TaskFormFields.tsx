@@ -21,7 +21,7 @@ type Props = {
   namespaceOptions: string[];
   configuredSecrets?: ConfiguredSecrets;
   dbHostOptions?: DiscoveryOption[];
-  sourceS3EndpointOptions?: DiscoveryOption[];
+  s3EndpointOptions?: DiscoveryOption[];
   serviceDiscoveryLoading?: boolean;
   serviceDiscoveryError?: string | null;
   onCreateNamespace?: () => void;
@@ -90,7 +90,7 @@ export function TaskFormFields({
   namespaceOptions,
   configuredSecrets,
   dbHostOptions = [],
-  sourceS3EndpointOptions = [],
+  s3EndpointOptions = [],
   serviceDiscoveryLoading = false,
   serviceDiscoveryError,
   onCreateNamespace,
@@ -296,7 +296,16 @@ export function TaskFormFields({
           <label>
             <span>S3 endpoint</span>
             <small className="field-help">Адрес S3-совместимого хранилища, в которое будут отправляться резервные копии.</small>
-            <input value={value.destinationAwsEndpoint} onChange={update("destinationAwsEndpoint")} required />
+            <div className="discovery-field">
+              <input value={value.destinationAwsEndpoint} onChange={update("destinationAwsEndpoint")} required />
+              <DiscoverySelect
+                ariaLabel="Service Discovery: S3 endpoint для db backupper"
+                placeholder={serviceDiscoveryPlaceholder}
+                options={s3EndpointOptions}
+                disabled={!serviceDiscoveryEnabled || s3EndpointOptions.length === 0}
+                onSelect={(nextValue) => updateValue({ destinationAwsEndpoint: nextValue })}
+              />
+            </div>
           </label>
           <label>
             <span>S3 bucket</span>
@@ -329,8 +338,8 @@ export function TaskFormFields({
               <DiscoverySelect
                 ariaLabel="Service Discovery: source S3 endpoint"
                 placeholder={serviceDiscoveryPlaceholder}
-                options={sourceS3EndpointOptions}
-                disabled={!serviceDiscoveryEnabled || sourceS3EndpointOptions.length === 0}
+                options={s3EndpointOptions}
+                disabled={!serviceDiscoveryEnabled || s3EndpointOptions.length === 0}
                 onSelect={(nextValue) => updateValue({ sourceS3AwsEndpoint: nextValue })}
               />
             </div>
