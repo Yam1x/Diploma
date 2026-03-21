@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
@@ -20,6 +21,10 @@ from app.schemas.task import (
     S3TaskDetail,
     S3TaskSummary,
     S3TaskUpdate,
+    ServiceDiscoveryEndpoint,
+    ServiceDiscoveryResponse,
+    ServiceDiscoveryService,
+    ServiceDiscoveryServicePort,
     TaskCreate,
     TaskDetail,
     TaskSummary,
@@ -198,6 +203,17 @@ class TaskService:
             if "already exists" in message.lower():
                 raise HTTPException(status_code=409, detail=f"Namespace '{namespace}' уже существует") from exc
             raise HTTPException(status_code=502, detail=message) from exc
+
+    def list_service_discovery(self, namespace: str) -> ServiceDiscoveryResponse:
+        self._validate_namespace(namespace)
+        try:
+            services = self.kube.list_services(namespace)
+        except KubernetesError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        return ServiceDiscoveryResponse(
+            services=[self._build_discovered_service(service) for service in services]
+        )
 
     def _apply_db_update(self, task: Task, changes: dict) -> None:
         field_map = {
@@ -403,6 +419,37 @@ class TaskService:
             hasSourceS3AwsSecretAccessKey=bool(task.secret.source_s3_aws_secret_access_key_encrypted),
             hasDestinationS3AwsSecretAccessKey=bool(task.secret.destination_s3_aws_secret_access_key_encrypted),
         )
+
+    def _build_discovered_service(self, service: dict[str, Any]) -> ServiceDiscoveryService:
+        name = str(service["name"])
+        host = name
+        ports = [
+            ServiceDiscoveryServicePort(name=port.get("name"), port=int(port["port"]))
+            for port in service.get("ports", [])
+            if isinstance(port, dict) and isinstance(port.get("port"), int)
+        ]
+        endpoints = [self._build_discovery_endpoint(host, port) for port in ports]
+        return ServiceDiscoveryService(name=name, host=host, ports=ports, endpoints=endpoints)
+
+    @staticmethod
+    def _build_discovery_endpoint(host: str, port: ServiceDiscoveryServicePort) -> ServiceDiscoveryEndpoint:
+        scheme = TaskService._infer_service_scheme(port)
+        if (scheme == "http" and port.port == 80) or (scheme == "https" and port.port == 443):
+            value = f"{scheme}://{host}"
+        else:
+            value = f"{scheme}://{host}:{port.port}"
+
+        label = f"{host}:{port.port}"
+        if port.name:
+            label = f"{label} ({port.name})"
+        return ServiceDiscoveryEndpoint(label=label, value=value)
+
+    @staticmethod
+    def _infer_service_scheme(port: ServiceDiscoveryServicePort) -> str:
+        port_name = (port.name or "").lower()
+        if port.port in {443, 8443} or "https" in port_name or "tls" in port_name:
+            return "https"
+        return "http"
 
     @staticmethod
     def _expect_db_create(payload: TaskCreate) -> DbTaskCreate:

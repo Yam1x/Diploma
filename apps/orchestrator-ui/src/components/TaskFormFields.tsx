@@ -10,11 +10,20 @@ export type ConfiguredSecrets = {
   destinationS3AwsSecretAccessKey?: boolean;
 };
 
+export type DiscoveryOption = {
+  label: string;
+  value: string;
+};
+
 type Props = {
   value: TaskPayload;
   onChange: (next: TaskPayload) => void;
   namespaceOptions: string[];
   configuredSecrets?: ConfiguredSecrets;
+  dbHostOptions?: DiscoveryOption[];
+  sourceS3EndpointOptions?: DiscoveryOption[];
+  serviceDiscoveryLoading?: boolean;
+  serviceDiscoveryError?: string | null;
   onCreateNamespace?: () => void;
 };
 
@@ -40,7 +49,52 @@ function getNormalizedSchedule(draft: ScheduleDraft): string {
   return draft.mode === "custom" ? draft.custom.trim() : buildSchedule(draft);
 }
 
-export function TaskFormFields({ value, onChange, namespaceOptions, configuredSecrets, onCreateNamespace }: Props) {
+function DiscoverySelect({
+  ariaLabel,
+  placeholder,
+  options,
+  disabled,
+  onSelect,
+}: {
+  ariaLabel: string;
+  placeholder: string;
+  options: DiscoveryOption[];
+  disabled: boolean;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <select
+      aria-label={ariaLabel}
+      value=""
+      disabled={disabled}
+      onChange={(event) => {
+        if (!event.target.value) {
+          return;
+        }
+        onSelect(event.target.value);
+      }}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((option) => (
+        <option key={`${option.value}:${option.label}`} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+export function TaskFormFields({
+  value,
+  onChange,
+  namespaceOptions,
+  configuredSecrets,
+  dbHostOptions = [],
+  sourceS3EndpointOptions = [],
+  serviceDiscoveryLoading = false,
+  serviceDiscoveryError,
+  onCreateNamespace,
+}: Props) {
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft>(() => parseSchedule(value.schedule));
 
   useEffect(() => {
@@ -87,6 +141,12 @@ export function TaskFormFields({ value, onChange, namespaceOptions, configuredSe
   };
 
   const cronPreview = getNormalizedSchedule(scheduleDraft) || "Не задано";
+  const serviceDiscoveryPlaceholder = !value.namespace
+    ? "Сначала выберите namespace"
+    : serviceDiscoveryLoading
+      ? "Загружаем сервисы..."
+      : "Подставить из Service Discovery";
+  const serviceDiscoveryEnabled = Boolean(value.namespace) && !serviceDiscoveryLoading;
 
   return (
     <div className="card form-grid">
@@ -111,6 +171,7 @@ export function TaskFormFields({ value, onChange, namespaceOptions, configuredSe
             Создать namespace
           </button>
         </div>
+        {serviceDiscoveryError ? <small className="field-help discovery-note">Service Discovery: {serviceDiscoveryError}</small> : null}
       </label>
       <div className="schedule-field">
         <div>
@@ -206,7 +267,16 @@ export function TaskFormFields({ value, onChange, namespaceOptions, configuredSe
           <label>
             <span>Хост базы данных</span>
             <small className="field-help">Адрес PostgreSQL, к которому будет подключаться backup job.</small>
-            <input value={value.databaseHost} onChange={update("databaseHost")} required />
+            <div className="discovery-field">
+              <input value={value.databaseHost} onChange={update("databaseHost")} required />
+              <DiscoverySelect
+                ariaLabel="Service Discovery: хост базы данных"
+                placeholder={serviceDiscoveryPlaceholder}
+                options={dbHostOptions}
+                disabled={!serviceDiscoveryEnabled || dbHostOptions.length === 0}
+                onSelect={(nextValue) => updateValue({ databaseHost: nextValue })}
+              />
+            </div>
           </label>
           <label>
             <span>Имя базы данных</span>
@@ -254,7 +324,16 @@ export function TaskFormFields({ value, onChange, namespaceOptions, configuredSe
           <label>
             <span>Source S3 endpoint</span>
             <small className="field-help">Адрес исходного S3-совместимого хранилища, из которого будут считываться файлы.</small>
-            <input value={value.sourceS3AwsEndpoint} onChange={update("sourceS3AwsEndpoint")} required />
+            <div className="discovery-field">
+              <input value={value.sourceS3AwsEndpoint} onChange={update("sourceS3AwsEndpoint")} required />
+              <DiscoverySelect
+                ariaLabel="Service Discovery: source S3 endpoint"
+                placeholder={serviceDiscoveryPlaceholder}
+                options={sourceS3EndpointOptions}
+                disabled={!serviceDiscoveryEnabled || sourceS3EndpointOptions.length === 0}
+                onSelect={(nextValue) => updateValue({ sourceS3AwsEndpoint: nextValue })}
+              />
+            </div>
           </label>
           <label>
             <span>Source S3 bucket</span>

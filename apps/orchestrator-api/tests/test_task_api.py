@@ -40,6 +40,20 @@ def build_s3_payload(enabled: bool = False) -> dict:
     }
 
 
+def test_service_discovery_api(client) -> None:
+    response = client.get("/api/namespaces/default/service-discovery")
+
+    assert response.status_code == 200
+    payload = response.json()
+    services = {service["name"]: service for service in payload["services"]}
+
+    assert services["postgresql"]["host"] == "postgresql"
+    assert services["postgresql"]["ports"] == [{"name": "postgresql", "port": 5432}]
+    assert services["postgresql"]["endpoints"] == [{"label": "postgresql:5432 (postgresql)", "value": "http://postgresql:5432"}]
+    assert services["minio"]["endpoints"][0] == {"label": "minio:9000 (api)", "value": "http://minio:9000"}
+    assert services["secure-s3"]["endpoints"][0] == {"label": "secure-s3:443 (https)", "value": "https://secure-s3"}
+
+
 def test_db_task_api_lifecycle(client, fake_helm) -> None:
     create_response = client.post("/api/tasks", json=build_db_payload(enabled=True))
 

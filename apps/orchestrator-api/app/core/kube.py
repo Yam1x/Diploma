@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from typing import Any
 
 
 class KubernetesError(RuntimeError):
@@ -32,6 +33,48 @@ class KubeClient:
             for item in payload.get("items", [])
             if item["metadata"]["name"] not in self.SYSTEM_NAMESPACES
         ]
+
+    def list_services(self, namespace: str) -> list[dict[str, Any]]:
+        command = [
+            "kubectl",
+            "get",
+            "services",
+            "-n",
+            namespace,
+            "-o",
+            "json",
+        ]
+        output = self._run(command)
+        payload = json.loads(output)
+        services: list[dict[str, Any]] = []
+
+        for item in payload.get("items", []):
+            metadata = item.get("metadata", {})
+            spec = item.get("spec", {})
+            name = metadata.get("name")
+            if not name:
+                continue
+
+            ports: list[dict[str, Any]] = []
+            for port in spec.get("ports", []):
+                value = port.get("port")
+                if not isinstance(value, int):
+                    continue
+                ports.append(
+                    {
+                        "name": port.get("name"),
+                        "port": value,
+                    }
+                )
+
+            services.append(
+                {
+                    "name": name,
+                    "ports": ports,
+                }
+            )
+
+        return sorted(services, key=lambda service: str(service["name"]))
 
     def namespace_exists(self, namespace: str) -> bool:
         return namespace in self.list_namespaces()

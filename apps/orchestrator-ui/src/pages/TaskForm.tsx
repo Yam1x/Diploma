@@ -1,8 +1,8 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { DbTaskDetail, ServiceType, TaskDetail, TaskPayload, api } from "../api/client";
-import { ConfiguredSecrets, TaskFormFields } from "../components/TaskFormFields";
+import { DbTaskDetail, ServiceDiscoveryResponse, ServiceType, TaskDetail, TaskPayload, api } from "../api/client";
+import { ConfiguredSecrets, DiscoveryOption, TaskFormFields } from "../components/TaskFormFields";
 import { getTaskTypeByRouteType, getTaskTypeByServiceType } from "../config/taskTypes";
 
 function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
@@ -98,6 +98,17 @@ function buildConfiguredSecrets(detail: TaskDetail): ConfiguredSecrets {
   };
 }
 
+function buildDbHostOptions(discovery: ServiceDiscoveryResponse): DiscoveryOption[] {
+  return discovery.services.map((service) => ({
+    label: `${service.name} -> ${service.host}`,
+    value: service.host,
+  }));
+}
+
+function buildSourceS3EndpointOptions(discovery: ServiceDiscoveryResponse): DiscoveryOption[] {
+  return discovery.services.flatMap((service) => service.endpoints);
+}
+
 export function TaskFormPage() {
   const navigate = useNavigate();
   const { taskId, taskType } = useParams();
@@ -107,6 +118,9 @@ export function TaskFormPage() {
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [configuredSecrets, setConfiguredSecrets] = useState<ConfiguredSecrets>({});
+  const [serviceDiscovery, setServiceDiscovery] = useState<ServiceDiscoveryResponse>({ services: [] });
+  const [serviceDiscoveryLoading, setServiceDiscoveryLoading] = useState(false);
+  const [serviceDiscoveryError, setServiceDiscoveryError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -140,6 +154,44 @@ export function TaskFormPage() {
 
     void load();
   }, [isEditMode, selectedTaskType, taskId]);
+
+  useEffect(() => {
+    if (!value?.namespace) {
+      setServiceDiscovery({ services: [] });
+      setServiceDiscoveryError(null);
+      setServiceDiscoveryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setServiceDiscoveryLoading(true);
+
+    void api
+      .listServiceDiscovery(value.namespace)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        setServiceDiscovery(response);
+        setServiceDiscoveryError(null);
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        setServiceDiscovery({ services: [] });
+        setServiceDiscoveryError(err instanceof Error ? err.message : "Не удалось загрузить service discovery");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setServiceDiscoveryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [value?.namespace]);
 
   async function handleCreateNamespace() {
     const name = window.prompt("Введите имя namespace");
@@ -194,6 +246,8 @@ export function TaskFormPage() {
   }
 
   const activeTaskType = value ? getTaskTypeByServiceType(value.serviceType) : selectedTaskType;
+  const dbHostOptions = useMemo(() => buildDbHostOptions(serviceDiscovery), [serviceDiscovery]);
+  const sourceS3EndpointOptions = useMemo(() => buildSourceS3EndpointOptions(serviceDiscovery), [serviceDiscovery]);
 
   return (
     <section className="stack">
@@ -218,6 +272,10 @@ export function TaskFormPage() {
             onChange={setValue}
             namespaceOptions={namespaces}
             configuredSecrets={configuredSecrets}
+            dbHostOptions={dbHostOptions}
+            sourceS3EndpointOptions={sourceS3EndpointOptions}
+            serviceDiscoveryLoading={serviceDiscoveryLoading}
+            serviceDiscoveryError={serviceDiscoveryError}
             onCreateNamespace={() => void handleCreateNamespace()}
           />
           <div className="toolbar-actions">

@@ -157,3 +157,24 @@ class NamespaceCreateRequest(BaseModel):
 
 class NamespaceResponse(BaseModel):
     name: str
+
+
+class ServiceDiscoveryEndpoint(BaseModel):
+    label: str
+    value: str
+
+
+class ServiceDiscoveryServicePort(BaseModel):
+    name: str | None
+    port: int
+
+
+class ServiceDiscoveryService(BaseModel):
+    name: str
+    host: str
+    ports: list[ServiceDiscoveryServicePort]
+    endpoints: list[ServiceDiscoveryEndpoint]
+
+
+class ServiceDiscoveryResponse(BaseModel):
+    services: list[ServiceDiscoveryService]

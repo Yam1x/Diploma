@@ -46,6 +46,23 @@ def test_build_values_for_s3_task(service) -> None:
     assert values["extraConfigMapEnvVars"]["DESTINATION_S3_AWS_BUCKET_NAME"] == "destination-bucket"
 
 
+def test_build_discovered_service_generates_host_and_endpoints(service) -> None:
+    discovered = service._build_discovered_service(
+        {
+            "name": "minio",
+            "ports": [
+                {"name": "api", "port": 9000},
+                {"name": "https", "port": 443},
+            ],
+        }
+    )
+
+    assert discovered.name == "minio"
+    assert discovered.host == "minio"
+    assert [endpoint.value for endpoint in discovered.endpoints] == ["http://minio:9000", "https://minio"]
+    assert [endpoint.label for endpoint in discovered.endpoints] == ["minio:9000 (api)", "minio:443 (https)"]
+
+
 def test_validate_required_s3_secrets_requires_both_keys(service) -> None:
     task = build_s3_task()
     task.secret.source_s3_aws_secret_access_key_encrypted = None

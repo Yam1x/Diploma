@@ -52,14 +52,26 @@ class FakeHelm:
 class FakeKube:
     def __init__(self) -> None:
         self.namespaces = {"default", "backups"}
+        self.services = {
+            "default": [
+                {"name": "minio", "ports": [{"name": "api", "port": 9000}, {"name": "console", "port": 9001}]},
+                {"name": "postgresql", "ports": [{"name": "postgresql", "port": 5432}]},
+                {"name": "secure-s3", "ports": [{"name": "https", "port": 443}]},
+            ],
+            "backups": [],
+        }
 
     def list_namespaces(self) -> list[str]:
         return sorted(self.namespaces)
+
+    def list_services(self, namespace: str) -> list[dict]:
+        return list(self.services.get(namespace, []))
 
     def create_namespace(self, namespace: str) -> str:
         if namespace in self.namespaces:
             raise RuntimeError(f"Namespace {namespace} already exists")
         self.namespaces.add(namespace)
+        self.services.setdefault(namespace, [])
         return namespace
 
     def namespace_exists(self, namespace: str) -> bool:

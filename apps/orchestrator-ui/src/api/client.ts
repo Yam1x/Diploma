@@ -2,6 +2,27 @@ const API_BASE_URL = "/api";
 
 export type ServiceType = "db_backupper" | "s3_backupper";
 
+export type ServiceDiscoveryPort = {
+  name: string | null;
+  port: number;
+};
+
+export type ServiceDiscoveryEndpoint = {
+  label: string;
+  value: string;
+};
+
+export type DiscoveredService = {
+  name: string;
+  host: string;
+  ports: ServiceDiscoveryPort[];
+  endpoints: ServiceDiscoveryEndpoint[];
+};
+
+export type ServiceDiscoveryResponse = {
+  services: DiscoveredService[];
+};
+
 type TaskSummaryBase = {
   id: number;
   name: string;
@@ -127,5 +148,7 @@ export const api = {
   refreshTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/refresh`, { method: "POST" }),
   deleteTask: (taskId: string) => request<void>(`/tasks/${taskId}`, { method: "DELETE" }),
   listNamespaces: () => request<{ namespaces: string[] }>("/namespaces"),
+  listServiceDiscovery: (namespace: string) =>
+    request<ServiceDiscoveryResponse>(`/namespaces/${encodeURIComponent(namespace)}/service-discovery`),
   createNamespace: (payload: NamespacePayload) => request<{ name: string }>("/namespaces", { method: "POST", body: JSON.stringify(payload) }),
 };

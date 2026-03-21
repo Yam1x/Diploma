@@ -1,11 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, vi } from "vitest";
+import { beforeEach, test, vi } from "vitest";
 
 const { api } = vi.hoisted(() => ({
   api: {
     listNamespaces: vi.fn(),
+    listServiceDiscovery: vi.fn(),
     getTask: vi.fn(),
     createTask: vi.fn(),
     updateTask: vi.fn(),
@@ -20,6 +21,22 @@ import { TaskFormPage } from "./TaskForm";
 beforeEach(() => {
   vi.clearAllMocks();
   api.listNamespaces.mockResolvedValue({ namespaces: ["default"] });
+  api.listServiceDiscovery.mockResolvedValue({
+    services: [
+      {
+        name: "postgresql",
+        host: "postgresql",
+        ports: [{ name: "postgresql", port: 5432 }],
+        endpoints: [{ label: "postgresql:5432 (postgresql)", value: "http://postgresql:5432" }],
+      },
+      {
+        name: "minio",
+        host: "minio",
+        ports: [{ name: "api", port: 9000 }],
+        endpoints: [{ label: "minio:9000 (api)", value: "http://minio:9000" }],
+      },
+    ],
+  });
   api.createNamespace.mockResolvedValue({ name: "default" });
 });
 
@@ -35,6 +52,48 @@ test("renders s3 fields for s3 task route", async () => {
   expect(await screen.findByText("Source S3 endpoint")).toBeInTheDocument();
   expect(screen.queryByText("Хост базы данных")).not.toBeInTheDocument();
   expect(screen.getByText("Destination S3 bucket")).toBeInTheDocument();
+});
+
+test("fills database host from service discovery", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/new/db-backupper"]}>
+      <Routes>
+        <Route path="/tasks/new/:taskType" element={<TaskFormPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Хост базы данных")).toBeInTheDocument();
+
+  await user.selectOptions(screen.getAllByRole("combobox")[0], "default");
+
+  await waitFor(() => expect(api.listServiceDiscovery).toHaveBeenCalledWith("default"));
+  await user.selectOptions(screen.getByLabelText("Service Discovery: хост базы данных"), "postgresql");
+
+  expect(screen.getByDisplayValue("postgresql")).toBeInTheDocument();
+});
+
+test("fills source s3 endpoint from service discovery", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/new/s3-backupper"]}>
+      <Routes>
+        <Route path="/tasks/new/:taskType" element={<TaskFormPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Source S3 endpoint")).toBeInTheDocument();
+
+  await user.selectOptions(screen.getAllByRole("combobox")[0], "default");
+
+  await waitFor(() => expect(api.listServiceDiscovery).toHaveBeenCalledWith("default"));
+  await user.selectOptions(screen.getByLabelText("Service Discovery: source S3 endpoint"), "http://minio:9000");
+
+  expect(screen.getByDisplayValue("http://minio:9000")).toBeInTheDocument();
 });
 
 test("keeps existing s3 secrets when edit form leaves them empty", async () => {
@@ -78,6 +137,7 @@ test("keeps existing s3 secrets when edit form leaves them empty", async () => {
   );
 
   expect(await screen.findByDisplayValue("source-bucket")).toBeInTheDocument();
+  await waitFor(() => expect(api.listServiceDiscovery).toHaveBeenCalledWith("default"));
 
   await user.click(screen.getByRole("button", { name: "Сохранить задачу" }));
 

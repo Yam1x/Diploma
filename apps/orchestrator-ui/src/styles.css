@@ -148,6 +148,15 @@ select {
   flex: 0 0 auto;
 }
 
+.discovery-field {
+  display: grid;
+  gap: 10px;
+}
+
+.discovery-note {
+  display: block;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
