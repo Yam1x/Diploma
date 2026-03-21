@@ -1,14 +1,20 @@
 import { ChangeEvent, useEffect, useState } from "react";
 
-import { TaskPayload } from "../api/client";
+import { DbTaskPayload, S3TaskPayload, TaskPayload } from "../api/client";
 import { buildSchedule, parseSchedule, ScheduleDraft, ScheduleMode } from "../utils/schedule";
+
+export type ConfiguredSecrets = {
+  databasePassword?: boolean;
+  destinationAwsSecretAccessKey?: boolean;
+  sourceS3AwsSecretAccessKey?: boolean;
+  destinationS3AwsSecretAccessKey?: boolean;
+};
 
 type Props = {
   value: TaskPayload;
   onChange: (next: TaskPayload) => void;
   namespaceOptions: string[];
-  passwordConfigured?: boolean;
-  secretConfigured?: boolean;
+  configuredSecrets?: ConfiguredSecrets;
   onCreateNamespace?: () => void;
 };
 
@@ -34,7 +40,7 @@ function getNormalizedSchedule(draft: ScheduleDraft): string {
   return draft.mode === "custom" ? draft.custom.trim() : buildSchedule(draft);
 }
 
-export function TaskFormFields({ value, onChange, namespaceOptions, passwordConfigured, secretConfigured, onCreateNamespace }: Props) {
+export function TaskFormFields({ value, onChange, namespaceOptions, configuredSecrets, onCreateNamespace }: Props) {
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft>(() => parseSchedule(value.schedule));
 
   useEffect(() => {
@@ -50,8 +56,12 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
     });
   }, [value.schedule]);
 
-  const update = (key: keyof TaskPayload) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    onChange({ ...value, [key]: event.target.value });
+  const updateValue = (patch: Partial<DbTaskPayload> | Partial<S3TaskPayload>) => {
+    onChange({ ...value, ...patch } as TaskPayload);
+  };
+
+  const update = (key: string) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    updateValue({ [key]: event.target.value } as Partial<DbTaskPayload> & Partial<S3TaskPayload>);
   };
 
   const applyScheduleDraft = (nextDraft: ScheduleDraft) => {
@@ -59,7 +69,7 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
 
     const nextSchedule = getNormalizedSchedule(nextDraft);
     if (nextSchedule !== value.schedule) {
-      onChange({ ...value, schedule: nextSchedule });
+      onChange({ ...value, schedule: nextSchedule } as TaskPayload);
     }
   };
 
@@ -135,11 +145,7 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
           {scheduleDraft.mode === "daily" || scheduleDraft.mode === "weekly" || scheduleDraft.mode === "monthly" ? (
             <label>
               <span>Время</span>
-              <input
-                type="time"
-                value={scheduleDraft.time}
-                onChange={(event) => updateScheduleDraft({ time: event.target.value })}
-              />
+              <input type="time" value={scheduleDraft.time} onChange={(event) => updateScheduleDraft({ time: event.target.value })} />
             </label>
           ) : null}
 
@@ -189,61 +195,112 @@ export function TaskFormFields({ value, onChange, namespaceOptions, passwordConf
           <code>{cronPreview}</code>
         </div>
       </div>
-      <label>
-        <span>Префикс имени файла</span>
-        <small className="field-help">Префикс, который будет добавляться к имени каждого созданного дампа.</small>
-        <input value={value.dbBackupsFilenamePrefix} onChange={update("dbBackupsFilenamePrefix")} required />
-      </label>
-      <label>
-        <span>Хост базы данных</span>
-        <small className="field-help">Адрес PostgreSQL, к которому будет подключаться backup job.</small>
-        <input value={value.databaseHost} onChange={update("databaseHost")} required />
-      </label>
-      <label>
-        <span>Имя базы данных</span>
-        <small className="field-help">База данных, из которой нужно снимать резервные копии.</small>
-        <input value={value.databaseName} onChange={update("databaseName")} required />
-      </label>
-      <label>
-        <span>Пользователь базы данных</span>
-        <small className="field-help">Пользователь, от имени которого будет выполняться подключение к PostgreSQL.</small>
-        <input value={value.databaseUsername} onChange={update("databaseUsername")} required />
-      </label>
-      <label>
-        <span>Пароль базы данных {passwordConfigured ? "(настроен)" : ""}</span>
-        <small className="field-help">Пароль пользователя базы данных. Оставьте пустым, чтобы не менять уже сохранённое значение.</small>
-        <input type="password" value={value.databasePassword ?? ""} onChange={update("databasePassword")} />
-      </label>
-      <label>
-        <span>S3 endpoint</span>
-        <small className="field-help">Адрес S3-совместимого хранилища, в которое будут отправляться резервные копии.</small>
-        <input value={value.destinationAwsEndpoint} onChange={update("destinationAwsEndpoint")} required />
-      </label>
-      <label>
-        <span>S3 bucket</span>
-        <small className="field-help">Bucket, в котором будут храниться файлы резервных копий.</small>
-        <input value={value.destinationAwsBucketName} onChange={update("destinationAwsBucketName")} required />
-      </label>
-      <label>
-        <span>S3 access key</span>
-        <small className="field-help">Публичный ключ доступа для подключения к S3-хранилищу.</small>
-        <input value={value.destinationAwsAccessKeyId} onChange={update("destinationAwsAccessKeyId")} required />
-      </label>
-      <label>
-        <span>S3 secret key {secretConfigured ? "(настроен)" : ""}</span>
-        <small className="field-help">Секретный ключ доступа к S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
-        <input
-          type="password"
-          value={value.destinationAwsSecretAccessKey ?? ""}
-          onChange={update("destinationAwsSecretAccessKey")}
-        />
-      </label>
+
+      {value.serviceType === "db_backupper" ? (
+        <>
+          <label>
+            <span>Префикс имени файла</span>
+            <small className="field-help">Префикс, который будет добавляться к имени каждого созданного дампа.</small>
+            <input value={value.dbBackupsFilenamePrefix} onChange={update("dbBackupsFilenamePrefix")} required />
+          </label>
+          <label>
+            <span>Хост базы данных</span>
+            <small className="field-help">Адрес PostgreSQL, к которому будет подключаться backup job.</small>
+            <input value={value.databaseHost} onChange={update("databaseHost")} required />
+          </label>
+          <label>
+            <span>Имя базы данных</span>
+            <small className="field-help">База данных, из которой нужно снимать резервные копии.</small>
+            <input value={value.databaseName} onChange={update("databaseName")} required />
+          </label>
+          <label>
+            <span>Пользователь базы данных</span>
+            <small className="field-help">Пользователь, от имени которого будет выполняться подключение к PostgreSQL.</small>
+            <input value={value.databaseUsername} onChange={update("databaseUsername")} required />
+          </label>
+          <label>
+            <span>Пароль базы данных {configuredSecrets?.databasePassword ? "(настроен)" : ""}</span>
+            <small className="field-help">Пароль пользователя базы данных. Оставьте пустым, чтобы не менять уже сохранённое значение.</small>
+            <input type="password" value={value.databasePassword ?? ""} onChange={update("databasePassword")} />
+          </label>
+          <label>
+            <span>S3 endpoint</span>
+            <small className="field-help">Адрес S3-совместимого хранилища, в которое будут отправляться резервные копии.</small>
+            <input value={value.destinationAwsEndpoint} onChange={update("destinationAwsEndpoint")} required />
+          </label>
+          <label>
+            <span>S3 bucket</span>
+            <small className="field-help">Bucket, в котором будут храниться файлы резервных копий.</small>
+            <input value={value.destinationAwsBucketName} onChange={update("destinationAwsBucketName")} required />
+          </label>
+          <label>
+            <span>S3 access key</span>
+            <small className="field-help">Публичный ключ доступа для подключения к S3-хранилищу.</small>
+            <input value={value.destinationAwsAccessKeyId} onChange={update("destinationAwsAccessKeyId")} required />
+          </label>
+          <label>
+            <span>S3 secret key {configuredSecrets?.destinationAwsSecretAccessKey ? "(настроен)" : ""}</span>
+            <small className="field-help">Секретный ключ доступа к S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
+            <input type="password" value={value.destinationAwsSecretAccessKey ?? ""} onChange={update("destinationAwsSecretAccessKey")} />
+          </label>
+        </>
+      ) : (
+        <>
+          <label>
+            <span>Префикс имени архива</span>
+            <small className="field-help">Префикс, который будет добавляться к имени каждого архива с данными из исходного bucket.</small>
+            <input value={value.s3BackupsFilenamePrefix} onChange={update("s3BackupsFilenamePrefix")} required />
+          </label>
+          <label>
+            <span>Source S3 endpoint</span>
+            <small className="field-help">Адрес исходного S3-совместимого хранилища, из которого будут считываться файлы.</small>
+            <input value={value.sourceS3AwsEndpoint} onChange={update("sourceS3AwsEndpoint")} required />
+          </label>
+          <label>
+            <span>Source S3 bucket</span>
+            <small className="field-help">Имя bucket, содержимое которого нужно архивировать.</small>
+            <input value={value.sourceS3AwsBucketName} onChange={update("sourceS3AwsBucketName")} required />
+          </label>
+          <label>
+            <span>Source S3 subfolder</span>
+            <small className="field-help">Подкаталог внутри bucket, который нужно включить в архив.</small>
+            <input value={value.sourceS3AwsBucketSubfolderName} onChange={update("sourceS3AwsBucketSubfolderName")} required />
+          </label>
+          <label>
+            <span>Source S3 access key</span>
+            <small className="field-help">Публичный ключ доступа к исходному S3-хранилищу.</small>
+            <input value={value.sourceS3AwsAccessKeyId} onChange={update("sourceS3AwsAccessKeyId")} required />
+          </label>
+          <label>
+            <span>Source S3 secret key {configuredSecrets?.sourceS3AwsSecretAccessKey ? "(настроен)" : ""}</span>
+            <small className="field-help">Секретный ключ доступа к исходному S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
+            <input type="password" value={value.sourceS3AwsSecretAccessKey ?? ""} onChange={update("sourceS3AwsSecretAccessKey")} />
+          </label>
+          <label>
+            <span>Destination S3 endpoint</span>
+            <small className="field-help">Адрес целевого S3-совместимого хранилища, куда будет отправлен архив.</small>
+            <input value={value.destinationS3AwsEndpoint} onChange={update("destinationS3AwsEndpoint")} required />
+          </label>
+          <label>
+            <span>Destination S3 bucket</span>
+            <small className="field-help">Bucket, в который будет загружен сформированный архив.</small>
+            <input value={value.destinationS3AwsBucketName} onChange={update("destinationS3AwsBucketName")} required />
+          </label>
+          <label>
+            <span>Destination S3 access key</span>
+            <small className="field-help">Публичный ключ доступа к целевому S3-хранилищу.</small>
+            <input value={value.destinationS3AwsAccessKeyId} onChange={update("destinationS3AwsAccessKeyId")} required />
+          </label>
+          <label>
+            <span>Destination S3 secret key {configuredSecrets?.destinationS3AwsSecretAccessKey ? "(настроен)" : ""}</span>
+            <small className="field-help">Секретный ключ доступа к целевому S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
+            <input type="password" value={value.destinationS3AwsSecretAccessKey ?? ""} onChange={update("destinationS3AwsSecretAccessKey")} />
+          </label>
+        </>
+      )}
+
       <label className="toggle">
-        <input
-          type="checkbox"
-          checked={value.enabled}
-          onChange={(event) => onChange({ ...value, enabled: event.target.checked })}
-        />
+        <input type="checkbox" checked={value.enabled} onChange={(event) => onChange({ ...value, enabled: event.target.checked } as TaskPayload)} />
         <span>Включить деплой после сохранения</span>
       </label>
     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { api, TaskDetail } from "../api/client";
+import { TaskDetail, api } from "../api/client";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
@@ -23,8 +23,48 @@ function formatApplyStatus(status: string | null) {
   return labels[status] ?? status;
 }
 
-function formatServiceType(serviceType: string) {
+function formatServiceType(serviceType: TaskDetail["serviceType"]) {
   return getTaskTypeByServiceType(serviceType)?.title ?? serviceType;
+}
+
+function renderTaskParameters(task: TaskDetail) {
+  if (task.serviceType === "db_backupper") {
+    return (
+      <article className="card">
+        <h3>Параметры выполнения</h3>
+        <dl>
+          <dt>Хост базы данных</dt>
+          <dd>{task.databaseHost}</dd>
+          <dt>Имя базы данных</dt>
+          <dd>{task.databaseName}</dd>
+          <dt>Пользователь базы данных</dt>
+          <dd>{task.databaseUsername}</dd>
+          <dt>S3 endpoint</dt>
+          <dd>{task.destinationAwsEndpoint}</dd>
+          <dt>S3 bucket</dt>
+          <dd>{task.destinationAwsBucketName}</dd>
+        </dl>
+      </article>
+    );
+  }
+
+  return (
+    <article className="card">
+      <h3>Параметры выполнения</h3>
+      <dl>
+        <dt>Source S3 endpoint</dt>
+        <dd>{task.sourceS3AwsEndpoint}</dd>
+        <dt>Source S3 bucket</dt>
+        <dd>{task.sourceS3AwsBucketName}</dd>
+        <dt>Source S3 subfolder</dt>
+        <dd>{task.sourceS3AwsBucketSubfolderName}</dd>
+        <dt>Destination S3 endpoint</dt>
+        <dd>{task.destinationS3AwsEndpoint}</dd>
+        <dt>Destination S3 bucket</dt>
+        <dd>{task.destinationS3AwsBucketName}</dd>
+      </dl>
+    </article>
+  );
 }
 
 export function TaskDetailsPage() {
@@ -95,7 +135,7 @@ export function TaskDetailsPage() {
             Обновить
           </button>
           {task.enabled ? (
-            <button className="button danger" onClick={() => void run(() => api.disableTask(String(task.id))) }>
+            <button className="button danger" onClick={() => void run(() => api.disableTask(String(task.id)))}>
               Выключить
             </button>
           ) : (
@@ -121,8 +161,8 @@ export function TaskDetailsPage() {
             <dd>{formatServiceType(task.serviceType)}</dd>
             <dt>Расписание</dt>
             <dd>{task.schedule}</dd>
-            <dt>Префикс имени файла</dt>
-            <dd>{task.dbBackupsFilenamePrefix}</dd>
+            <dt>{task.serviceType === "db_backupper" ? "Префикс имени файла" : "Префикс имени архива"}</dt>
+            <dd>{task.serviceType === "db_backupper" ? task.dbBackupsFilenamePrefix : task.s3BackupsFilenamePrefix}</dd>
           </dl>
         </article>
         <article className="card">
@@ -138,21 +178,7 @@ export function TaskDetailsPage() {
             <dd>{task.lastApplyMessage ?? "Сообщений пока нет"}</dd>
           </dl>
         </article>
-        <article className="card">
-          <h3>Параметры выполнения</h3>
-          <dl>
-            <dt>Хост базы данных</dt>
-            <dd>{task.databaseHost}</dd>
-            <dt>Имя базы данных</dt>
-            <dd>{task.databaseName}</dd>
-            <dt>Пользователь базы данных</dt>
-            <dd>{task.databaseUsername}</dd>
-            <dt>S3 endpoint</dt>
-            <dd>{task.destinationAwsEndpoint}</dd>
-            <dt>S3 bucket</dt>
-            <dd>{task.destinationAwsBucketName}</dd>
-          </dl>
-        </article>
+        {renderTaskParameters(task)}
       </div>
     </section>
   );

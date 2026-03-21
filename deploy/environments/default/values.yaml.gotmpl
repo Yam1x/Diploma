@@ -1,4 +1,4 @@
-namespace: {{ env "ORCHESTRATOR_NAMESPACE" | default "diploma-system" }}
+namespace: local
 
 postgresql:
   auth:
@@ -8,16 +8,27 @@ postgresql:
     host: postgresql
     port: 5432
 
-backupImage:
-  registry: ghcr.io
-  repository: yam1x/diploma-db-backupper
-  tag: latest
-  pullPolicy: Always
+dbBackupper:
+  image:
+    registry: ghcr.io
+    repository: yam1x/diploma-db-backupper
+    tag: latest
+    pullPolicy: Always
+  chart:
+    repositoryUrl: https://github.com/Yam1x/Diploma.git
+    ref: master
+    path: diploma-db-backupper/ci
 
-backupChart:
-  repositoryUrl: https://github.com/Yam1x/Diploma.git
-  ref: master
-  path: diploma-db-backupper/ci
+s3Backupper:
+  image:
+    registry: ghcr.io
+    repository: yam1x/diploma-s3-backupper
+    tag: latest
+    pullPolicy: Always
+  chart:
+    repositoryUrl: https://github.com/Yam1x/Diploma.git
+    ref: master
+    path: diploma-s3-backupper/ci
 
 minio:
   auth:

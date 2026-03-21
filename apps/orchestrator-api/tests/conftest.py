@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+from collections.abc import Generator
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+import app.main as main_module
+from app.api.deps import get_task_service
+from app.db import Base
+from app.services.task_service import TaskService
+
+
+class FakeHelm:
+    def __init__(self) -> None:
+        self.upgrade_calls: list[dict] = []
+        self.uninstall_calls: list[tuple[str, str]] = []
+        self.status_messages: dict[tuple[str, str], str] = {}
+
+    def upgrade_install(
+        self,
+        release_name: str,
+        namespace: str,
+        values: dict,
+        chart_repository_url: str | None = None,
+        chart_ref: str | None = None,
+        chart_path: str | None = None,
+    ) -> str:
+        self.upgrade_calls.append(
+            {
+                "release_name": release_name,
+                "namespace": namespace,
+                "values": values,
+                "chart_repository_url": chart_repository_url,
+                "chart_ref": chart_ref,
+                "chart_path": chart_path,
+            }
+        )
+        return "Release applied"
+
+    def uninstall(self, release_name: str, namespace: str) -> str:
+        self.uninstall_calls.append((release_name, namespace))
+        return "Release removed"
+
+    def status(self, release_name: str, namespace: str) -> str:
+        return self.status_messages.get((release_name, namespace), f"status for {release_name}")
+
+
+class FakeKube:
+    def __init__(self) -> None:
+        self.namespaces = {"default", "backups"}
+
+    def list_namespaces(self) -> list[str]:
+        return sorted(self.namespaces)
+
+    def create_namespace(self, namespace: str) -> str:
+        if namespace in self.namespaces:
+            raise RuntimeError(f"Namespace {namespace} already exists")
+        self.namespaces.add(namespace)
+        return namespace
+
+    def namespace_exists(self, namespace: str) -> bool:
+        return namespace in self.namespaces
+
+
+@pytest.fixture
+def fake_helm() -> FakeHelm:
+    return FakeHelm()
+
+
+@pytest.fixture
+def fake_kube() -> FakeKube:
+    return FakeKube()
+
+
+@pytest.fixture
+def db_session() -> Generator[Session, None, None]:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    session = session_local()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def service(db_session: Session, fake_helm: FakeHelm, fake_kube: FakeKube) -> TaskService:
+    return TaskService(db=db_session, helm=fake_helm, kube=fake_kube)
+
+
+@pytest.fixture
+def client(
+    db_session: Session,
+    fake_helm: FakeHelm,
+    fake_kube: FakeKube,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[TestClient, None, None]:
+    monkeypatch.setattr(main_module, "init_db", lambda: None)
+
+    def override_get_task_service() -> TaskService:
+        return TaskService(db=db_session, helm=fake_helm, kube=fake_kube)
+
+    main_module.app.dependency_overrides[get_task_service] = override_get_task_service
+    with TestClient(main_module.app) as test_client:
+        yield test_client
+    main_module.app.dependency_overrides.clear()

@@ -1,32 +1,54 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class TaskBase(BaseModel):
+class TaskRequestBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=120)
     namespace: str = Field(min_length=1, max_length=120)
     enabled: bool = False
-    serviceType: Literal["db_backupper"] = "db_backupper"
     schedule: str = Field(min_length=1, max_length=120)
+
+
+class DbTaskCreate(TaskRequestBase):
+    serviceType: Literal["db_backupper"]
     dbBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
     databaseHost: str = Field(min_length=1, max_length=255)
     databaseName: str = Field(min_length=1, max_length=120)
     databaseUsername: str = Field(min_length=1, max_length=120)
+    databasePassword: str = Field(min_length=1)
     destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
     destinationAwsBucketName: str = Field(min_length=1, max_length=120)
     destinationAwsAccessKeyId: str = Field(min_length=1, max_length=255)
-
-
-class TaskCreate(TaskBase):
-    databasePassword: str = Field(min_length=1)
     destinationAwsSecretAccessKey: str = Field(min_length=1)
 
 
-class TaskUpdate(BaseModel):
+class S3TaskCreate(TaskRequestBase):
+    serviceType: Literal["s3_backupper"]
+    s3BackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
+    sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
+    sourceS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    sourceS3AwsBucketName: str = Field(min_length=1, max_length=120)
+    sourceS3AwsBucketSubfolderName: str = Field(min_length=1, max_length=255)
+    sourceS3AwsSecretAccessKey: str = Field(min_length=1)
+    destinationS3AwsEndpoint: str = Field(min_length=1, max_length=255)
+    destinationS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    destinationS3AwsBucketName: str = Field(min_length=1, max_length=120)
+    destinationS3AwsSecretAccessKey: str = Field(min_length=1)
+
+
+TaskCreate: TypeAlias = Annotated[DbTaskCreate | S3TaskCreate, Field(discriminator="serviceType")]
+
+
+class DbTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["db_backupper"]
     name: str | None = Field(default=None, min_length=1, max_length=120)
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
@@ -42,14 +64,37 @@ class TaskUpdate(BaseModel):
     destinationAwsSecretAccessKey: str | None = None
 
 
-class TaskSummary(BaseModel):
+class S3TaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["s3_backupper"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsSecretAccessKey: str | None = None
+    destinationS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    destinationS3AwsSecretAccessKey: str | None = None
+
+
+TaskUpdate: TypeAlias = Annotated[DbTaskUpdate | S3TaskUpdate, Field(discriminator="serviceType")]
+
+
+class TaskSummaryBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
     namespace: str
     enabled: bool
-    serviceType: str
+    serviceType: Literal["db_backupper", "s3_backupper"]
     schedule: str
     deployed: bool
     releaseName: str
@@ -59,7 +104,18 @@ class TaskSummary(BaseModel):
     updatedAt: datetime
 
 
-class TaskDetail(TaskSummary):
+class DbTaskSummary(TaskSummaryBase):
+    serviceType: Literal["db_backupper"]
+
+
+class S3TaskSummary(TaskSummaryBase):
+    serviceType: Literal["s3_backupper"]
+
+
+TaskSummary: TypeAlias = Annotated[DbTaskSummary | S3TaskSummary, Field(discriminator="serviceType")]
+
+
+class DbTaskDetail(DbTaskSummary):
     dbBackupsFilenamePrefix: str
     databaseHost: str
     databaseName: str
@@ -69,6 +125,22 @@ class TaskDetail(TaskSummary):
     destinationAwsAccessKeyId: str
     hasDatabasePassword: bool
     hasDestinationAwsSecretAccessKey: bool
+
+
+class S3TaskDetail(S3TaskSummary):
+    s3BackupsFilenamePrefix: str
+    sourceS3AwsEndpoint: str
+    sourceS3AwsAccessKeyId: str
+    sourceS3AwsBucketName: str
+    sourceS3AwsBucketSubfolderName: str
+    destinationS3AwsEndpoint: str
+    destinationS3AwsAccessKeyId: str
+    destinationS3AwsBucketName: str
+    hasSourceS3AwsSecretAccessKey: bool
+    hasDestinationS3AwsSecretAccessKey: bool
+
+
+TaskDetail: TypeAlias = Annotated[DbTaskDetail | S3TaskDetail, Field(discriminator="serviceType")]
 
 
 class HealthResponse(BaseModel):

@@ -1,97 +1,57 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from __future__ import annotations
 
-from app.db import Base
-from app.schemas.task import TaskCreate, TaskUpdate
-from app.services.task_service import TaskService
+import pytest
+from fastapi import HTTPException
 
-
-class FakeHelm:
-    def upgrade_install(self, release_name: str, namespace: str, values: dict) -> str:
-        return "ok"
-
-    def uninstall(self, release_name: str, namespace: str) -> str:
-        return "removed"
-
-    def status(self, release_name: str, namespace: str) -> str:
-        return "deployed"
+from app.models.task import ServiceType, Task, TaskSecret
 
 
-class FakeKube:
-    def list_namespaces(self) -> list[str]:
-        return ["default", "backup"]
-
-    def namespace_exists(self, namespace: str) -> bool:
-        return namespace in self.list_namespaces()
-
-
-def make_service() -> TaskService:
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine, expire_on_commit=False)()
-    return TaskService(session, helm=FakeHelm(), kube=FakeKube())
-
-
-def task_payload(enabled: bool = False) -> TaskCreate:
-    return TaskCreate(
-        name="Primary DB",
+def build_s3_task() -> Task:
+    task = Task(
+        name="Bucket archive",
         namespace="default",
-        enabled=enabled,
+        service_type=ServiceType.S3_BACKUPPER,
+        enabled=False,
         schedule="0 * * * *",
-        dbBackupsFilenamePrefix="backup",
-        databaseHost="postgres",
-        databaseName="app",
-        databaseUsername="app",
-        databasePassword="secret",
-        destinationAwsEndpoint="https://s3.local",
-        destinationAwsBucketName="bucket",
-        destinationAwsAccessKeyId="key",
-        destinationAwsSecretAccessKey="secret-key",
+        release_name="s3-backupper-7",
+        s3_backups_filename_prefix="bucket",
+        source_s3_aws_endpoint="https://source.local",
+        source_s3_aws_access_key_id="source-key",
+        source_s3_aws_bucket_name="source-bucket",
+        source_s3_aws_bucket_subfolder_name="incoming",
+        destination_s3_aws_endpoint="https://destination.local",
+        destination_s3_aws_access_key_id="destination-key",
+        destination_s3_aws_bucket_name="destination-bucket",
     )
+    task.secret = TaskSecret(
+        source_s3_aws_secret_access_key_encrypted="source-secret",
+        destination_s3_aws_secret_access_key_encrypted="destination-secret",
+    )
+    return task
 
 
-def test_create_disabled_task_does_not_apply_release() -> None:
-    service = make_service()
-
-    result = service.create_task(task_payload(enabled=False))
-
-    assert result.enabled is False
-    assert result.lastApplyStatus is None
+def test_release_names_use_service_specific_prefix(service) -> None:
+    assert service._build_release_name(12, ServiceType.DB_BACKUPPER) == "db-backupper-12"
+    assert service._build_release_name(12, ServiceType.S3_BACKUPPER) == "s3-backupper-12"
 
 
-def test_create_enabled_task_applies_release() -> None:
-    service = make_service()
+def test_build_values_for_s3_task(service) -> None:
+    task = build_s3_task()
+    config = service._get_deployment_config(ServiceType.S3_BACKUPPER, service.settings)
 
-    result = service.create_task(task_payload(enabled=True))
+    values = service._build_values(task, config)
 
-    assert result.enabled is True
-    assert result.lastApplyStatus == "deployed"
-    assert result.releaseName == "db-backupper-1"
-
-
-def test_patch_secret_empty_value_clears_secret() -> None:
-    service = make_service()
-    task = service.create_task(task_payload(enabled=False))
-
-    updated = service.update_task(task.id, TaskUpdate(databasePassword=""))
-
-    assert updated.hasDatabasePassword is False
+    assert values["image"]["repository"] == service.settings.s3_backupper_image_repository
+    assert values["extraConfigMapEnvVars"]["SOURCE_S3_AWS_BUCKET_NAME"] == "source-bucket"
+    assert values["extraConfigMapEnvVars"]["DESTINATION_S3_AWS_BUCKET_NAME"] == "destination-bucket"
 
 
-def test_disable_triggers_uninstall() -> None:
-    service = make_service()
-    created = service.create_task(task_payload(enabled=True))
+def test_validate_required_s3_secrets_requires_both_keys(service) -> None:
+    task = build_s3_task()
+    task.secret.source_s3_aws_secret_access_key_encrypted = None
 
-    disabled = service.disable_task(created.id)
+    with pytest.raises(HTTPException) as exc:
+        service._validate_required_secrets(task)
 
-    assert disabled.enabled is False
-    assert disabled.lastApplyStatus == "disabled"
-
-
-def test_refresh_updates_status_snapshot() -> None:
-    service = make_service()
-    created = service.create_task(task_payload(enabled=False))
-
-    refreshed = service.refresh_task(created.id)
-
-    assert refreshed.lastApplyStatus == "deployed"
+    assert exc.value.status_code == 400
+    assert "Source S3 AWS secret access key" in exc.value.detail

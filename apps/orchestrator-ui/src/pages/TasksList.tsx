@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { api, TaskSummary } from "../api/client";
+import { TaskSummary, api } from "../api/client";
+import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
   return value ? "Да" : "Нет";
@@ -20,6 +21,10 @@ function formatApplyStatus(status: string | null) {
   }
 
   return labels[status] ?? status;
+}
+
+function formatServiceType(serviceType: TaskSummary["serviceType"]) {
+  return getTaskTypeByServiceType(serviceType)?.title ?? serviceType;
 }
 
 export function TasksListPage() {
@@ -76,7 +81,7 @@ export function TasksListPage() {
       <div className="toolbar">
         <div>
           <h2>Задачи</h2>
-          <p className="subtle">Управляйте задачами `db_backupper` и деплоем по namespace.</p>
+          <p className="subtle">Управляйте задачами `db_backupper`, `s3_backupper` и деплоем по namespace.</p>
         </div>
         <div className="toolbar-actions">
           <select value={selectedNamespace} onChange={(event) => setSelectedNamespace(event.target.value)}>
@@ -103,6 +108,7 @@ export function TasksListPage() {
           <thead>
             <tr>
               <th>Название</th>
+              <th>Тип</th>
               <th>Namespace</th>
               <th>Включена</th>
               <th>Задеплоена</th>
@@ -118,6 +124,7 @@ export function TasksListPage() {
                 <td>
                   <Link to={`/tasks/${task.id}`}>{task.name}</Link>
                 </td>
+                <td>{formatServiceType(task.serviceType)}</td>
                 <td>{task.namespace}</td>
                 <td>{formatBoolean(task.enabled)}</td>
                 <td>{formatBoolean(task.deployed)}</td>
@@ -156,7 +163,7 @@ export function TasksListPage() {
             ))}
             {visibleTasks.length === 0 ? (
               <tr>
-                <td colSpan={8} className="empty-state">
+                <td colSpan={9} className="empty-state">
                   Задачи не найдены.
                 </td>
               </tr>

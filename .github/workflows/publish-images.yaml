@@ -29,6 +29,10 @@ jobs:
             image: diploma-db-backupper
             context: diploma-db-backupper
             dockerfile: diploma-db-backupper/Dockerfile
+          - name: s3-backupper
+            image: diploma-s3-backupper
+            context: diploma-s3-backupper
+            dockerfile: diploma-s3-backupper/Dockerfile
 
     steps:
       - name: Checkout

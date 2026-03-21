@@ -1,16 +1,42 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.helm import HelmClient, HelmError
 from app.core.kube import KubeClient, KubernetesError
 from app.core.security import SecretCipher
 from app.models.task import ServiceType, Task, TaskSecret
-from app.schemas.task import TaskCreate, TaskDetail, TaskSummary, TaskUpdate
+from app.schemas.task import (
+    DbTaskCreate,
+    DbTaskDetail,
+    DbTaskSummary,
+    DbTaskUpdate,
+    S3TaskCreate,
+    S3TaskDetail,
+    S3TaskSummary,
+    S3TaskUpdate,
+    TaskCreate,
+    TaskDetail,
+    TaskSummary,
+    TaskUpdate,
+)
+
+
+@dataclass(frozen=True)
+class ServiceDeploymentConfig:
+    image_registry: str
+    image_repository: str
+    image_tag: str
+    image_pull_policy: str
+    chart_repository_url: str
+    chart_ref: str
+    chart_path: str
+    release_prefix: str
 
 
 class TaskService:
@@ -35,28 +61,44 @@ class TaskService:
         return self._to_detail(self._get_task_model(task_id))
 
     def create_task(self, payload: TaskCreate) -> TaskDetail:
+        service_type = ServiceType(payload.serviceType)
         task = Task(
             name=payload.name,
             namespace=payload.namespace,
             enabled=False,
-            service_type=ServiceType.DB_BACKUPPER,
+            service_type=service_type,
             schedule=payload.schedule,
-            db_backups_filename_prefix=payload.dbBackupsFilenamePrefix,
-            database_host=payload.databaseHost,
-            database_name=payload.databaseName,
-            database_username=payload.databaseUsername,
-            destination_aws_endpoint=payload.destinationAwsEndpoint,
-            destination_aws_bucket_name=payload.destinationAwsBucketName,
-            destination_aws_access_key_id=payload.destinationAwsAccessKeyId,
             release_name="pending",
         )
-        task.secret = TaskSecret(
-            database_password_encrypted=payload.databasePassword,
-            destination_aws_secret_access_key_encrypted=payload.destinationAwsSecretAccessKey,
-        )
+        task.secret = TaskSecret()
+
+        if service_type == ServiceType.DB_BACKUPPER:
+            db_payload = self._expect_db_create(payload)
+            task.db_backups_filename_prefix = db_payload.dbBackupsFilenamePrefix
+            task.database_host = db_payload.databaseHost
+            task.database_name = db_payload.databaseName
+            task.database_username = db_payload.databaseUsername
+            task.destination_aws_endpoint = db_payload.destinationAwsEndpoint
+            task.destination_aws_bucket_name = db_payload.destinationAwsBucketName
+            task.destination_aws_access_key_id = db_payload.destinationAwsAccessKeyId
+            task.secret.database_password_encrypted = db_payload.databasePassword
+            task.secret.destination_aws_secret_access_key_encrypted = db_payload.destinationAwsSecretAccessKey
+        else:
+            s3_payload = self._expect_s3_create(payload)
+            task.s3_backups_filename_prefix = s3_payload.s3BackupsFilenamePrefix
+            task.source_s3_aws_endpoint = s3_payload.sourceS3AwsEndpoint
+            task.source_s3_aws_access_key_id = s3_payload.sourceS3AwsAccessKeyId
+            task.source_s3_aws_bucket_name = s3_payload.sourceS3AwsBucketName
+            task.source_s3_aws_bucket_subfolder_name = s3_payload.sourceS3AwsBucketSubfolderName
+            task.destination_s3_aws_endpoint = s3_payload.destinationS3AwsEndpoint
+            task.destination_s3_aws_access_key_id = s3_payload.destinationS3AwsAccessKeyId
+            task.destination_s3_aws_bucket_name = s3_payload.destinationS3AwsBucketName
+            task.secret.source_s3_aws_secret_access_key_encrypted = s3_payload.sourceS3AwsSecretAccessKey
+            task.secret.destination_s3_aws_secret_access_key_encrypted = s3_payload.destinationS3AwsSecretAccessKey
+
         self.db.add(task)
         self.db.flush()
-        task.release_name = self._build_release_name(task.id)
+        task.release_name = self._build_release_name(task.id, task.service_type)
         self.db.commit()
         self.db.refresh(task)
 
@@ -66,30 +108,27 @@ class TaskService:
 
     def update_task(self, task_id: int, payload: TaskUpdate) -> TaskDetail:
         task = self._get_task_model(task_id)
+        if payload.serviceType != task.service_type.value:
+            raise HTTPException(status_code=400, detail="Changing service type is not supported")
+
         changes = payload.model_dump(exclude_unset=True)
         desired_enabled = changes.pop("enabled", None)
-        field_map = {
+        changes.pop("serviceType", None)
+
+        for source, target in {
             "name": "name",
             "namespace": "namespace",
             "schedule": "schedule",
-            "dbBackupsFilenamePrefix": "db_backups_filename_prefix",
-            "databaseHost": "database_host",
-            "databaseName": "database_name",
-            "databaseUsername": "database_username",
-            "destinationAwsEndpoint": "destination_aws_endpoint",
-            "destinationAwsBucketName": "destination_aws_bucket_name",
-            "destinationAwsAccessKeyId": "destination_aws_access_key_id",
-        }
-
-        for source, target in field_map.items():
+        }.items():
             if source in changes:
                 setattr(task, target, changes[source])
 
-        if "databasePassword" in changes:
-            task.secret.database_password_encrypted = changes["databasePassword"] or None
-
-        if "destinationAwsSecretAccessKey" in changes:
-            task.secret.destination_aws_secret_access_key_encrypted = changes["destinationAwsSecretAccessKey"] or None
+        if task.service_type == ServiceType.DB_BACKUPPER:
+            db_changes = self._expect_db_update(payload)
+            self._apply_db_update(task, db_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}))
+        else:
+            s3_changes = self._expect_s3_update(payload)
+            self._apply_s3_update(task, s3_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}))
 
         self.db.commit()
 
@@ -160,6 +199,47 @@ class TaskService:
                 raise HTTPException(status_code=409, detail=f"Namespace '{namespace}' уже существует") from exc
             raise HTTPException(status_code=502, detail=message) from exc
 
+    def _apply_db_update(self, task: Task, changes: dict) -> None:
+        field_map = {
+            "dbBackupsFilenamePrefix": "db_backups_filename_prefix",
+            "databaseHost": "database_host",
+            "databaseName": "database_name",
+            "databaseUsername": "database_username",
+            "destinationAwsEndpoint": "destination_aws_endpoint",
+            "destinationAwsBucketName": "destination_aws_bucket_name",
+            "destinationAwsAccessKeyId": "destination_aws_access_key_id",
+        }
+        for source, target in field_map.items():
+            if source in changes:
+                setattr(task, target, changes[source])
+
+        if "databasePassword" in changes:
+            task.secret.database_password_encrypted = changes["databasePassword"] or None
+
+        if "destinationAwsSecretAccessKey" in changes:
+            task.secret.destination_aws_secret_access_key_encrypted = changes["destinationAwsSecretAccessKey"] or None
+
+    def _apply_s3_update(self, task: Task, changes: dict) -> None:
+        field_map = {
+            "s3BackupsFilenamePrefix": "s3_backups_filename_prefix",
+            "sourceS3AwsEndpoint": "source_s3_aws_endpoint",
+            "sourceS3AwsAccessKeyId": "source_s3_aws_access_key_id",
+            "sourceS3AwsBucketName": "source_s3_aws_bucket_name",
+            "sourceS3AwsBucketSubfolderName": "source_s3_aws_bucket_subfolder_name",
+            "destinationS3AwsEndpoint": "destination_s3_aws_endpoint",
+            "destinationS3AwsAccessKeyId": "destination_s3_aws_access_key_id",
+            "destinationS3AwsBucketName": "destination_s3_aws_bucket_name",
+        }
+        for source, target in field_map.items():
+            if source in changes:
+                setattr(task, target, changes[source])
+
+        if "sourceS3AwsSecretAccessKey" in changes:
+            task.secret.source_s3_aws_secret_access_key_encrypted = changes["sourceS3AwsSecretAccessKey"] or None
+
+        if "destinationS3AwsSecretAccessKey" in changes:
+            task.secret.destination_s3_aws_secret_access_key_encrypted = changes["destinationS3AwsSecretAccessKey"] or None
+
     def _cleanup_release(self, task: Task) -> None:
         if not task.release_name:
             return
@@ -177,9 +257,17 @@ class TaskService:
 
     def _apply_release(self, task: Task) -> None:
         self._validate_required_secrets(task)
-        values = self._build_values(task)
+        config = self._get_deployment_config(task.service_type, self.settings)
+        values = self._build_values(task, config)
         try:
-            message = self.helm.upgrade_install(task.release_name, task.namespace, values)
+            message = self.helm.upgrade_install(
+                task.release_name,
+                task.namespace,
+                values,
+                chart_repository_url=config.chart_repository_url,
+                chart_ref=config.chart_ref,
+                chart_path=config.chart_path,
+            )
             task.enabled = True
             task.last_apply_status = "deployed"
             task.last_apply_message = message or "Release applied"
@@ -192,37 +280,62 @@ class TaskService:
             self.db.commit()
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    def _build_values(self, task: Task) -> dict:
+    def _build_values(self, task: Task, config: ServiceDeploymentConfig) -> dict:
         return {
             "image": {
-                "registry": self.settings.backup_image_registry,
-                "repository": self.settings.backup_image_repository,
-                "tag": self.settings.backup_image_tag,
-                "pullPolicy": self.settings.backup_image_pull_policy,
+                "registry": config.image_registry,
+                "repository": config.image_repository,
+                "tag": config.image_tag,
+                "pullPolicy": config.image_pull_policy,
             },
             "resources": {
                 "limits": {"cpu": "200m", "memory": "512Mi"},
                 "requests": {"cpu": "1m", "memory": "256Mi"},
             },
-            "extraConfigMapEnvVars": {
+            "extraConfigMapEnvVars": self._build_env_vars(task),
+        }
+
+    def _build_env_vars(self, task: Task) -> dict[str, str]:
+        if task.service_type == ServiceType.DB_BACKUPPER:
+            return {
                 "BACKUPS_SCHEDULE": task.schedule,
-                "DB_BACKUPS_FILENAME_PREFIX": task.db_backups_filename_prefix,
-                "DATABASE_HOST": task.database_host,
+                "DB_BACKUPS_FILENAME_PREFIX": task.db_backups_filename_prefix or "",
+                "DATABASE_HOST": task.database_host or "",
                 "DATABASE_PASSWORD": task.secret.database_password_encrypted or "",
-                "DATABASE_USERNAME": task.database_username,
-                "DATABASE_NAME": task.database_name,
-                "DESTINATION_DB_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id,
+                "DATABASE_USERNAME": task.database_username or "",
+                "DATABASE_NAME": task.database_name or "",
+                "DESTINATION_DB_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id or "",
                 "DESTINATION_DB_AWS_SECRET_ACCESS_KEY": task.secret.destination_aws_secret_access_key_encrypted or "",
-                "DESTINATION_DB_AWS_BUCKET_NAME": task.destination_aws_bucket_name,
-                "DESTINATION_DB_AWS_ENDPOINT": task.destination_aws_endpoint,
-            },
+                "DESTINATION_DB_AWS_BUCKET_NAME": task.destination_aws_bucket_name or "",
+                "DESTINATION_DB_AWS_ENDPOINT": task.destination_aws_endpoint or "",
+            }
+
+        return {
+            "BACKUPS_SCHEDULE": task.schedule,
+            "S3_BACKUPS_FILENAME_PREFIX": task.s3_backups_filename_prefix or "",
+            "SOURCE_S3_AWS_ENDPOINT": task.source_s3_aws_endpoint or "",
+            "SOURCE_S3_AWS_ACCESS_KEY_ID": task.source_s3_aws_access_key_id or "",
+            "SOURCE_S3_AWS_SECRET_ACCESS_KEY": task.secret.source_s3_aws_secret_access_key_encrypted or "",
+            "SOURCE_S3_AWS_BUCKET_NAME": task.source_s3_aws_bucket_name or "",
+            "SOURCE_S3_AWS_BUCKET_SUBFOLDER_NAME": task.source_s3_aws_bucket_subfolder_name or "",
+            "DESTINATION_S3_AWS_ENDPOINT": task.destination_s3_aws_endpoint or "",
+            "DESTINATION_S3_AWS_ACCESS_KEY_ID": task.destination_s3_aws_access_key_id or "",
+            "DESTINATION_S3_AWS_SECRET_ACCESS_KEY": task.secret.destination_s3_aws_secret_access_key_encrypted or "",
+            "DESTINATION_S3_AWS_BUCKET_NAME": task.destination_s3_aws_bucket_name or "",
         }
 
     def _validate_required_secrets(self, task: Task) -> None:
-        if not task.secret.database_password_encrypted:
-            raise HTTPException(status_code=400, detail="Database password is not configured")
-        if not task.secret.destination_aws_secret_access_key_encrypted:
-            raise HTTPException(status_code=400, detail="Destination AWS secret access key is not configured")
+        if task.service_type == ServiceType.DB_BACKUPPER:
+            if not task.secret.database_password_encrypted:
+                raise HTTPException(status_code=400, detail="Database password is not configured")
+            if not task.secret.destination_aws_secret_access_key_encrypted:
+                raise HTTPException(status_code=400, detail="Destination AWS secret access key is not configured")
+            return
+
+        if not task.secret.source_s3_aws_secret_access_key_encrypted:
+            raise HTTPException(status_code=400, detail="Source S3 AWS secret access key is not configured")
+        if not task.secret.destination_s3_aws_secret_access_key_encrypted:
+            raise HTTPException(status_code=400, detail="Destination S3 AWS secret access key is not configured")
 
     def _validate_namespace(self, namespace: str) -> None:
         try:
@@ -231,8 +344,9 @@ class TaskService:
         except KubernetesError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    def _build_release_name(self, task_id: int) -> str:
-        return f"db-backupper-{task_id}"[:53]
+    def _build_release_name(self, task_id: int, service_type: ServiceType) -> str:
+        config = self._get_deployment_config(service_type, self.settings)
+        return f"{config.release_prefix}-{task_id}"[:53]
 
     def _get_task_model(self, task_id: int) -> Task:
         task = self.db.query(Task).options(joinedload(Task.secret)).filter(Task.id == task_id).one_or_none()
@@ -243,32 +357,98 @@ class TaskService:
         return task
 
     def _to_summary(self, task: Task) -> TaskSummary:
-        return TaskSummary(
-            id=task.id,
-            name=task.name,
-            namespace=task.namespace,
-            enabled=task.enabled,
-            serviceType=task.service_type.value,
-            schedule=task.schedule,
-            deployed=task.last_apply_status == "deployed",
-            releaseName=task.release_name,
-            lastApplyStatus=task.last_apply_status,
-            lastApplyMessage=task.last_apply_message,
-            lastAppliedAt=task.last_applied_at,
-            updatedAt=task.updated_at,
-        )
+        common = {
+            "id": task.id,
+            "name": task.name,
+            "namespace": task.namespace,
+            "enabled": task.enabled,
+            "schedule": task.schedule,
+            "deployed": task.last_apply_status == "deployed",
+            "releaseName": task.release_name,
+            "lastApplyStatus": task.last_apply_status,
+            "lastApplyMessage": task.last_apply_message,
+            "lastAppliedAt": task.last_applied_at,
+            "updatedAt": task.updated_at,
+        }
+        if task.service_type == ServiceType.DB_BACKUPPER:
+            return DbTaskSummary(serviceType=task.service_type.value, **common)
+        return S3TaskSummary(serviceType=task.service_type.value, **common)
 
     def _to_detail(self, task: Task) -> TaskDetail:
         summary = self._to_summary(task)
-        return TaskDetail(
+        if task.service_type == ServiceType.DB_BACKUPPER:
+            return DbTaskDetail(
+                **summary.model_dump(),
+                dbBackupsFilenamePrefix=task.db_backups_filename_prefix or "",
+                databaseHost=task.database_host or "",
+                databaseName=task.database_name or "",
+                databaseUsername=task.database_username or "",
+                destinationAwsEndpoint=task.destination_aws_endpoint or "",
+                destinationAwsBucketName=task.destination_aws_bucket_name or "",
+                destinationAwsAccessKeyId=task.destination_aws_access_key_id or "",
+                hasDatabasePassword=bool(task.secret.database_password_encrypted),
+                hasDestinationAwsSecretAccessKey=bool(task.secret.destination_aws_secret_access_key_encrypted),
+            )
+
+        return S3TaskDetail(
             **summary.model_dump(),
-            dbBackupsFilenamePrefix=task.db_backups_filename_prefix,
-            databaseHost=task.database_host,
-            databaseName=task.database_name,
-            databaseUsername=task.database_username,
-            destinationAwsEndpoint=task.destination_aws_endpoint,
-            destinationAwsBucketName=task.destination_aws_bucket_name,
-            destinationAwsAccessKeyId=task.destination_aws_access_key_id,
-            hasDatabasePassword=bool(task.secret.database_password_encrypted),
-            hasDestinationAwsSecretAccessKey=bool(task.secret.destination_aws_secret_access_key_encrypted),
+            s3BackupsFilenamePrefix=task.s3_backups_filename_prefix or "",
+            sourceS3AwsEndpoint=task.source_s3_aws_endpoint or "",
+            sourceS3AwsAccessKeyId=task.source_s3_aws_access_key_id or "",
+            sourceS3AwsBucketName=task.source_s3_aws_bucket_name or "",
+            sourceS3AwsBucketSubfolderName=task.source_s3_aws_bucket_subfolder_name or "",
+            destinationS3AwsEndpoint=task.destination_s3_aws_endpoint or "",
+            destinationS3AwsAccessKeyId=task.destination_s3_aws_access_key_id or "",
+            destinationS3AwsBucketName=task.destination_s3_aws_bucket_name or "",
+            hasSourceS3AwsSecretAccessKey=bool(task.secret.source_s3_aws_secret_access_key_encrypted),
+            hasDestinationS3AwsSecretAccessKey=bool(task.secret.destination_s3_aws_secret_access_key_encrypted),
+        )
+
+    @staticmethod
+    def _expect_db_create(payload: TaskCreate) -> DbTaskCreate:
+        if not isinstance(payload, DbTaskCreate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_s3_create(payload: TaskCreate) -> S3TaskCreate:
+        if not isinstance(payload, S3TaskCreate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_db_update(payload: TaskUpdate) -> DbTaskUpdate:
+        if not isinstance(payload, DbTaskUpdate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_s3_update(payload: TaskUpdate) -> S3TaskUpdate:
+        if not isinstance(payload, S3TaskUpdate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _get_deployment_config(service_type: ServiceType, settings: Settings) -> ServiceDeploymentConfig:
+        if service_type == ServiceType.DB_BACKUPPER:
+            return ServiceDeploymentConfig(
+                image_registry=settings.db_backupper_image_registry,
+                image_repository=settings.db_backupper_image_repository,
+                image_tag=settings.db_backupper_image_tag,
+                image_pull_policy=settings.db_backupper_image_pull_policy,
+                chart_repository_url=settings.db_backupper_chart_repository_url,
+                chart_ref=settings.db_backupper_chart_ref,
+                chart_path=settings.db_backupper_chart_path,
+                release_prefix="db-backupper",
+            )
+
+        return ServiceDeploymentConfig(
+            image_registry=settings.s3_backupper_image_registry,
+            image_repository=settings.s3_backupper_image_repository,
+            image_tag=settings.s3_backupper_image_tag,
+            image_pull_policy=settings.s3_backupper_image_pull_policy,
+            chart_repository_url=settings.s3_backupper_chart_repository_url,
+            chart_ref=settings.s3_backupper_chart_ref,
+            chart_path=settings.s3_backupper_chart_path,
+            release_prefix="s3-backupper",
         )

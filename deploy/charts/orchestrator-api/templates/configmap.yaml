@@ -5,10 +5,17 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   ORCHESTRATOR_DATABASE_URL: {{ .Values.config.databaseUrl | quote }}
-  ORCHESTRATOR_BACKUP_IMAGE_REGISTRY: {{ .Values.config.backupImage.registry | quote }}
-  ORCHESTRATOR_BACKUP_IMAGE_REPOSITORY: {{ .Values.config.backupImage.repository | quote }}
-  ORCHESTRATOR_BACKUP_IMAGE_TAG: {{ .Values.config.backupImage.tag | quote }}
-  ORCHESTRATOR_BACKUP_IMAGE_PULL_POLICY: {{ .Values.config.backupImage.pullPolicy | quote }}
-  ORCHESTRATOR_BACKUP_CHART_REPOSITORY_URL: {{ .Values.config.backupChart.repositoryUrl | quote }}
-  ORCHESTRATOR_BACKUP_CHART_REF: {{ .Values.config.backupChart.ref | quote }}
-  ORCHESTRATOR_BACKUP_CHART_PATH: {{ .Values.config.backupChart.path | quote }}
+  ORCHESTRATOR_DB_BACKUPPER_IMAGE_REGISTRY: {{ .Values.config.dbBackupper.image.registry | quote }}
+  ORCHESTRATOR_DB_BACKUPPER_IMAGE_REPOSITORY: {{ .Values.config.dbBackupper.image.repository | quote }}
+  ORCHESTRATOR_DB_BACKUPPER_IMAGE_TAG: {{ .Values.config.dbBackupper.image.tag | quote }}
+  ORCHESTRATOR_DB_BACKUPPER_IMAGE_PULL_POLICY: {{ .Values.config.dbBackupper.image.pullPolicy | quote }}
+  ORCHESTRATOR_DB_BACKUPPER_CHART_REPOSITORY_URL: {{ .Values.config.dbBackupper.chart.repositoryUrl | quote }}
+  ORCHESTRATOR_DB_BACKUPPER_CHART_REF: {{ .Values.config.dbBackupper.chart.ref | quote }}
+  ORCHESTRATOR_DB_BACKUPPER_CHART_PATH: {{ .Values.config.dbBackupper.chart.path | quote }}
+  ORCHESTRATOR_S3_BACKUPPER_IMAGE_REGISTRY: {{ .Values.config.s3Backupper.image.registry | quote }}
+  ORCHESTRATOR_S3_BACKUPPER_IMAGE_REPOSITORY: {{ .Values.config.s3Backupper.image.repository | quote }}
+  ORCHESTRATOR_S3_BACKUPPER_IMAGE_TAG: {{ .Values.config.s3Backupper.image.tag | quote }}
+  ORCHESTRATOR_S3_BACKUPPER_IMAGE_PULL_POLICY: {{ .Values.config.s3Backupper.image.pullPolicy | quote }}
+  ORCHESTRATOR_S3_BACKUPPER_CHART_REPOSITORY_URL: {{ .Values.config.s3Backupper.chart.repositoryUrl | quote }}
+  ORCHESTRATOR_S3_BACKUPPER_CHART_REF: {{ .Values.config.s3Backupper.chart.ref | quote }}
+  ORCHESTRATOR_S3_BACKUPPER_CHART_PATH: {{ .Values.config.s3Backupper.chart.path | quote }}

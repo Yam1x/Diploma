@@ -1,41 +1,118 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { api, TaskPayload } from "../api/client";
-import { TaskFormFields } from "../components/TaskFormFields";
-import { getTaskTypeByRouteType } from "../config/taskTypes";
+import { DbTaskDetail, ServiceType, TaskDetail, TaskPayload, api } from "../api/client";
+import { ConfiguredSecrets, TaskFormFields } from "../components/TaskFormFields";
+import { getTaskTypeByRouteType, getTaskTypeByServiceType } from "../config/taskTypes";
 
-const emptyPayload: TaskPayload = {
-  name: "",
-  namespace: "",
-  enabled: false,
-  schedule: "0 0 * * *",
-  dbBackupsFilenamePrefix: "",
-  databaseHost: "",
-  databaseName: "",
-  databaseUsername: "",
-  databasePassword: "",
-  destinationAwsEndpoint: "",
-  destinationAwsBucketName: "",
-  destinationAwsAccessKeyId: "",
-  destinationAwsSecretAccessKey: "",
-};
+function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
+  if (serviceType === "db_backupper") {
+    return {
+      serviceType,
+      name: "",
+      namespace: "",
+      enabled: false,
+      schedule: "0 0 * * *",
+      dbBackupsFilenamePrefix: "",
+      databaseHost: "",
+      databaseName: "",
+      databaseUsername: "",
+      databasePassword: "",
+      destinationAwsEndpoint: "",
+      destinationAwsBucketName: "",
+      destinationAwsAccessKeyId: "",
+      destinationAwsSecretAccessKey: "",
+    };
+  }
+
+  return {
+    serviceType,
+    name: "",
+    namespace: "",
+    enabled: false,
+    schedule: "0 0 * * *",
+    s3BackupsFilenamePrefix: "",
+    sourceS3AwsEndpoint: "",
+    sourceS3AwsAccessKeyId: "",
+    sourceS3AwsBucketName: "",
+    sourceS3AwsBucketSubfolderName: "",
+    sourceS3AwsSecretAccessKey: "",
+    destinationS3AwsEndpoint: "",
+    destinationS3AwsAccessKeyId: "",
+    destinationS3AwsBucketName: "",
+    destinationS3AwsSecretAccessKey: "",
+  };
+}
+
+function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
+  if (detail.serviceType === "db_backupper") {
+    const dbDetail = detail as DbTaskDetail;
+    return {
+      serviceType: dbDetail.serviceType,
+      name: dbDetail.name,
+      namespace: dbDetail.namespace,
+      enabled: dbDetail.enabled,
+      schedule: dbDetail.schedule,
+      dbBackupsFilenamePrefix: dbDetail.dbBackupsFilenamePrefix,
+      databaseHost: dbDetail.databaseHost,
+      databaseName: dbDetail.databaseName,
+      databaseUsername: dbDetail.databaseUsername,
+      databasePassword: "",
+      destinationAwsEndpoint: dbDetail.destinationAwsEndpoint,
+      destinationAwsBucketName: dbDetail.destinationAwsBucketName,
+      destinationAwsAccessKeyId: dbDetail.destinationAwsAccessKeyId,
+      destinationAwsSecretAccessKey: "",
+    };
+  }
+
+  return {
+    serviceType: detail.serviceType,
+    name: detail.name,
+    namespace: detail.namespace,
+    enabled: detail.enabled,
+    schedule: detail.schedule,
+    s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
+    sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
+    sourceS3AwsAccessKeyId: detail.sourceS3AwsAccessKeyId,
+    sourceS3AwsBucketName: detail.sourceS3AwsBucketName,
+    sourceS3AwsBucketSubfolderName: detail.sourceS3AwsBucketSubfolderName,
+    sourceS3AwsSecretAccessKey: "",
+    destinationS3AwsEndpoint: detail.destinationS3AwsEndpoint,
+    destinationS3AwsAccessKeyId: detail.destinationS3AwsAccessKeyId,
+    destinationS3AwsBucketName: detail.destinationS3AwsBucketName,
+    destinationS3AwsSecretAccessKey: "",
+  };
+}
+
+function buildConfiguredSecrets(detail: TaskDetail): ConfiguredSecrets {
+  if (detail.serviceType === "db_backupper") {
+    return {
+      databasePassword: detail.hasDatabasePassword,
+      destinationAwsSecretAccessKey: detail.hasDestinationAwsSecretAccessKey,
+    };
+  }
+
+  return {
+    sourceS3AwsSecretAccessKey: detail.hasSourceS3AwsSecretAccessKey,
+    destinationS3AwsSecretAccessKey: detail.hasDestinationS3AwsSecretAccessKey,
+  };
+}
 
 export function TaskFormPage() {
   const navigate = useNavigate();
   const { taskId, taskType } = useParams();
   const isEditMode = Boolean(taskId);
   const selectedTaskType = getTaskTypeByRouteType(taskType);
-  const [value, setValue] = useState<TaskPayload>(emptyPayload);
+  const [value, setValue] = useState<TaskPayload | null>(null);
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [passwordConfigured, setPasswordConfigured] = useState(false);
-  const [secretConfigured, setSecretConfigured] = useState(false);
+  const [configuredSecrets, setConfiguredSecrets] = useState<ConfiguredSecrets>({});
 
   useEffect(() => {
     async function load() {
       if (!isEditMode && !selectedTaskType) {
         setError("Выбранный тип задачи пока не поддерживается.");
+        setValue(null);
         return;
       }
 
@@ -47,23 +124,14 @@ export function TaskFormPage() {
         setNamespaces(namespaceList);
         setError(null);
         if (detail) {
-          setValue({
-            name: detail.name,
-            namespace: detail.namespace,
-            enabled: detail.enabled,
-            schedule: detail.schedule,
-            dbBackupsFilenamePrefix: detail.dbBackupsFilenamePrefix,
-            databaseHost: detail.databaseHost,
-            databaseName: detail.databaseName,
-            databaseUsername: detail.databaseUsername,
-            databasePassword: "",
-            destinationAwsEndpoint: detail.destinationAwsEndpoint,
-            destinationAwsBucketName: detail.destinationAwsBucketName,
-            destinationAwsAccessKeyId: detail.destinationAwsAccessKeyId,
-            destinationAwsSecretAccessKey: "",
-          });
-          setPasswordConfigured(detail.hasDatabasePassword);
-          setSecretConfigured(detail.hasDestinationAwsSecretAccessKey);
+          setValue(buildPayloadFromDetail(detail));
+          setConfiguredSecrets(buildConfiguredSecrets(detail));
+          return;
+        }
+
+        if (selectedTaskType) {
+          setValue(buildEmptyPayload(selectedTaskType.serviceType));
+          setConfiguredSecrets({});
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Не удалось загрузить форму");
@@ -83,7 +151,7 @@ export function TaskFormPage() {
       const response = await api.createNamespace({ name: namespace });
       const namespaceList = await api.listNamespaces();
       setNamespaces(namespaceList.namespaces);
-      setValue((current) => ({ ...current, namespace: response.name }));
+      setValue((current) => (current ? { ...current, namespace: response.name } : current));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось создать namespace");
@@ -92,16 +160,29 @@ export function TaskFormPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!value) {
+      return;
+    }
+
     try {
       if (taskId) {
-        const payload: Partial<TaskPayload> = { ...value };
-        if (!payload.databasePassword) {
-          delete payload.databasePassword;
+        const payload = { ...value } as Record<string, unknown>;
+        if (value.serviceType === "db_backupper") {
+          if (!value.databasePassword) {
+            delete payload.databasePassword;
+          }
+          if (!value.destinationAwsSecretAccessKey) {
+            delete payload.destinationAwsSecretAccessKey;
+          }
+        } else {
+          if (!value.sourceS3AwsSecretAccessKey) {
+            delete payload.sourceS3AwsSecretAccessKey;
+          }
+          if (!value.destinationS3AwsSecretAccessKey) {
+            delete payload.destinationS3AwsSecretAccessKey;
+          }
         }
-        if (!payload.destinationAwsSecretAccessKey) {
-          delete payload.destinationAwsSecretAccessKey;
-        }
-        await api.updateTask(taskId, payload);
+        await api.updateTask(taskId, payload as TaskPayload);
         navigate(`/tasks/${taskId}`);
       } else {
         const task = await api.createTask(value);
@@ -112,14 +193,16 @@ export function TaskFormPage() {
     }
   }
 
+  const activeTaskType = value ? getTaskTypeByServiceType(value.serviceType) : selectedTaskType;
+
   return (
     <section className="stack">
       <div className="toolbar">
         <div>
           <h2>{taskId ? "Редактирование задачи" : "Создание задачи"}</h2>
           <p className="subtle">
-            {selectedTaskType
-              ? `Настройте желаемое состояние и параметры деплоя для сервиса «${selectedTaskType.title}».`
+            {activeTaskType
+              ? `Настройте желаемое состояние и параметры деплоя для сервиса «${activeTaskType.title}».`
               : "Настройте желаемое состояние и параметры деплоя задачи."}
           </p>
         </div>
@@ -128,21 +211,24 @@ export function TaskFormPage() {
         </Link>
       </div>
       {error ? <div className="alert">{error}</div> : null}
-      <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
-        <TaskFormFields
-          value={value}
-          onChange={setValue}
-          namespaceOptions={namespaces}
-          passwordConfigured={passwordConfigured}
-          secretConfigured={secretConfigured}
-          onCreateNamespace={() => void handleCreateNamespace()}
-        />
-        <div className="toolbar-actions">
-          <button className="button primary" type="submit" disabled={!isEditMode && !selectedTaskType}>
-            Сохранить задачу
-          </button>
-        </div>
-      </form>
+      {value ? (
+        <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
+          <TaskFormFields
+            value={value}
+            onChange={setValue}
+            namespaceOptions={namespaces}
+            configuredSecrets={configuredSecrets}
+            onCreateNamespace={() => void handleCreateNamespace()}
+          />
+          <div className="toolbar-actions">
+            <button className="button primary" type="submit" disabled={!isEditMode && !selectedTaskType}>
+              Сохранить задачу
+            </button>
+          </div>
+        </form>
+      ) : error ? null : (
+        <p>Загрузка...</p>
+      )}
     </section>
   );
 }

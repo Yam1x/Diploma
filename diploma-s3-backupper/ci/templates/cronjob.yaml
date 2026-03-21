@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "{{ .Values.extraConfigMapEnvVars.BACKUPS_SCHEDULE }}"
+  # How many completed jobs should be kept
+  successfulJobsHistoryLimit: 1
+  # We use concurrencyPolicy: Forbid to make sure that a new cronjob doesn't kill a previously started cronjob before it's completed
+  # Here you can read about concurrencyPolicy: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#concurrency-policy
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: {{ .Release.Name }}
+              # The "InvalidImageName" error occurs when trying to deploy a locally built docker image with an empty (local) registry. 
+              # If we leave registry empty, then there will be an excess slash(/) in front of the repository
+              {{- if .Values.image.registry }}
+              image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+              {{- else }}
+              image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+              {{- end }}
+              resources:
+                limits:
+                  cpu: {{ .Values.resources.limits.cpu }}
+                  memory: {{ .Values.resources.limits.memory }}
+                requests:
+                  cpu: {{ .Values.resources.requests.cpu }}
+                  memory: {{ .Values.resources.requests.memory }}
+              env:
+                  - name: S3_BACKUPS_FILENAME_PREFIX
+                    value: {{ .Values.extraConfigMapEnvVars.S3_BACKUPS_FILENAME_PREFIX }}
+                  - name: SOURCE_S3_AWS_ENDPOINT
+                    value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_ENDPOINT }}
+                  - name: SOURCE_S3_AWS_ACCESS_KEY_ID
+                    value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_ACCESS_KEY_ID }}
+                  - name: SOURCE_S3_AWS_SECRET_ACCESS_KEY
+                    value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_SECRET_ACCESS_KEY }}
+                  - name: SOURCE_S3_AWS_BUCKET_NAME
+                    value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_BUCKET_NAME }}
+                  - name: SOURCE_S3_AWS_BUCKET_SUBFOLDER_NAME
+                    value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_BUCKET_SUBFOLDER_NAME }}
+                  - name: DESTINATION_S3_AWS_ENDPOINT
+                    value: {{ .Values.extraConfigMapEnvVars.DESTINATION_S3_AWS_ENDPOINT }}
+                  - name: DESTINATION_S3_AWS_ACCESS_KEY_ID
+                    value: {{ .Values.extraConfigMapEnvVars.DESTINATION_S3_AWS_ACCESS_KEY_ID }}
+                  - name: DESTINATION_S3_AWS_SECRET_ACCESS_KEY
+                    value: {{ .Values.extraConfigMapEnvVars.DESTINATION_S3_AWS_SECRET_ACCESS_KEY }}
+                  - name: DESTINATION_S3_AWS_BUCKET_NAME
+                    value: {{ .Values.extraConfigMapEnvVars.DESTINATION_S3_AWS_BUCKET_NAME }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}

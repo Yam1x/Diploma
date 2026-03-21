@@ -21,27 +21,39 @@ class HelmClient:
         chart_path: str | None = None,
     ) -> None:
         settings = get_settings()
-        self.chart_repository_url = chart_repository_url or settings.backup_chart_repository_url
-        self.chart_ref = chart_ref or settings.backup_chart_ref
-        self.chart_path = Path(chart_path or settings.backup_chart_path)
+        self.chart_repository_url = chart_repository_url or settings.db_backupper_chart_repository_url
+        self.chart_ref = chart_ref or settings.db_backupper_chart_ref
+        self.chart_path = Path(chart_path or settings.db_backupper_chart_path)
 
-    def upgrade_install(self, release_name: str, namespace: str, values: dict) -> str:
+    def upgrade_install(
+        self,
+        release_name: str,
+        namespace: str,
+        values: dict,
+        chart_repository_url: str | None = None,
+        chart_ref: str | None = None,
+        chart_path: str | None = None,
+    ) -> str:
+        repository_url = chart_repository_url or self.chart_repository_url
+        chart_ref_value = chart_ref or self.chart_ref
+        chart_path_value = Path(chart_path) if chart_path is not None else self.chart_path
+
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as handle:
             yaml.safe_dump(values, handle, sort_keys=False)
             values_path = handle.name
         try:
             with tempfile.TemporaryDirectory() as checkout_dir:
                 checkout_path = Path(checkout_dir)
-                self._clone_chart_source(checkout_path)
-                chart_path = checkout_path / self.chart_path
-                if not chart_path.exists():
-                    raise HelmError(f"Backup chart path not found: {chart_path}")
+                self._clone_chart_source(checkout_path, repository_url, chart_ref_value)
+                resolved_chart_path = checkout_path / chart_path_value
+                if not resolved_chart_path.exists():
+                    raise HelmError(f"Backup chart path not found: {resolved_chart_path}")
                 command = [
                     "helm",
                     "upgrade",
                     "--install",
                     release_name,
-                    str(chart_path),
+                    str(resolved_chart_path),
                     "--namespace",
                     namespace,
                     "-f",
@@ -78,15 +90,15 @@ class HelmClient:
             raise HelmError(message)
         return completed.stdout.strip()
 
-    def _clone_chart_source(self, checkout_path: Path) -> None:
+    def _clone_chart_source(self, checkout_path: Path, repository_url: str, chart_ref: str) -> None:
         command = [
             "git",
             "clone",
             "--depth",
             "1",
             "--branch",
-            self.chart_ref,
-            self.chart_repository_url,
+            chart_ref,
+            repository_url,
             str(checkout_path),
         ]
         self._run(command)

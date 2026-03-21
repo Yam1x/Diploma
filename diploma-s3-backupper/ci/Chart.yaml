@@ -1,0 +1,9 @@
+apiVersion: v2
+name: pelican-s3-backupper
+description: Chart that allows you to set up backups for s3 storage
+
+type: application
+
+version: "0.0.1"
+
+appVersion: "0.0.1"
