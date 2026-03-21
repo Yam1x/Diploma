@@ -34,7 +34,7 @@ class S3TaskCreate(TaskRequestBase):
     sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
     sourceS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
     sourceS3AwsBucketName: str = Field(min_length=1, max_length=120)
-    sourceS3AwsBucketSubfolderName: str = Field(min_length=1, max_length=255)
+    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
     sourceS3AwsSecretAccessKey: str = Field(min_length=1)
     destinationS3AwsEndpoint: str = Field(min_length=1, max_length=255)
     destinationS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
@@ -76,7 +76,7 @@ class S3TaskUpdate(BaseModel):
     sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
     sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
     sourceS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
     sourceS3AwsSecretAccessKey: str | None = None
     destinationS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
     destinationS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)

@@ -94,7 +94,7 @@ class TaskService:
             task.source_s3_aws_endpoint = s3_payload.sourceS3AwsEndpoint
             task.source_s3_aws_access_key_id = s3_payload.sourceS3AwsAccessKeyId
             task.source_s3_aws_bucket_name = s3_payload.sourceS3AwsBucketName
-            task.source_s3_aws_bucket_subfolder_name = s3_payload.sourceS3AwsBucketSubfolderName
+            task.source_s3_aws_bucket_subfolder_name = s3_payload.sourceS3AwsBucketSubfolderName or None
             task.destination_s3_aws_endpoint = s3_payload.destinationS3AwsEndpoint
             task.destination_s3_aws_access_key_id = s3_payload.destinationS3AwsAccessKeyId
             task.destination_s3_aws_bucket_name = s3_payload.destinationS3AwsBucketName
@@ -247,7 +247,10 @@ class TaskService:
         }
         for source, target in field_map.items():
             if source in changes:
-                setattr(task, target, changes[source])
+                value = changes[source]
+                if source == "sourceS3AwsBucketSubfolderName":
+                    value = value or None
+                setattr(task, target, value)
 
         if "databasePassword" in changes:
             task.secret.database_password_encrypted = changes["databasePassword"] or None
@@ -268,7 +271,10 @@ class TaskService:
         }
         for source, target in field_map.items():
             if source in changes:
-                setattr(task, target, changes[source])
+                value = changes[source]
+                if source == "sourceS3AwsBucketSubfolderName":
+                    value = value or None
+                setattr(task, target, value)
 
         if "sourceS3AwsSecretAccessKey" in changes:
             task.secret.source_s3_aws_secret_access_key_encrypted = changes["sourceS3AwsSecretAccessKey"] or None

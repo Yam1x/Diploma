@@ -351,8 +351,8 @@ export function TaskFormFields({
           </label>
           <label>
             <span>Source S3 subfolder</span>
-            <small className="field-help">Подкаталог внутри bucket, который нужно включить в архив.</small>
-            <input value={value.sourceS3AwsBucketSubfolderName} onChange={update("sourceS3AwsBucketSubfolderName")} required />
+            <small className="field-help">Необязательный подкаталог внутри bucket. Оставьте пустым, чтобы архивировать весь bucket.</small>
+            <input value={value.sourceS3AwsBucketSubfolderName} onChange={update("sourceS3AwsBucketSubfolderName")} />
           </label>
           <label>
             <span>Source S3 access key</span>

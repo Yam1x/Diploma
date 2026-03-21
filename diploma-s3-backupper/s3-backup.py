@@ -6,7 +6,7 @@ from datetime import datetime
 
 def main():
     temp_directory_for_files_from_source = "/tmp/backup"
-    bucket_subfolder_name = os.getenv('SOURCE_S3_AWS_BUCKET_SUBFOLDER_NAME')
+    bucket_subfolder_name = os.getenv('SOURCE_S3_AWS_BUCKET_SUBFOLDER_NAME') or ""
 
     archive_name = os.getenv('S3_BACKUPS_FILENAME_PREFIX') + '-' + datetime.strftime(datetime.utcnow(), "%Y-%m-%dT%H-%M-%S") + '.backup'
     
@@ -33,7 +33,11 @@ def main():
     download_dir(temp_directory_for_files_from_source, source_bucket_name, source_s3, bucket_subfolder_name)
 
     if not len(os.listdir(temp_directory_for_files_from_source)) == 0:
-        shutil.make_archive(archive_name, 'zip', temp_directory_for_files_from_source + "/" + bucket_subfolder_name)
+        archive_source = temp_directory_for_files_from_source
+        if bucket_subfolder_name:
+            archive_source = os.path.join(temp_directory_for_files_from_source, bucket_subfolder_name)
+
+        shutil.make_archive(archive_name, 'zip', archive_source)
 
         upload_to_s3(archive_name + ".zip", destination_s3, destination_bucket_name)
 
@@ -53,10 +57,9 @@ def download_dir(local, bucket, client, bucket_subfolder_name):
     """
     keys = []
     dirs = []
-    base_kwargs = {
-        'Bucket': bucket,
-        'Prefix': bucket_subfolder_name
-    }
+    base_kwargs = {'Bucket': bucket}
+    if bucket_subfolder_name:
+        base_kwargs['Prefix'] = bucket_subfolder_name
 
     kwargs = base_kwargs.copy()
     results = client.list_objects_v2(**kwargs)

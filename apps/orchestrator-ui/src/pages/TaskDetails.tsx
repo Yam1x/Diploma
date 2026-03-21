@@ -57,7 +57,7 @@ function renderTaskParameters(task: TaskDetail) {
         <dt>Source S3 bucket</dt>
         <dd>{task.sourceS3AwsBucketName}</dd>
         <dt>Source S3 subfolder</dt>
-        <dd>{task.sourceS3AwsBucketSubfolderName}</dd>
+        <dd>{task.sourceS3AwsBucketSubfolderName || "Весь bucket"}</dd>
         <dt>Destination S3 endpoint</dt>
         <dd>{task.destinationS3AwsEndpoint}</dd>
         <dt>Destination S3 bucket</dt>
