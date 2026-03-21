@@ -1,4 +1,4 @@
-namespace: local
+namespace: {{ if eq .Environment.Name "default" }}local{{ else }}{{ .Environment.Name }}{{ end }}
 
 postgresql:
   auth:

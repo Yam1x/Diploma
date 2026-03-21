@@ -37,6 +37,10 @@ jobs:
             image: diploma-env-synchronizer
             context: diploma-env-synchronizer
             dockerfile: diploma-env-synchronizer/Dockerfile
+          - name: demo-api
+            image: diploma-demo-api
+            context: .
+            dockerfile: apps/demo-api/Dockerfile
 
     steps:
       - name: Checkout

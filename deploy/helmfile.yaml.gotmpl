@@ -5,7 +5,7 @@ repositories:
     url: https://kubernetes.github.io/ingress-nginx
 
 environments:
-  default:
+  {{ .Environment.Name }}:
     values:
       - environments/default/values.yaml.gotmpl
 
@@ -52,3 +52,9 @@ releases:
       - {{ .Values.namespace }}/ingress-nginx
     values:
       - values/ui.yaml.gotmpl
+
+  - name: diploma-demo-api
+    namespace: {{ .Values.namespace }}
+    chart: ./charts/demo-api
+    values:
+      - values/demo-api.yaml.gotmpl
