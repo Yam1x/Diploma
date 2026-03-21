@@ -76,7 +76,32 @@ export function MinioFilesPage() {
     }
   }
 
+  async function handleDeleteSelected() {
+    if (selectedKeys.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Удалить выбранные файлы (${selectedKeys.length})?`)) {
+      return;
+    }
+
+    try {
+      setBusyKey("__bulk__");
+      for (const key of selectedKeys) {
+        await api.deleteMinioObject(key);
+      }
+      await load(appliedPrefix);
+      setSelectedKeys([]);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить выбранные файлы MinIO");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   const allSelected = objects.length > 0 && selectedKeys.length === objects.length;
+  const bulkDeleteBusy = busyKey === "__bulk__";
 
   return (
     <section className="stack">
@@ -96,7 +121,7 @@ export function MinioFilesPage() {
           <input value={prefix} onChange={(event) => setPrefix(event.target.value)} placeholder="archive/" />
         </label>
         <div className="toolbar-actions">
-          <button className="button primary" type="submit" disabled={loading}>
+          <button className="button primary" type="submit" disabled={loading || bulkDeleteBusy}>
             {loading ? "Загрузка..." : "Применить"}
           </button>
           <button
@@ -106,7 +131,7 @@ export function MinioFilesPage() {
               setPrefix("");
               void load("");
             }}
-            disabled={loading}
+            disabled={loading || bulkDeleteBusy}
           >
             Сбросить
           </button>
@@ -122,6 +147,11 @@ export function MinioFilesPage() {
             <p className="subtle">Текущий префикс: `{appliedPrefix || "/"}`</p>
             <p className="subtle">Выбрано файлов: {selectedKeys.length}</p>
           </div>
+          <div className="toolbar-actions">
+            <button className="button danger" type="button" disabled={selectedKeys.length === 0 || bulkDeleteBusy} onClick={() => void handleDeleteSelected()}>
+              {bulkDeleteBusy ? "Удаляем выбранные..." : "Удалить выбранные"}
+            </button>
+          </div>
         </div>
         <table>
           <thead>
@@ -131,7 +161,7 @@ export function MinioFilesPage() {
                   type="checkbox"
                   aria-label="Выбрать все файлы"
                   checked={allSelected}
-                  disabled={objects.length === 0}
+                  disabled={objects.length === 0 || bulkDeleteBusy}
                   onChange={() => toggleAllKeys()}
                 />
               </th>
@@ -144,7 +174,7 @@ export function MinioFilesPage() {
           </thead>
           <tbody>
             {objects.map((object) => {
-              const isBusy = busyKey === object.key;
+              const isBusy = busyKey === object.key || bulkDeleteBusy;
               const isSelected = selectedKeys.includes(object.key);
 
               return (
@@ -154,6 +184,7 @@ export function MinioFilesPage() {
                       type="checkbox"
                       aria-label={`Выбрать файл ${object.key}`}
                       checked={isSelected}
+                      disabled={bulkDeleteBusy}
                       onChange={() => toggleKey(object.key)}
                     />
                   </td>
@@ -166,7 +197,7 @@ export function MinioFilesPage() {
                       Скачать
                     </a>
                     <button className="button danger" type="button" disabled={isBusy} onClick={() => void handleDelete(object.key)}>
-                      {isBusy ? "Удаляем..." : "Удалить"}
+                      {busyKey === object.key ? "Удаляем..." : "Удалить"}
                     </button>
                   </td>
                 </tr>
