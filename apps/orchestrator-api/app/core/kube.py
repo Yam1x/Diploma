@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -75,6 +76,25 @@ class KubeClient:
             )
 
         return sorted(services, key=lambda service: str(service["name"]))
+
+    def create_job_from_cronjob(self, namespace: str, cronjob_name: str) -> str:
+        timestamp = datetime.now(timezone.utc).strftime("%m%d%H%M%S")
+        prefix = cronjob_name[: 63 - len("-manual-") - len(timestamp)]
+        job_name = f"{prefix}-manual-{timestamp}"
+        command = [
+            "kubectl",
+            "create",
+            "job",
+            job_name,
+            f"--from=cronjob/{cronjob_name}",
+            "-n",
+            namespace,
+            "-o",
+            "json",
+        ]
+        output = self._run(command)
+        payload = json.loads(output)
+        return payload["metadata"]["name"]
 
     def namespace_exists(self, namespace: str) -> bool:
         return namespace in self.list_namespaces()

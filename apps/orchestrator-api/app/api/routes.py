@@ -95,6 +95,11 @@ def enable_task(task_id: int, service: TaskService = Depends(get_task_service)) 
     return service.enable_task(task_id)
 
 
+@api_router.post("/tasks/{task_id}/run", response_model=TaskDetail)
+def run_task(task_id: int, service: TaskService = Depends(get_task_service)) -> TaskDetail:
+    return service.run_task(task_id)
+
+
 @api_router.post("/tasks/{task_id}/disable", response_model=TaskDetail)
 def disable_task(task_id: int, service: TaskService = Depends(get_task_service)) -> TaskDetail:
     return service.disable_task(task_id)

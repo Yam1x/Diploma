@@ -134,6 +134,9 @@ export function TaskDetailsPage() {
           <button className="button ghost" onClick={() => void run(() => api.refreshTask(String(task.id)))}>
             Обновить
           </button>
+          <button className="button primary" onClick={() => void run(() => api.runTask(String(task.id)))} disabled={!task.enabled}>
+            Запустить сейчас
+          </button>
           {task.enabled ? (
             <button className="button danger" onClick={() => void run(() => api.disableTask(String(task.id)))}>
               Выключить

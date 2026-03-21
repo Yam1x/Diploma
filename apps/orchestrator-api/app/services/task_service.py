@@ -170,6 +170,26 @@ class TaskService:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return self._to_detail(task)
 
+    def run_task(self, task_id: int) -> TaskDetail:
+        task = self._get_task_model(task_id)
+        if not task.enabled or not task.release_name:
+            raise HTTPException(status_code=400, detail="Task must be deployed before running it manually")
+
+        try:
+            job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name)
+        except KubernetesError as exc:
+            task.last_apply_status = "failed"
+            task.last_apply_message = str(exc)
+            task.last_applied_at = datetime.now(timezone.utc)
+            self.db.commit()
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        task.last_apply_status = "deployed"
+        task.last_apply_message = f"Manual run started: {job_name}"
+        task.last_applied_at = datetime.now(timezone.utc)
+        self.db.commit()
+        return self._to_detail(task)
+
     def refresh_task(self, task_id: int) -> TaskDetail:
         task = self._get_task_model(task_id)
         try:
