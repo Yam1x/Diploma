@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import get_task_service
+from app.api.deps import get_minio_browser_service, get_task_service
+from app.schemas.minio import MinioObjectsResponse
 from app.schemas.task import (
     HealthResponse,
     NamespaceCreateRequest,
@@ -12,6 +13,7 @@ from app.schemas.task import (
     TaskSummary,
     TaskUpdate,
 )
+from app.services.minio_browser_service import MinioBrowserService
 from app.services.task_service import TaskService
 
 
@@ -36,6 +38,14 @@ def create_namespace(payload: NamespaceCreateRequest, service: TaskService = Dep
 @api_router.get("/namespaces/{namespace}/service-discovery", response_model=ServiceDiscoveryResponse)
 def list_service_discovery(namespace: str, service: TaskService = Depends(get_task_service)) -> ServiceDiscoveryResponse:
     return service.list_service_discovery(namespace)
+
+
+@api_router.get("/minio/objects", response_model=MinioObjectsResponse)
+def list_minio_objects(
+    prefix: str = Query(default="", max_length=255),
+    service: MinioBrowserService = Depends(get_minio_browser_service),
+) -> MinioObjectsResponse:
+    return service.list_objects(prefix)
 
 
 @api_router.get("/tasks", response_model=list[TaskSummary])

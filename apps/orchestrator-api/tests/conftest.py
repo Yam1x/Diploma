@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.main as main_module
-from app.api.deps import get_task_service
+from app.api.deps import get_minio_browser_service, get_task_service
 from app.db import Base
 from app.services.task_service import TaskService
 
@@ -78,6 +79,28 @@ class FakeKube:
         return namespace in self.namespaces
 
 
+class FakeMinioBrowserService:
+    def list_objects(self, prefix: str = "") -> dict:
+        return {
+            "bucketName": "backups",
+            "prefix": prefix,
+            "objects": [
+                {
+                    "key": f"{prefix}db/2026-03-21.dump" if prefix else "db/2026-03-21.dump",
+                    "size": 4096,
+                    "lastModified": datetime(2026, 3, 21, 8, 30, tzinfo=timezone.utc).isoformat(),
+                    "etag": "etag-1",
+                },
+                {
+                    "key": f"{prefix}s3/2026-03-21.tar.gz" if prefix else "s3/2026-03-21.tar.gz",
+                    "size": 8192,
+                    "lastModified": datetime(2026, 3, 21, 9, 0, tzinfo=timezone.utc).isoformat(),
+                    "etag": "etag-2",
+                },
+            ],
+        }
+
+
 @pytest.fixture
 def fake_helm() -> FakeHelm:
     return FakeHelm()
@@ -86,6 +109,11 @@ def fake_helm() -> FakeHelm:
 @pytest.fixture
 def fake_kube() -> FakeKube:
     return FakeKube()
+
+
+@pytest.fixture
+def fake_minio_browser_service() -> FakeMinioBrowserService:
+    return FakeMinioBrowserService()
 
 
 @pytest.fixture
@@ -116,6 +144,7 @@ def client(
     db_session: Session,
     fake_helm: FakeHelm,
     fake_kube: FakeKube,
+    fake_minio_browser_service: FakeMinioBrowserService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[TestClient, None, None]:
     monkeypatch.setattr(main_module, "init_db", lambda: None)
@@ -124,6 +153,7 @@ def client(
         return TaskService(db=db_session, helm=fake_helm, kube=fake_kube)
 
     main_module.app.dependency_overrides[get_task_service] = override_get_task_service
+    main_module.app.dependency_overrides[get_minio_browser_service] = lambda: fake_minio_browser_service
     with TestClient(main_module.app) as test_client:
         yield test_client
     main_module.app.dependency_overrides.clear()

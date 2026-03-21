@@ -30,3 +30,9 @@ config:
       repositoryUrl: {{ .Values.s3Backupper.chart.repositoryUrl | quote }}
       ref: {{ .Values.s3Backupper.chart.ref | quote }}
       path: {{ .Values.s3Backupper.chart.path | quote }}
+  minio:
+    endpointUrl: {{ printf "http://%s:%v" .StateValues.minio.service.host .StateValues.minio.service.port | quote }}
+    accessKeyId: {{ .StateValues.minio.auth.rootUser | quote }}
+    secretAccessKey: {{ .StateValues.minio.auth.rootPassword | quote }}
+    bucketName: {{ (splitList "," .StateValues.minio.defaultBuckets | first | trim) | quote }}
+    region: {{ .StateValues.minio.region | quote }}

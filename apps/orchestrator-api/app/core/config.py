@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     s3_backupper_chart_ref: str = "master"
     s3_backupper_chart_path: str = "diploma-s3-backupper/ci"
 
+    minio_endpoint_url: str = "http://minio:9000"
+    minio_access_key_id: str = "admin"
+    minio_secret_access_key: str = "minio123456"
+    minio_bucket_name: str = "backups"
+    minio_region: str = "us-east-1"
+
 
 @lru_cache
 def get_settings() -> Settings:

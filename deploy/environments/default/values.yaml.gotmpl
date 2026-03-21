@@ -32,8 +32,13 @@ s3Backupper:
 
 minio:
   auth:
+    rootUser: admin
     rootPassword: minio123456
+  service:
+    host: minio
+    port: 9000
   defaultBuckets: backups
+  region: us-east-1
   apiHost: minio-s3
   consoleHost: minio-s3-console
 

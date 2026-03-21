@@ -19,3 +19,8 @@ data:
   ORCHESTRATOR_S3_BACKUPPER_CHART_REPOSITORY_URL: {{ .Values.config.s3Backupper.chart.repositoryUrl | quote }}
   ORCHESTRATOR_S3_BACKUPPER_CHART_REF: {{ .Values.config.s3Backupper.chart.ref | quote }}
   ORCHESTRATOR_S3_BACKUPPER_CHART_PATH: {{ .Values.config.s3Backupper.chart.path | quote }}
+  ORCHESTRATOR_MINIO_ENDPOINT_URL: {{ .Values.config.minio.endpointUrl | quote }}
+  ORCHESTRATOR_MINIO_ACCESS_KEY_ID: {{ .Values.config.minio.accessKeyId | quote }}
+  ORCHESTRATOR_MINIO_SECRET_ACCESS_KEY: {{ .Values.config.minio.secretAccessKey | quote }}
+  ORCHESTRATOR_MINIO_BUCKET_NAME: {{ .Values.config.minio.bucketName | quote }}
+  ORCHESTRATOR_MINIO_REGION: {{ .Values.config.minio.region | quote }}

@@ -4,6 +4,7 @@ image:
   repository: bitnamilegacy/minio
 
 auth:
+  rootUser: {{ .StateValues.minio.auth.rootUser | quote }}
   rootPassword: {{ .StateValues.minio.auth.rootPassword | quote }}
 
 defaultBuckets: {{ .StateValues.minio.defaultBuckets | quote }}

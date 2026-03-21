@@ -23,6 +23,19 @@ export type ServiceDiscoveryResponse = {
   services: DiscoveredService[];
 };
 
+export type MinioObjectSummary = {
+  key: string;
+  size: number;
+  lastModified: string | null;
+  etag: string | null;
+};
+
+export type MinioObjectsResponse = {
+  bucketName: string;
+  prefix: string;
+  objects: MinioObjectSummary[];
+};
+
 type TaskSummaryBase = {
   id: number;
   name: string;
@@ -150,5 +163,9 @@ export const api = {
   listNamespaces: () => request<{ namespaces: string[] }>("/namespaces"),
   listServiceDiscovery: (namespace: string) =>
     request<ServiceDiscoveryResponse>(`/namespaces/${encodeURIComponent(namespace)}/service-discovery`),
+  listMinioObjects: (prefix = "") => {
+    const query = prefix ? `?prefix=${encodeURIComponent(prefix)}` : "";
+    return request<MinioObjectsResponse>(`/minio/objects${query}`);
+  },
   createNamespace: (payload: NamespacePayload) => request<{ name: string }>("/namespaces", { method: "POST", body: JSON.stringify(payload) }),
 };
