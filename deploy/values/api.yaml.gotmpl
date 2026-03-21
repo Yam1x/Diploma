@@ -30,6 +30,16 @@ config:
       repositoryUrl: "https://github.com/Yam1x/Diploma.git"
       ref: "master"
       path: "diploma-s3-backupper/ci"
+  envSynchronizer:
+    image:
+      registry: "ghcr.io"
+      repository: "yam1x/diploma-env-synchronizer"
+      tag: "latest"
+      pullPolicy: "Always"
+    chart:
+      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      ref: "master"
+      path: "diploma-env-synchronizer/ci"
   minio:
     endpointUrl: {{ printf "http://%s:%v" .StateValues.minio.service.host .StateValues.minio.service.port | quote }}
     accessKeyId: {{ .StateValues.minio.auth.rootUser | quote }}

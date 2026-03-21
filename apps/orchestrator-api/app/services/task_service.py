@@ -17,6 +17,10 @@ from app.schemas.task import (
     DbTaskDetail,
     DbTaskSummary,
     DbTaskUpdate,
+    EnvSynchronizerTaskCreate,
+    EnvSynchronizerTaskDetail,
+    EnvSynchronizerTaskSummary,
+    EnvSynchronizerTaskUpdate,
     S3TaskCreate,
     S3TaskDetail,
     S3TaskSummary,
@@ -88,7 +92,7 @@ class TaskService:
             task.destination_aws_access_key_id = db_payload.destinationAwsAccessKeyId
             task.secret.database_password_encrypted = db_payload.databasePassword
             task.secret.destination_aws_secret_access_key_encrypted = db_payload.destinationAwsSecretAccessKey
-        else:
+        elif service_type == ServiceType.S3_BACKUPPER:
             s3_payload = self._expect_s3_create(payload)
             task.s3_backups_filename_prefix = s3_payload.s3BackupsFilenamePrefix
             task.source_s3_aws_endpoint = s3_payload.sourceS3AwsEndpoint
@@ -100,6 +104,10 @@ class TaskService:
             task.destination_s3_aws_bucket_name = s3_payload.destinationS3AwsBucketName
             task.secret.source_s3_aws_secret_access_key_encrypted = s3_payload.sourceS3AwsSecretAccessKey
             task.secret.destination_s3_aws_secret_access_key_encrypted = s3_payload.destinationS3AwsSecretAccessKey
+        else:
+            env_payload = self._expect_env_synchronizer_create(payload)
+            task.env_repository = env_payload.envRepository
+            task.path_to_helmfile = env_payload.pathToHelmfile
 
         self.db.add(task)
         self.db.flush()
@@ -131,9 +139,15 @@ class TaskService:
         if task.service_type == ServiceType.DB_BACKUPPER:
             db_changes = self._expect_db_update(payload)
             self._apply_db_update(task, db_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}))
-        else:
+        elif task.service_type == ServiceType.S3_BACKUPPER:
             s3_changes = self._expect_s3_update(payload)
             self._apply_s3_update(task, s3_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}))
+        else:
+            env_changes = self._expect_env_synchronizer_update(payload)
+            self._apply_env_synchronizer_update(
+                task,
+                env_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}),
+            )
 
         self.db.commit()
 
@@ -247,10 +261,7 @@ class TaskService:
         }
         for source, target in field_map.items():
             if source in changes:
-                value = changes[source]
-                if source == "sourceS3AwsBucketSubfolderName":
-                    value = value or None
-                setattr(task, target, value)
+                setattr(task, target, changes[source])
 
         if "databasePassword" in changes:
             task.secret.database_password_encrypted = changes["databasePassword"] or None
@@ -281,6 +292,15 @@ class TaskService:
 
         if "destinationS3AwsSecretAccessKey" in changes:
             task.secret.destination_s3_aws_secret_access_key_encrypted = changes["destinationS3AwsSecretAccessKey"] or None
+
+    def _apply_env_synchronizer_update(self, task: Task, changes: dict) -> None:
+        field_map = {
+            "envRepository": "env_repository",
+            "pathToHelmfile": "path_to_helmfile",
+        }
+        for source, target in field_map.items():
+            if source in changes:
+                setattr(task, target, changes[source])
 
     def _cleanup_release(self, task: Task) -> None:
         if not task.release_name:
@@ -352,21 +372,33 @@ class TaskService:
                 "DESTINATION_DB_AWS_ENDPOINT": task.destination_aws_endpoint or "",
             }
 
+        if task.service_type == ServiceType.S3_BACKUPPER:
+            return {
+                "BACKUPS_SCHEDULE": task.schedule,
+                "S3_BACKUPS_FILENAME_PREFIX": task.s3_backups_filename_prefix or "",
+                "SOURCE_S3_AWS_ENDPOINT": task.source_s3_aws_endpoint or "",
+                "SOURCE_S3_AWS_ACCESS_KEY_ID": task.source_s3_aws_access_key_id or "",
+                "SOURCE_S3_AWS_SECRET_ACCESS_KEY": task.secret.source_s3_aws_secret_access_key_encrypted or "",
+                "SOURCE_S3_AWS_BUCKET_NAME": task.source_s3_aws_bucket_name or "",
+                "SOURCE_S3_AWS_BUCKET_SUBFOLDER_NAME": task.source_s3_aws_bucket_subfolder_name or "",
+                "DESTINATION_S3_AWS_ENDPOINT": task.destination_s3_aws_endpoint or "",
+                "DESTINATION_S3_AWS_ACCESS_KEY_ID": task.destination_s3_aws_access_key_id or "",
+                "DESTINATION_S3_AWS_SECRET_ACCESS_KEY": task.secret.destination_s3_aws_secret_access_key_encrypted or "",
+                "DESTINATION_S3_AWS_BUCKET_NAME": task.destination_s3_aws_bucket_name or "",
+            }
+
         return {
-            "BACKUPS_SCHEDULE": task.schedule,
-            "S3_BACKUPS_FILENAME_PREFIX": task.s3_backups_filename_prefix or "",
-            "SOURCE_S3_AWS_ENDPOINT": task.source_s3_aws_endpoint or "",
-            "SOURCE_S3_AWS_ACCESS_KEY_ID": task.source_s3_aws_access_key_id or "",
-            "SOURCE_S3_AWS_SECRET_ACCESS_KEY": task.secret.source_s3_aws_secret_access_key_encrypted or "",
-            "SOURCE_S3_AWS_BUCKET_NAME": task.source_s3_aws_bucket_name or "",
-            "SOURCE_S3_AWS_BUCKET_SUBFOLDER_NAME": task.source_s3_aws_bucket_subfolder_name or "",
-            "DESTINATION_S3_AWS_ENDPOINT": task.destination_s3_aws_endpoint or "",
-            "DESTINATION_S3_AWS_ACCESS_KEY_ID": task.destination_s3_aws_access_key_id or "",
-            "DESTINATION_S3_AWS_SECRET_ACCESS_KEY": task.secret.destination_s3_aws_secret_access_key_encrypted or "",
-            "DESTINATION_S3_AWS_BUCKET_NAME": task.destination_s3_aws_bucket_name or "",
+            "SCHEDULE": task.schedule,
+            "SYNCHRONIZER_ENABLED": "true",
+            "ENV_REPOSITORY": task.env_repository or "",
+            "PATH_TO_HELMFILE": task.path_to_helmfile or "",
+            "CONFIGMAP_NAME": "",
         }
 
     def _validate_required_secrets(self, task: Task) -> None:
+        if task.service_type == ServiceType.ENV_SYNCHRONIZER:
+            return
+
         if task.service_type == ServiceType.DB_BACKUPPER:
             if not task.secret.database_password_encrypted:
                 raise HTTPException(status_code=400, detail="Database password is not configured")
@@ -414,7 +446,9 @@ class TaskService:
         }
         if task.service_type == ServiceType.DB_BACKUPPER:
             return DbTaskSummary(serviceType=task.service_type.value, **common)
-        return S3TaskSummary(serviceType=task.service_type.value, **common)
+        if task.service_type == ServiceType.S3_BACKUPPER:
+            return S3TaskSummary(serviceType=task.service_type.value, **common)
+        return EnvSynchronizerTaskSummary(serviceType=task.service_type.value, **common)
 
     def _to_detail(self, task: Task) -> TaskDetail:
         summary = self._to_summary(task)
@@ -432,18 +466,25 @@ class TaskService:
                 hasDestinationAwsSecretAccessKey=bool(task.secret.destination_aws_secret_access_key_encrypted),
             )
 
-        return S3TaskDetail(
+        if task.service_type == ServiceType.S3_BACKUPPER:
+            return S3TaskDetail(
+                **summary.model_dump(),
+                s3BackupsFilenamePrefix=task.s3_backups_filename_prefix or "",
+                sourceS3AwsEndpoint=task.source_s3_aws_endpoint or "",
+                sourceS3AwsAccessKeyId=task.source_s3_aws_access_key_id or "",
+                sourceS3AwsBucketName=task.source_s3_aws_bucket_name or "",
+                sourceS3AwsBucketSubfolderName=task.source_s3_aws_bucket_subfolder_name or "",
+                destinationS3AwsEndpoint=task.destination_s3_aws_endpoint or "",
+                destinationS3AwsAccessKeyId=task.destination_s3_aws_access_key_id or "",
+                destinationS3AwsBucketName=task.destination_s3_aws_bucket_name or "",
+                hasSourceS3AwsSecretAccessKey=bool(task.secret.source_s3_aws_secret_access_key_encrypted),
+                hasDestinationS3AwsSecretAccessKey=bool(task.secret.destination_s3_aws_secret_access_key_encrypted),
+            )
+
+        return EnvSynchronizerTaskDetail(
             **summary.model_dump(),
-            s3BackupsFilenamePrefix=task.s3_backups_filename_prefix or "",
-            sourceS3AwsEndpoint=task.source_s3_aws_endpoint or "",
-            sourceS3AwsAccessKeyId=task.source_s3_aws_access_key_id or "",
-            sourceS3AwsBucketName=task.source_s3_aws_bucket_name or "",
-            sourceS3AwsBucketSubfolderName=task.source_s3_aws_bucket_subfolder_name or "",
-            destinationS3AwsEndpoint=task.destination_s3_aws_endpoint or "",
-            destinationS3AwsAccessKeyId=task.destination_s3_aws_access_key_id or "",
-            destinationS3AwsBucketName=task.destination_s3_aws_bucket_name or "",
-            hasSourceS3AwsSecretAccessKey=bool(task.secret.source_s3_aws_secret_access_key_encrypted),
-            hasDestinationS3AwsSecretAccessKey=bool(task.secret.destination_s3_aws_secret_access_key_encrypted),
+            envRepository=task.env_repository or "",
+            pathToHelmfile=task.path_to_helmfile or "",
         )
 
     def _build_discovered_service(self, service: dict[str, Any]) -> ServiceDiscoveryService:
@@ -490,6 +531,12 @@ class TaskService:
         return payload
 
     @staticmethod
+    def _expect_env_synchronizer_create(payload: TaskCreate) -> EnvSynchronizerTaskCreate:
+        if not isinstance(payload, EnvSynchronizerTaskCreate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
     def _expect_db_update(payload: TaskUpdate) -> DbTaskUpdate:
         if not isinstance(payload, DbTaskUpdate):
             raise HTTPException(status_code=400, detail="Unsupported service type payload")
@@ -498,6 +545,12 @@ class TaskService:
     @staticmethod
     def _expect_s3_update(payload: TaskUpdate) -> S3TaskUpdate:
         if not isinstance(payload, S3TaskUpdate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_env_synchronizer_update(payload: TaskUpdate) -> EnvSynchronizerTaskUpdate:
+        if not isinstance(payload, EnvSynchronizerTaskUpdate):
             raise HTTPException(status_code=400, detail="Unsupported service type payload")
         return payload
 
@@ -515,13 +568,25 @@ class TaskService:
                 release_prefix="db-backupper",
             )
 
+        if service_type == ServiceType.S3_BACKUPPER:
+            return ServiceDeploymentConfig(
+                image_registry=settings.s3_backupper_image_registry,
+                image_repository=settings.s3_backupper_image_repository,
+                image_tag=settings.s3_backupper_image_tag,
+                image_pull_policy=settings.s3_backupper_image_pull_policy,
+                chart_repository_url=settings.s3_backupper_chart_repository_url,
+                chart_ref=settings.s3_backupper_chart_ref,
+                chart_path=settings.s3_backupper_chart_path,
+                release_prefix="s3-backupper",
+            )
+
         return ServiceDeploymentConfig(
-            image_registry=settings.s3_backupper_image_registry,
-            image_repository=settings.s3_backupper_image_repository,
-            image_tag=settings.s3_backupper_image_tag,
-            image_pull_policy=settings.s3_backupper_image_pull_policy,
-            chart_repository_url=settings.s3_backupper_chart_repository_url,
-            chart_ref=settings.s3_backupper_chart_ref,
-            chart_path=settings.s3_backupper_chart_path,
-            release_prefix="s3-backupper",
+            image_registry=settings.env_synchronizer_image_registry,
+            image_repository=settings.env_synchronizer_image_repository,
+            image_tag=settings.env_synchronizer_image_tag,
+            image_pull_policy=settings.env_synchronizer_image_pull_policy,
+            chart_repository_url=settings.env_synchronizer_chart_repository_url,
+            chart_ref=settings.env_synchronizer_chart_ref,
+            chart_path=settings.env_synchronizer_chart_path,
+            release_prefix="env-synchronizer",
         )

@@ -42,7 +42,16 @@ class S3TaskCreate(TaskRequestBase):
     destinationS3AwsSecretAccessKey: str = Field(min_length=1)
 
 
-TaskCreate: TypeAlias = Annotated[DbTaskCreate | S3TaskCreate, Field(discriminator="serviceType")]
+class EnvSynchronizerTaskCreate(TaskRequestBase):
+    serviceType: Literal["env_synchronizer"]
+    envRepository: str = Field(min_length=1, max_length=255)
+    pathToHelmfile: str = Field(min_length=1, max_length=255)
+
+
+TaskCreate: TypeAlias = Annotated[
+    DbTaskCreate | S3TaskCreate | EnvSynchronizerTaskCreate,
+    Field(discriminator="serviceType"),
+]
 
 
 class DbTaskUpdate(BaseModel):
@@ -84,7 +93,22 @@ class S3TaskUpdate(BaseModel):
     destinationS3AwsSecretAccessKey: str | None = None
 
 
-TaskUpdate: TypeAlias = Annotated[DbTaskUpdate | S3TaskUpdate, Field(discriminator="serviceType")]
+class EnvSynchronizerTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["env_synchronizer"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    envRepository: str | None = Field(default=None, min_length=1, max_length=255)
+    pathToHelmfile: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+TaskUpdate: TypeAlias = Annotated[
+    DbTaskUpdate | S3TaskUpdate | EnvSynchronizerTaskUpdate,
+    Field(discriminator="serviceType"),
+]
 
 
 class TaskSummaryBase(BaseModel):
@@ -94,7 +118,7 @@ class TaskSummaryBase(BaseModel):
     name: str
     namespace: str
     enabled: bool
-    serviceType: Literal["db_backupper", "s3_backupper"]
+    serviceType: Literal["db_backupper", "s3_backupper", "env_synchronizer"]
     schedule: str
     deployed: bool
     releaseName: str
@@ -112,7 +136,14 @@ class S3TaskSummary(TaskSummaryBase):
     serviceType: Literal["s3_backupper"]
 
 
-TaskSummary: TypeAlias = Annotated[DbTaskSummary | S3TaskSummary, Field(discriminator="serviceType")]
+class EnvSynchronizerTaskSummary(TaskSummaryBase):
+    serviceType: Literal["env_synchronizer"]
+
+
+TaskSummary: TypeAlias = Annotated[
+    DbTaskSummary | S3TaskSummary | EnvSynchronizerTaskSummary,
+    Field(discriminator="serviceType"),
+]
 
 
 class DbTaskDetail(DbTaskSummary):
@@ -140,7 +171,15 @@ class S3TaskDetail(S3TaskSummary):
     hasDestinationS3AwsSecretAccessKey: bool
 
 
-TaskDetail: TypeAlias = Annotated[DbTaskDetail | S3TaskDetail, Field(discriminator="serviceType")]
+class EnvSynchronizerTaskDetail(EnvSynchronizerTaskSummary):
+    envRepository: str
+    pathToHelmfile: str
+
+
+TaskDetail: TypeAlias = Annotated[
+    DbTaskDetail | S3TaskDetail | EnvSynchronizerTaskDetail,
+    Field(discriminator="serviceType"),
+]
 
 
 class HealthResponse(BaseModel):

@@ -1,6 +1,6 @@
 const API_BASE_URL = "/api";
 
-export type ServiceType = "db_backupper" | "s3_backupper";
+export type ServiceType = "db_backupper" | "s3_backupper" | "env_synchronizer";
 
 export type ServiceDiscoveryPort = {
   name: string | null;
@@ -59,7 +59,11 @@ export type S3TaskSummary = TaskSummaryBase & {
   serviceType: "s3_backupper";
 };
 
-export type TaskSummary = DbTaskSummary | S3TaskSummary;
+export type EnvSynchronizerTaskSummary = TaskSummaryBase & {
+  serviceType: "env_synchronizer";
+};
+
+export type TaskSummary = DbTaskSummary | S3TaskSummary | EnvSynchronizerTaskSummary;
 
 export type DbTaskDetail = DbTaskSummary & {
   dbBackupsFilenamePrefix: string;
@@ -86,7 +90,12 @@ export type S3TaskDetail = S3TaskSummary & {
   hasDestinationS3AwsSecretAccessKey: boolean;
 };
 
-export type TaskDetail = DbTaskDetail | S3TaskDetail;
+export type EnvSynchronizerTaskDetail = EnvSynchronizerTaskSummary & {
+  envRepository: string;
+  pathToHelmfile: string;
+};
+
+export type TaskDetail = DbTaskDetail | S3TaskDetail | EnvSynchronizerTaskDetail;
 
 export type NamespacePayload = {
   name: string;
@@ -127,7 +136,13 @@ export type S3TaskPayload = TaskPayloadBase & {
   destinationS3AwsSecretAccessKey?: string;
 };
 
-export type TaskPayload = DbTaskPayload | S3TaskPayload;
+export type EnvSynchronizerTaskPayload = TaskPayloadBase & {
+  serviceType: "env_synchronizer";
+  envRepository: string;
+  pathToHelmfile: string;
+};
+
+export type TaskPayload = DbTaskPayload | S3TaskPayload | EnvSynchronizerTaskPayload;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {

@@ -33,6 +33,10 @@ jobs:
             image: diploma-s3-backupper
             context: diploma-s3-backupper
             dockerfile: diploma-s3-backupper/Dockerfile
+          - name: env-synchronizer
+            image: diploma-env-synchronizer
+            context: diploma-env-synchronizer
+            dockerfile: diploma-env-synchronizer/Dockerfile
 
     steps:
       - name: Checkout

@@ -48,20 +48,34 @@ function renderTaskParameters(task: TaskDetail) {
     );
   }
 
+  if (task.serviceType === "s3_backupper") {
+    return (
+      <article className="card">
+        <h3>Параметры выполнения</h3>
+        <dl>
+          <dt>Source S3 endpoint</dt>
+          <dd>{task.sourceS3AwsEndpoint}</dd>
+          <dt>Source S3 bucket</dt>
+          <dd>{task.sourceS3AwsBucketName}</dd>
+          <dt>Source S3 subfolder</dt>
+          <dd>{task.sourceS3AwsBucketSubfolderName || "Весь bucket"}</dd>
+          <dt>Destination S3 endpoint</dt>
+          <dd>{task.destinationS3AwsEndpoint}</dd>
+          <dt>Destination S3 bucket</dt>
+          <dd>{task.destinationS3AwsBucketName}</dd>
+        </dl>
+      </article>
+    );
+  }
+
   return (
     <article className="card">
       <h3>Параметры выполнения</h3>
       <dl>
-        <dt>Source S3 endpoint</dt>
-        <dd>{task.sourceS3AwsEndpoint}</dd>
-        <dt>Source S3 bucket</dt>
-        <dd>{task.sourceS3AwsBucketName}</dd>
-        <dt>Source S3 subfolder</dt>
-        <dd>{task.sourceS3AwsBucketSubfolderName || "Весь bucket"}</dd>
-        <dt>Destination S3 endpoint</dt>
-        <dd>{task.destinationS3AwsEndpoint}</dd>
-        <dt>Destination S3 bucket</dt>
-        <dd>{task.destinationS3AwsBucketName}</dd>
+        <dt>Репозиторий окружения</dt>
+        <dd>{task.envRepository}</dd>
+        <dt>Путь к Helmfile</dt>
+        <dd>{task.pathToHelmfile}</dd>
       </dl>
     </article>
   );
@@ -164,8 +178,17 @@ export function TaskDetailsPage() {
             <dd>{formatServiceType(task.serviceType)}</dd>
             <dt>Расписание</dt>
             <dd>{task.schedule}</dd>
-            <dt>{task.serviceType === "db_backupper" ? "Префикс имени файла" : "Префикс имени архива"}</dt>
-            <dd>{task.serviceType === "db_backupper" ? task.dbBackupsFilenamePrefix : task.s3BackupsFilenamePrefix}</dd>
+            {task.serviceType === "db_backupper" ? (
+              <>
+                <dt>Префикс имени файла</dt>
+                <dd>{task.dbBackupsFilenamePrefix}</dd>
+              </>
+            ) : task.serviceType === "s3_backupper" ? (
+              <>
+                <dt>Префикс имени архива</dt>
+                <dd>{task.s3BackupsFilenamePrefix}</dd>
+              </>
+            ) : null}
           </dl>
         </article>
         <article className="card">

@@ -80,8 +80,8 @@ export function TasksListPage() {
     <section className="stack">
       <div className="toolbar">
         <div>
-          <h2>Настройка сервисов бэкапирования</h2>
-          <p className="subtle">Управляйте сервисами `db_backupper`, `s3_backupper`, namespace и их деплоем из одного раздела.</p>
+          <h2>Настройка задач оркестрации</h2>
+          <p className="subtle">Управляйте задачами `db_backupper`, `s3_backupper`, `env_synchronizer`, namespace и их деплоем из одного раздела.</p>
         </div>
         <div className="toolbar-actions">
           <select value={selectedNamespace} onChange={(event) => setSelectedNamespace(event.target.value)}>

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { DbTaskDetail, ServiceDiscoveryResponse, ServiceType, TaskDetail, TaskPayload, api } from "../api/client";
+import { ServiceDiscoveryResponse, ServiceType, TaskDetail, TaskPayload, api } from "../api/client";
 import { ConfiguredSecrets, DiscoveryOption, TaskFormFields } from "../components/TaskFormFields";
 import { getTaskTypeByRouteType, getTaskTypeByServiceType } from "../config/taskTypes";
 
@@ -25,43 +25,74 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
     };
   }
 
+  if (serviceType === "s3_backupper") {
+    return {
+      serviceType,
+      name: "",
+      namespace: "",
+      enabled: false,
+      schedule: "0 0 * * *",
+      s3BackupsFilenamePrefix: "",
+      sourceS3AwsEndpoint: "",
+      sourceS3AwsAccessKeyId: "",
+      sourceS3AwsBucketName: "",
+      sourceS3AwsBucketSubfolderName: "",
+      sourceS3AwsSecretAccessKey: "",
+      destinationS3AwsEndpoint: "",
+      destinationS3AwsAccessKeyId: "",
+      destinationS3AwsBucketName: "",
+      destinationS3AwsSecretAccessKey: "",
+    };
+  }
+
   return {
     serviceType,
     name: "",
     namespace: "",
     enabled: false,
     schedule: "0 0 * * *",
-    s3BackupsFilenamePrefix: "",
-    sourceS3AwsEndpoint: "",
-    sourceS3AwsAccessKeyId: "",
-    sourceS3AwsBucketName: "",
-    sourceS3AwsBucketSubfolderName: "",
-    sourceS3AwsSecretAccessKey: "",
-    destinationS3AwsEndpoint: "",
-    destinationS3AwsAccessKeyId: "",
-    destinationS3AwsBucketName: "",
-    destinationS3AwsSecretAccessKey: "",
+    envRepository: "",
+    pathToHelmfile: "",
   };
 }
 
 function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
   if (detail.serviceType === "db_backupper") {
-    const dbDetail = detail as DbTaskDetail;
     return {
-      serviceType: dbDetail.serviceType,
-      name: dbDetail.name,
-      namespace: dbDetail.namespace,
-      enabled: dbDetail.enabled,
-      schedule: dbDetail.schedule,
-      dbBackupsFilenamePrefix: dbDetail.dbBackupsFilenamePrefix,
-      databaseHost: dbDetail.databaseHost,
-      databaseName: dbDetail.databaseName,
-      databaseUsername: dbDetail.databaseUsername,
+      serviceType: detail.serviceType,
+      name: detail.name,
+      namespace: detail.namespace,
+      enabled: detail.enabled,
+      schedule: detail.schedule,
+      dbBackupsFilenamePrefix: detail.dbBackupsFilenamePrefix,
+      databaseHost: detail.databaseHost,
+      databaseName: detail.databaseName,
+      databaseUsername: detail.databaseUsername,
       databasePassword: "",
-      destinationAwsEndpoint: dbDetail.destinationAwsEndpoint,
-      destinationAwsBucketName: dbDetail.destinationAwsBucketName,
-      destinationAwsAccessKeyId: dbDetail.destinationAwsAccessKeyId,
+      destinationAwsEndpoint: detail.destinationAwsEndpoint,
+      destinationAwsBucketName: detail.destinationAwsBucketName,
+      destinationAwsAccessKeyId: detail.destinationAwsAccessKeyId,
       destinationAwsSecretAccessKey: "",
+    };
+  }
+
+  if (detail.serviceType === "s3_backupper") {
+    return {
+      serviceType: detail.serviceType,
+      name: detail.name,
+      namespace: detail.namespace,
+      enabled: detail.enabled,
+      schedule: detail.schedule,
+      s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
+      sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
+      sourceS3AwsAccessKeyId: detail.sourceS3AwsAccessKeyId,
+      sourceS3AwsBucketName: detail.sourceS3AwsBucketName,
+      sourceS3AwsBucketSubfolderName: detail.sourceS3AwsBucketSubfolderName,
+      sourceS3AwsSecretAccessKey: "",
+      destinationS3AwsEndpoint: detail.destinationS3AwsEndpoint,
+      destinationS3AwsAccessKeyId: detail.destinationS3AwsAccessKeyId,
+      destinationS3AwsBucketName: detail.destinationS3AwsBucketName,
+      destinationS3AwsSecretAccessKey: "",
     };
   }
 
@@ -71,16 +102,8 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
     namespace: detail.namespace,
     enabled: detail.enabled,
     schedule: detail.schedule,
-    s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
-    sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
-    sourceS3AwsAccessKeyId: detail.sourceS3AwsAccessKeyId,
-    sourceS3AwsBucketName: detail.sourceS3AwsBucketName,
-    sourceS3AwsBucketSubfolderName: detail.sourceS3AwsBucketSubfolderName,
-    sourceS3AwsSecretAccessKey: "",
-    destinationS3AwsEndpoint: detail.destinationS3AwsEndpoint,
-    destinationS3AwsAccessKeyId: detail.destinationS3AwsAccessKeyId,
-    destinationS3AwsBucketName: detail.destinationS3AwsBucketName,
-    destinationS3AwsSecretAccessKey: "",
+    envRepository: detail.envRepository,
+    pathToHelmfile: detail.pathToHelmfile,
   };
 }
 
@@ -92,10 +115,14 @@ function buildConfiguredSecrets(detail: TaskDetail): ConfiguredSecrets {
     };
   }
 
-  return {
-    sourceS3AwsSecretAccessKey: detail.hasSourceS3AwsSecretAccessKey,
-    destinationS3AwsSecretAccessKey: detail.hasDestinationS3AwsSecretAccessKey,
-  };
+  if (detail.serviceType === "s3_backupper") {
+    return {
+      sourceS3AwsSecretAccessKey: detail.hasSourceS3AwsSecretAccessKey,
+      destinationS3AwsSecretAccessKey: detail.hasDestinationS3AwsSecretAccessKey,
+    };
+  }
+
+  return {};
 }
 
 function buildDbHostOptions(discovery: ServiceDiscoveryResponse): DiscoveryOption[] {
@@ -226,7 +253,7 @@ export function TaskFormPage() {
           if (!value.destinationAwsSecretAccessKey) {
             delete payload.destinationAwsSecretAccessKey;
           }
-        } else {
+        } else if (value.serviceType === "s3_backupper") {
           if (!value.sourceS3AwsSecretAccessKey) {
             delete payload.sourceS3AwsSecretAccessKey;
           }

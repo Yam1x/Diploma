@@ -12,6 +12,7 @@ from app.db import Base
 class ServiceType(str, enum.Enum):
     DB_BACKUPPER = "db_backupper"
     S3_BACKUPPER = "s3_backupper"
+    ENV_SYNCHRONIZER = "env_synchronizer"
 
 
 class Task(Base):
@@ -38,6 +39,8 @@ class Task(Base):
     destination_s3_aws_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destination_s3_aws_access_key_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destination_s3_aws_bucket_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    env_repository: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    path_to_helmfile: Mapped[str | None] = mapped_column(String(255), nullable=True)
     release_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     last_apply_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
     last_apply_message: Mapped[str | None] = mapped_column(Text, nullable=True)

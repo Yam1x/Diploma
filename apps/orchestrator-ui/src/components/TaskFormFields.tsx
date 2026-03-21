@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useState } from "react";
 
-import { DbTaskPayload, S3TaskPayload, TaskPayload } from "../api/client";
+import { TaskPayload } from "../api/client";
 import { buildSchedule, parseSchedule, ScheduleDraft, ScheduleMode } from "../utils/schedule";
 
 export type ConfiguredSecrets = {
@@ -110,12 +110,12 @@ export function TaskFormFields({
     });
   }, [value.schedule]);
 
-  const updateValue = (patch: Partial<DbTaskPayload> | Partial<S3TaskPayload>) => {
+  const updateValue = (patch: Record<string, string>) => {
     onChange({ ...value, ...patch } as TaskPayload);
   };
 
   const update = (key: string) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    updateValue({ [key]: event.target.value } as Partial<DbTaskPayload> & Partial<S3TaskPayload>);
+    updateValue({ [key]: event.target.value });
   };
 
   const applyScheduleDraft = (nextDraft: ScheduleDraft) => {
@@ -323,7 +323,7 @@ export function TaskFormFields({
             <input type="password" value={value.destinationAwsSecretAccessKey ?? ""} onChange={update("destinationAwsSecretAccessKey")} />
           </label>
         </>
-      ) : (
+      ) : value.serviceType === "s3_backupper" ? (
         <>
           <label>
             <span>Префикс имени архива</span>
@@ -383,6 +383,19 @@ export function TaskFormFields({
             <span>Destination S3 secret key {configuredSecrets?.destinationS3AwsSecretAccessKey ? "(настроен)" : ""}</span>
             <small className="field-help">Секретный ключ доступа к целевому S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
             <input type="password" value={value.destinationS3AwsSecretAccessKey ?? ""} onChange={update("destinationS3AwsSecretAccessKey")} />
+          </label>
+        </>
+      ) : (
+        <>
+          <label>
+            <span>Репозиторий окружения</span>
+            <small className="field-help">GitHub-репозиторий в формате `owner/repo`, который будет клонировать synchronizer.</small>
+            <input value={value.envRepository} onChange={update("envRepository")} placeholder="owner/repo" required />
+          </label>
+          <label>
+            <span>Путь к Helmfile</span>
+            <small className="field-help">Путь до Helmfile внутри репозитория окружения, который нужно применять по расписанию.</small>
+            <input value={value.pathToHelmfile} onChange={update("pathToHelmfile")} placeholder="deploy/helmfile.yaml.gotmpl" required />
           </label>
         </>
       )}

@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     s3_backupper_chart_ref: str = "master"
     s3_backupper_chart_path: str = "diploma-s3-backupper/ci"
 
+    env_synchronizer_image_registry: str = "ghcr.io"
+    env_synchronizer_image_repository: str = "yam1x/diploma-env-synchronizer"
+    env_synchronizer_image_tag: str = "latest"
+    env_synchronizer_image_pull_policy: str = "Always"
+    env_synchronizer_chart_repository_url: str = "https://github.com/Yam1x/Diploma.git"
+    env_synchronizer_chart_ref: str = "master"
+    env_synchronizer_chart_path: str = "diploma-env-synchronizer/ci"
+
     minio_endpoint_url: str = "http://minio:9000"
     minio_access_key_id: str = "admin"
     minio_secret_access_key: str = "minio123456"
