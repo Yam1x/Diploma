@@ -2,7 +2,7 @@ controller:
   service:
     type: NodePort
     ports:
-      http: "{{ .Values.ingress.externalPort }}"
+      http: "40110"
     nodePorts:
       http: "30080"
       https:

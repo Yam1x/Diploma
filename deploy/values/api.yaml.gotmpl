@@ -12,24 +12,24 @@ config:
   databaseUrl: {{ printf "postgresql+psycopg://postgres:%s@%s:%v/%s" .StateValues.postgresql.auth.postgresPassword .StateValues.postgresql.service.host .StateValues.postgresql.service.port .StateValues.postgresql.auth.database | quote }}
   dbBackupper:
     image:
-      registry: {{ .Values.dbBackupper.image.registry | quote }}
-      repository: {{ .Values.dbBackupper.image.repository | quote }}
-      tag: {{ .Values.dbBackupper.image.tag | quote }}
-      pullPolicy: {{ .Values.dbBackupper.image.pullPolicy | quote }}
+      registry: "ghcr.io"
+      repository: "yam1x/diploma-db-backupper"
+      tag: "latest"
+      pullPolicy: "Always"
     chart:
-      repositoryUrl: {{ .Values.dbBackupper.chart.repositoryUrl | quote }}
-      ref: {{ .Values.dbBackupper.chart.ref | quote }}
-      path: {{ .Values.dbBackupper.chart.path | quote }}
+      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      ref: "master"
+      path: "diploma-db-backupper/ci"
   s3Backupper:
     image:
-      registry: {{ .Values.s3Backupper.image.registry | quote }}
-      repository: {{ .Values.s3Backupper.image.repository | quote }}
-      tag: {{ .Values.s3Backupper.image.tag | quote }}
-      pullPolicy: {{ .Values.s3Backupper.image.pullPolicy | quote }}
+      registry: "ghcr.io"
+      repository: "yam1x/diploma-s3-backupper"
+      tag: "latest"
+      pullPolicy: "Always"
     chart:
-      repositoryUrl: {{ .Values.s3Backupper.chart.repositoryUrl | quote }}
-      ref: {{ .Values.s3Backupper.chart.ref | quote }}
-      path: {{ .Values.s3Backupper.chart.path | quote }}
+      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      ref: "master"
+      path: "diploma-s3-backupper/ci"
   minio:
     endpointUrl: {{ printf "http://%s:%v" .StateValues.minio.service.host .StateValues.minio.service.port | quote }}
     accessKeyId: {{ .StateValues.minio.auth.rootUser | quote }}

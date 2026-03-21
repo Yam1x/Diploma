@@ -8,28 +8,6 @@ postgresql:
     host: postgresql
     port: 5432
 
-dbBackupper:
-  image:
-    registry: ghcr.io
-    repository: yam1x/diploma-db-backupper
-    tag: latest
-    pullPolicy: Always
-  chart:
-    repositoryUrl: https://github.com/Yam1x/Diploma.git
-    ref: master
-    path: diploma-db-backupper/ci
-
-s3Backupper:
-  image:
-    registry: ghcr.io
-    repository: yam1x/diploma-s3-backupper
-    tag: latest
-    pullPolicy: Always
-  chart:
-    repositoryUrl: https://github.com/Yam1x/Diploma.git
-    ref: master
-    path: diploma-s3-backupper/ci
-
 minio:
   auth:
     rootUser: admin
@@ -39,9 +17,6 @@ minio:
     port: 9000
   defaultBuckets: backups
   region: us-east-1
-  apiHost: minio-s3
-  consoleHost: minio-s3-console
 
 ingress:
   host: localhost
-  externalPort: 40110

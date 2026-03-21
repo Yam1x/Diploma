@@ -1,12 +1,12 @@
 replicaCount: 1
 
 image:
-  repository: {{ .Values.uiImageRepository }}
-  tag: {{ .Values.uiImageTag }}
-  pullPolicy: {{ .Values.uiImagePullPolicy }}
+  repository: ghcr.io/yam1x/diploma-orchestrator-ui
+  tag: "latest"
+  pullPolicy: Always
 
 service:
-  port: {{ .Values.uiPort }}
+  port: 80
 
 ingress:
   enabled: true

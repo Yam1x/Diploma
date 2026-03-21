@@ -12,11 +12,11 @@ defaultBuckets: {{ .StateValues.minio.defaultBuckets | quote }}
 ingress:
   enabled: true
   ingressClassName: nginx
-  hostname: {{ printf "%s.%s" .StateValues.minio.consoleHost .StateValues.ingress.host | quote }}
+  hostname: {{ printf "%s.%s" "minio-s3-console" .StateValues.ingress.host | quote }}
   path: /
 
 apiIngress:
   enabled: true
   ingressClassName: nginx
-  hostname: {{ printf "%s.%s" .StateValues.minio.apiHost .StateValues.ingress.host | quote }}
+  hostname: {{ printf "%s.%s" "minio-s3" .StateValues.ingress.host | quote }}
   path: /
