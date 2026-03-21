@@ -20,6 +20,7 @@ export function MinioFilesPage() {
   const [prefix, setPrefix] = useState("");
   const [appliedPrefix, setAppliedPrefix] = useState("");
   const [objects, setObjects] = useState<MinioObjectSummary[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export function MinioFilesPage() {
       setBucketName(response.bucketName);
       setAppliedPrefix(response.prefix);
       setObjects(response.objects);
+      setSelectedKeys((current) => current.filter((key) => response.objects.some((object) => object.key === key)));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить файлы MinIO");
@@ -48,6 +50,14 @@ export function MinioFilesPage() {
     void load(prefix);
   }
 
+  function toggleKey(key: string) {
+    setSelectedKeys((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]));
+  }
+
+  function toggleAllKeys() {
+    setSelectedKeys((current) => (current.length === objects.length ? [] : objects.map((object) => object.key)));
+  }
+
   async function handleDelete(key: string) {
     if (!window.confirm(`Удалить файл \"${key}\"?`)) {
       return;
@@ -57,6 +67,7 @@ export function MinioFilesPage() {
       setBusyKey(key);
       await api.deleteMinioObject(key);
       await load(appliedPrefix);
+      setSelectedKeys((current) => current.filter((item) => item !== key));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить файл MinIO");
@@ -64,6 +75,8 @@ export function MinioFilesPage() {
       setBusyKey(null);
     }
   }
+
+  const allSelected = objects.length > 0 && selectedKeys.length === objects.length;
 
   return (
     <section className="stack">
@@ -107,11 +120,21 @@ export function MinioFilesPage() {
           <div>
             <h3>Содержимое bucket</h3>
             <p className="subtle">Текущий префикс: `{appliedPrefix || "/"}`</p>
+            <p className="subtle">Выбрано файлов: {selectedKeys.length}</p>
           </div>
         </div>
         <table>
           <thead>
             <tr>
+              <th>
+                <input
+                  type="checkbox"
+                  aria-label="Выбрать все файлы"
+                  checked={allSelected}
+                  disabled={objects.length === 0}
+                  onChange={() => toggleAllKeys()}
+                />
+              </th>
               <th>Ключ</th>
               <th>Размер</th>
               <th>Изменён</th>
@@ -122,9 +145,18 @@ export function MinioFilesPage() {
           <tbody>
             {objects.map((object) => {
               const isBusy = busyKey === object.key;
+              const isSelected = selectedKeys.includes(object.key);
 
               return (
                 <tr key={object.key}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Выбрать файл ${object.key}`}
+                      checked={isSelected}
+                      onChange={() => toggleKey(object.key)}
+                    />
+                  </td>
                   <td>{object.key}</td>
                   <td>{formatSize(object.size)}</td>
                   <td>{object.lastModified ? new Date(object.lastModified).toLocaleString() : "Неизвестно"}</td>
@@ -142,7 +174,7 @@ export function MinioFilesPage() {
             })}
             {objects.length === 0 ? (
               <tr>
-                <td className="empty-state" colSpan={5}>
+                <td className="empty-state" colSpan={6}>
                   {loading ? "Загружаем список файлов..." : "Файлы по выбранному префиксу не найдены."}
                 </td>
               </tr>
