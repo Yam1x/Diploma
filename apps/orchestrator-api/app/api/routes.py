@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import get_minio_browser_service, get_task_service
+from app.api.deps import get_minio_browser_service, get_stats_service, get_task_service
 from app.schemas.minio import MinioObjectsResponse
+from app.schemas.stats import DashboardStatsResponse
 from app.schemas.task import (
     HealthResponse,
     NamespaceCreateRequest,
@@ -15,6 +16,7 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.services.minio_browser_service import MinioBrowserService
+from app.services.stats_service import StatsService
 from app.services.task_service import TaskService
 
 
@@ -24,6 +26,11 @@ api_router = APIRouter()
 @api_router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@api_router.get("/stats/overview", response_model=DashboardStatsResponse)
+def get_dashboard_stats(service: StatsService = Depends(get_stats_service)) -> DashboardStatsResponse:
+    return service.get_dashboard_stats()
 
 
 @api_router.get("/namespaces", response_model=NamespaceListResponse)

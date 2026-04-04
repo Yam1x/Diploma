@@ -36,6 +36,57 @@ export type MinioObjectsResponse = {
   objects: MinioObjectSummary[];
 };
 
+export type StorageStats = {
+  bucketName: string;
+  objectCount: number;
+  totalSize: number;
+};
+
+export type JobRunSummary = {
+  name: string;
+  namespace: string;
+  taskId: number;
+  taskName: string;
+  releaseName: string;
+  triggerType: "manual" | "scheduled";
+  status: "running" | "succeeded" | "failed" | "unknown";
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export type TaskJobStats = {
+  taskId: number;
+  taskName: string;
+  namespace: string;
+  releaseName: string;
+  totalRuns: number;
+  manualRuns: number;
+  scheduledRuns: number;
+  succeededRuns: number;
+  failedRuns: number;
+  activeRuns: number;
+  unknownRuns: number;
+  lastStartedAt: string | null;
+  lastCompletedAt: string | null;
+};
+
+export type JobsStats = {
+  totalRuns: number;
+  manualRuns: number;
+  scheduledRuns: number;
+  succeededRuns: number;
+  failedRuns: number;
+  activeRuns: number;
+  unknownRuns: number;
+  recentRuns: JobRunSummary[];
+  tasks: TaskJobStats[];
+};
+
+export type DashboardStatsResponse = {
+  storage: StorageStats;
+  jobs: JobsStats;
+};
+
 type TaskSummaryBase = {
   id: number;
   name: string;
@@ -166,6 +217,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getDashboardStats: () => request<DashboardStatsResponse>("/stats/overview"),
   listTasks: () => request<TaskSummary[]>("/tasks"),
   getTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}`),
   createTask: (payload: TaskPayload) => request<TaskDetail>("/tasks", { method: "POST", body: JSON.stringify(payload) }),

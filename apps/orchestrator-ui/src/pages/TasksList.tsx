@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { TaskSummary, api } from "../api/client";
+import { DashboardStatsResponse, JobRunSummary, TaskJobStats, TaskSummary, api } from "../api/client";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
@@ -27,21 +27,93 @@ function formatServiceType(serviceType: TaskSummary["serviceType"]) {
   return getTaskTypeByServiceType(serviceType)?.title ?? serviceType;
 }
 
+function formatSize(size: number) {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KiB`;
+  }
+  if (size < 1024 * 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
+  }
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+}
+
+function formatDate(value: string | null) {
+  return value ? new Date(value).toLocaleString() : "Никогда";
+}
+
+function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
+  return triggerType === "manual" ? "Вручную" : "По расписанию";
+}
+
+function formatJobStatus(status: JobRunSummary["status"]) {
+  const labels: Record<JobRunSummary["status"], string> = {
+    running: "Выполняется",
+    succeeded: "Успешно",
+    failed: "Ошибка",
+    unknown: "Неизвестно",
+  };
+
+  return labels[status];
+}
+
+function renderTaskStatsRow(task: TaskJobStats) {
+  return (
+    <tr key={task.taskId}>
+      <td>
+        <Link to={`/tasks/${task.taskId}`}>{task.taskName}</Link>
+      </td>
+      <td>{task.namespace}</td>
+      <td>{task.totalRuns}</td>
+      <td>{task.manualRuns}</td>
+      <td>{task.scheduledRuns}</td>
+      <td>{task.succeededRuns}</td>
+      <td>{task.failedRuns}</td>
+      <td>{task.activeRuns}</td>
+      <td>{formatDate(task.lastStartedAt)}</td>
+    </tr>
+  );
+}
+
 export function TasksListPage() {
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
+  const [stats, setStats] = useState<DashboardStatsResponse | null>(null);
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const [selectedNamespace, setSelectedNamespace] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   async function load() {
-    try {
-      const [taskList, namespaceResponse] = await Promise.all([api.listTasks(), api.listNamespaces()]);
-      setTasks(taskList);
-      setNamespaces(namespaceResponse.namespaces);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить задачи");
+    const [tasksResult, namespacesResult, statsResult] = await Promise.allSettled([
+      api.listTasks(),
+      api.listNamespaces(),
+      api.getDashboardStats(),
+    ]);
+
+    if (tasksResult.status === "rejected") {
+      setError(tasksResult.reason instanceof Error ? tasksResult.reason.message : "Не удалось загрузить задачи");
+      return;
     }
+
+    if (namespacesResult.status === "rejected") {
+      setError(namespacesResult.reason instanceof Error ? namespacesResult.reason.message : "Не удалось загрузить задачи");
+      return;
+    }
+
+    setTasks(tasksResult.value);
+    setNamespaces(namespacesResult.value.namespaces);
+    setError(null);
+
+    if (statsResult.status === "fulfilled") {
+      setStats(statsResult.value);
+      setStatsError(null);
+      return;
+    }
+
+    setStats(null);
+    setStatsError(statsResult.reason instanceof Error ? statsResult.reason.message : "Не удалось загрузить статистику");
   }
 
   useEffect(() => {
@@ -49,6 +121,9 @@ export function TasksListPage() {
   }, []);
 
   const visibleTasks = selectedNamespace ? tasks.filter((task) => task.namespace === selectedNamespace) : tasks;
+  const visibleTaskStats =
+    selectedNamespace && stats ? stats.jobs.tasks.filter((task) => task.namespace === selectedNamespace) : stats?.jobs.tasks ?? [];
+  const visibleRecentRuns = stats?.jobs.recentRuns.filter((run) => !selectedNamespace || run.namespace === selectedNamespace) ?? [];
 
   async function handleCreateNamespace() {
     const name = window.prompt("Введите имя namespace");
@@ -102,6 +177,118 @@ export function TasksListPage() {
       </div>
 
       {error ? <div className="alert">{error}</div> : null}
+      {statsError ? <div className="alert">{statsError}</div> : null}
+
+      {stats ? (
+        <>
+          <div className="stats-grid">
+            <article className="card metric-card">
+              <p className="eyebrow">Storage</p>
+              <h3>{formatSize(stats.storage.totalSize)}</h3>
+              <p className="subtle">
+                Bucket `{stats.storage.bucketName}` · объектов: {stats.storage.objectCount}
+              </p>
+            </article>
+            <article className="card metric-card">
+              <p className="eyebrow">Jobs</p>
+              <h3>{stats.jobs.totalRuns}</h3>
+              <p className="subtle">Всего запусков по всем задачам</p>
+            </article>
+            <article className="card metric-card">
+              <p className="eyebrow">Triggers</p>
+              <h3>
+                {stats.jobs.scheduledRuns} / {stats.jobs.manualRuns}
+              </h3>
+              <p className="subtle">По расписанию / вручную</p>
+            </article>
+            <article className="card metric-card">
+              <p className="eyebrow">Result</p>
+              <h3>
+                {stats.jobs.succeededRuns} / {stats.jobs.failedRuns} / {stats.jobs.activeRuns}
+              </h3>
+              <p className="subtle">Успешно / с ошибкой / выполняется</p>
+            </article>
+          </div>
+
+          <div className="details-grid dashboard-grid">
+            <article className="card table-wrap">
+              <div className="toolbar">
+                <div>
+                  <h3>Статистика по задачам</h3>
+                  <p className="subtle">Сколько раз запускались `Job`-ы каждой задачи и каким способом они были созданы.</p>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Задача</th>
+                    <th>Namespace</th>
+                    <th>Всего</th>
+                    <th>Вручную</th>
+                    <th>По расписанию</th>
+                    <th>Успешно</th>
+                    <th>Ошибки</th>
+                    <th>Активно</th>
+                    <th>Последний запуск</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTaskStats.map((task) => renderTaskStatsRow(task))}
+                  {visibleTaskStats.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="empty-state">
+                        Для выбранного namespace статистики запусков пока нет.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </article>
+
+            <article className="card table-wrap">
+              <div className="toolbar">
+                <div>
+                  <h3>Последние запуски</h3>
+                  <p className="subtle">Последние `Job`-ы, найденные в Kubernetes по release name задач.</p>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Задача</th>
+                    <th>Job</th>
+                    <th>Запуск</th>
+                    <th>Статус</th>
+                    <th>Старт</th>
+                    <th>Завершение</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRecentRuns.map((run) => (
+                    <tr key={`${run.namespace}:${run.name}`}>
+                      <td>
+                        <Link to={`/tasks/${run.taskId}`}>{run.taskName}</Link>
+                      </td>
+                      <td>{run.name}</td>
+                      <td>{formatTriggerType(run.triggerType)}</td>
+                      <td>{formatJobStatus(run.status)}</td>
+                      <td>{formatDate(run.startedAt)}</td>
+                      <td>{formatDate(run.completedAt)}</td>
+                    </tr>
+                  ))}
+                  {visibleRecentRuns.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="empty-state">
+                        Запуски `Job`-ов пока не найдены.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </article>
+          </div>
+        </>
+      ) : null}
 
       <div className="card table-wrap">
         <table>

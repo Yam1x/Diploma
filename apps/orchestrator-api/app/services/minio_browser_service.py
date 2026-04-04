@@ -76,6 +76,42 @@ class MinioBrowserService:
         filename = PurePosixPath(normalized_key).name or "download"
         return body.iter_chunks(), filename, content_type
 
+    def get_usage_summary(self, prefix: str = "") -> dict[str, int]:
+        normalized_prefix = prefix.strip()
+        continuation_token: str | None = None
+        object_count = 0
+        total_size = 0
+
+        try:
+            while True:
+                params = {
+                    "Bucket": self.settings.minio_bucket_name,
+                    "Prefix": normalized_prefix,
+                    "MaxKeys": 1000,
+                }
+                if continuation_token:
+                    params["ContinuationToken"] = continuation_token
+
+                response = self.client.list_objects_v2(**params)
+                for item in response.get("Contents", []):
+                    if not item.get("Key"):
+                        continue
+                    object_count += 1
+                    total_size += int(item.get("Size", 0) or 0)
+
+                if not response.get("IsTruncated"):
+                    break
+                continuation_token = response.get("NextContinuationToken")
+                if not continuation_token:
+                    break
+        except (BotoCoreError, ClientError) as exc:
+            raise HTTPException(status_code=502, detail=f"РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃС‚Р°С‚РёСЃС‚РёРєСѓ MinIO: {exc}") from exc
+
+        return {
+            "objectCount": object_count,
+            "totalSize": total_size,
+        }
+
     @staticmethod
     def _normalize_key(key: str) -> str:
         normalized_key = key.strip()

@@ -112,9 +112,62 @@ class KubeClient:
         payload = json.loads(output)
         return payload["metadata"]["name"]
 
+    def list_jobs(self, namespace: str) -> list[dict[str, Any]]:
+        command = [
+            "kubectl",
+            "get",
+            "jobs",
+            "-n",
+            namespace,
+            "-o",
+            "json",
+        ]
+        output = self._run(command)
+        payload = json.loads(output)
+        jobs: list[dict[str, Any]] = []
+
+        for item in payload.get("items", []):
+            metadata = item.get("metadata", {})
+            status = item.get("status", {})
+            name = metadata.get("name")
+            if not name:
+                continue
+
+            jobs.append(
+                {
+                    "name": name,
+                    "namespace": namespace,
+                    "active": int(status.get("active", 0) or 0),
+                    "succeeded": int(status.get("succeeded", 0) or 0),
+                    "failed": int(status.get("failed", 0) or 0),
+                    "startTime": self._parse_datetime(status.get("startTime")),
+                    "completionTime": self._parse_datetime(status.get("completionTime")),
+                }
+            )
+
+        jobs.sort(
+            key=lambda job: (
+                job["startTime"] or job["completionTime"] or datetime.fromtimestamp(0, tz=timezone.utc),
+                job["name"],
+            ),
+            reverse=True,
+        )
+        return jobs
+
     def _run(self, command: list[str]) -> str:
         completed = subprocess.run(command, capture_output=True, text=True, check=False)
         if completed.returncode != 0:
             message = completed.stderr.strip() or completed.stdout.strip() or "Kubernetes command failed"
             raise KubernetesError(message)
         return completed.stdout
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime | None:
+        if not isinstance(value, str) or not value:
+            return None
+
+        normalized = value.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
