@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -49,6 +49,7 @@ class Task(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     secret: Mapped["TaskSecret"] = relationship(back_populates="task", uselist=False, cascade="all, delete-orphan")
+    job_runs: Mapped[list["TaskJobRun"]] = relationship(back_populates="task", cascade="all, delete-orphan")
 
 
 class TaskSecret(Base):
@@ -61,3 +62,26 @@ class TaskSecret(Base):
     destination_s3_aws_secret_access_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     task: Mapped[Task] = relationship(back_populates="secret")
+
+
+class TaskJobRun(Base):
+    __tablename__ = "task_job_runs"
+    __table_args__ = (
+        UniqueConstraint("namespace", "job_name", name="uq_task_job_runs_namespace_job_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False, index=True)
+    namespace: Mapped[str] = mapped_column(String(120), nullable=False)
+    release_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    job_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    task: Mapped[Task] = relationship(back_populates="job_runs")

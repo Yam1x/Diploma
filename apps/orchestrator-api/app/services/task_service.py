@@ -11,7 +11,7 @@ from app.core.config import Settings, get_settings
 from app.core.helm import HelmClient, HelmError
 from app.core.kube import KubeClient, KubernetesError
 from app.core.security import SecretCipher
-from app.models.task import ServiceType, Task, TaskSecret
+from app.models.task import ServiceType, Task, TaskJobRun, TaskSecret
 from app.schemas.task import (
     DbTaskCreate,
     DbTaskDetail,
@@ -201,6 +201,7 @@ class TaskService:
         task.last_apply_status = "deployed"
         task.last_apply_message = f"Manual run started: {job_name}"
         task.last_applied_at = datetime.now(timezone.utc)
+        self._record_manual_job_run(task, job_name)
         self.db.commit()
         return self._to_detail(task)
 
@@ -421,6 +422,36 @@ class TaskService:
     def _build_release_name(self, task_id: int, service_type: ServiceType) -> str:
         config = self._get_deployment_config(service_type, self.settings)
         return f"{config.release_prefix}-{task_id}"[:53]
+
+    def _record_manual_job_run(self, task: Task, job_name: str) -> None:
+        now = datetime.now(timezone.utc)
+        run = (
+            self.db.query(TaskJobRun)
+            .filter(TaskJobRun.namespace == task.namespace, TaskJobRun.job_name == job_name)
+            .one_or_none()
+        )
+
+        if run is None:
+            run = TaskJobRun(
+                task_id=task.id,
+                namespace=task.namespace,
+                release_name=task.release_name,
+                job_name=job_name,
+                trigger_type="manual",
+                status="running",
+                started_at=now,
+                first_seen_at=now,
+                last_seen_at=now,
+            )
+            self.db.add(run)
+            return
+
+        run.task_id = task.id
+        run.release_name = task.release_name
+        run.trigger_type = "manual"
+        run.status = "running"
+        run.started_at = run.started_at or now
+        run.last_seen_at = now
 
     def _get_task_model(self, task_id: int) -> Task:
         task = self.db.query(Task).options(joinedload(Task.secret)).filter(Task.id == task_id).one_or_none()
