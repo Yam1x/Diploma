@@ -12,6 +12,7 @@ from app.core.helm import HelmClient, HelmError
 from app.core.kube import KubeClient, KubernetesError
 from app.core.security import SecretCipher
 from app.models.task import ServiceType, Task, TaskJobRun, TaskSecret
+from app.services.notification_service import NotificationService
 from app.schemas.task import (
     DbTaskCreate,
     DbTaskDetail,
@@ -55,11 +56,13 @@ class TaskService:
         helm: HelmClient | None = None,
         kube: KubeClient | None = None,
         cipher: SecretCipher | None = None,
+        notifications: NotificationService | None = None,
     ) -> None:
         self.db = db
         self.helm = helm or HelmClient()
         self.kube = kube or KubeClient()
         self.cipher = cipher or SecretCipher()
+        self.notifications = notifications or NotificationService(db)
         self.settings = get_settings()
 
     def list_tasks(self) -> list[TaskSummary]:
@@ -201,8 +204,9 @@ class TaskService:
         task.last_apply_status = "deployed"
         task.last_apply_message = f"Manual run started: {job_name}"
         task.last_applied_at = datetime.now(timezone.utc)
-        self._record_manual_job_run(task, job_name)
+        run = self._record_manual_job_run(task, job_name)
         self.db.commit()
+        self.notifications.notify_manual_run_started(task, run)
         return self._to_detail(task)
 
     def refresh_task(self, task_id: int) -> TaskDetail:
@@ -216,6 +220,10 @@ class TaskService:
             task.last_apply_message = str(exc)
         task.last_applied_at = datetime.now(timezone.utc)
         self.db.commit()
+        if task.last_apply_status == "missing":
+            self.notifications.notify_task_missing(task)
+            if task.enabled:
+                self.notifications.notify_task_attention_required(task, "release_missing")
         return self._to_detail(task)
 
     def delete_task(self, task_id: int) -> None:
@@ -341,6 +349,8 @@ class TaskService:
             task.last_apply_message = str(exc)
             task.last_applied_at = datetime.now(timezone.utc)
             self.db.commit()
+            self.notifications.notify_task_deploy_failed(task)
+            self.notifications.notify_task_attention_required(task, "deploy_failed")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     def _build_values(self, task: Task, config: ServiceDeploymentConfig) -> dict:
@@ -423,7 +433,7 @@ class TaskService:
         config = self._get_deployment_config(service_type, self.settings)
         return f"{config.release_prefix}-{task_id}"[:53]
 
-    def _record_manual_job_run(self, task: Task, job_name: str) -> None:
+    def _record_manual_job_run(self, task: Task, job_name: str) -> TaskJobRun:
         now = datetime.now(timezone.utc)
         run = (
             self.db.query(TaskJobRun)
@@ -444,7 +454,8 @@ class TaskService:
                 last_seen_at=now,
             )
             self.db.add(run)
-            return
+            self.db.flush()
+            return run
 
         run.task_id = task.id
         run.release_name = task.release_name
@@ -452,6 +463,8 @@ class TaskService:
         run.status = "running"
         run.started_at = run.started_at or now
         run.last_seen_at = now
+        self.db.flush()
+        return run
 
     def _get_task_model(self, task_id: int) -> Task:
         task = self.db.query(Task).options(joinedload(Task.secret)).filter(Task.id == task_id).one_or_none()

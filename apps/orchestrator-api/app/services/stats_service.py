@@ -10,6 +10,7 @@ from app.core.kube import KubeClient, KubernetesError
 from app.models.task import Task, TaskJobRun
 from app.schemas.stats import DashboardStatsResponse, JobRunLogsResponse, JobRunSummary, JobsStats, StorageStats, TaskJobRunsResponse, TaskJobStats
 from app.services.minio_browser_service import MinioBrowserService
+from app.services.notification_service import NotificationService
 
 
 class StatsService:
@@ -18,10 +19,12 @@ class StatsService:
         db: Session,
         kube: KubeClient | None = None,
         minio: MinioBrowserService | None = None,
+        notifications: NotificationService | None = None,
     ) -> None:
         self.db = db
         self.kube = kube or KubeClient()
         self.minio = minio or MinioBrowserService()
+        self.notifications = notifications or NotificationService(db)
         self.settings = get_settings()
 
     def get_dashboard_stats(self) -> DashboardStatsResponse:
@@ -113,13 +116,18 @@ class StatsService:
                         last_seen_at=now,
                     )
                     self.db.add(run)
+                    self.db.flush()
                     existing_runs[(task.namespace, job_name)] = run
                     changed = self._capture_logs_if_available(run, task) or changed
+                    self.notifications.notify_job_run_status(task, run)
                     changed = True
                     continue
 
+                previous_status = run.status
                 changed = self._update_run(run, task, trigger_type, status, started_at, completed_at, now) or changed
                 changed = self._capture_logs_if_available(run, task) or changed
+                if previous_status != run.status:
+                    self.notifications.notify_job_run_status(task, run)
 
         if changed:
             self.db.commit()

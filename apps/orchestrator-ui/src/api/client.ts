@@ -99,6 +99,25 @@ export type JobRunLogsResponse = {
   logs: string;
 };
 
+export type NotificationItem = {
+  id: number;
+  kind: string;
+  severity: "info" | "success" | "warning" | "error";
+  title: string;
+  message: string;
+  taskId: number | null;
+  jobRunId: number | null;
+  linkPath: string | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationsResponse = {
+  unreadCount: number;
+  items: NotificationItem[];
+};
+
 type TaskSummaryBase = {
   id: number;
   name: string;
@@ -230,6 +249,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   getDashboardStats: () => request<DashboardStatsResponse>("/stats/overview"),
+  listNotifications: (limit = 20, unreadOnly = false) =>
+    request<NotificationsResponse>(`/notifications?limit=${limit}&unreadOnly=${String(unreadOnly)}`),
+  markNotificationRead: (notificationId: number) => request<void>(`/notifications/${notificationId}/read`, { method: "POST" }),
+  markAllNotificationsRead: () => request<void>("/notifications/read-all", { method: "POST" }),
   listTasks: () => request<TaskSummary[]>("/tasks"),
   getTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}`),
   listTaskJobRuns: (taskId: string) => request<TaskJobRunsResponse>(`/tasks/${taskId}/job-runs`),

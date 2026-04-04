@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { DashboardStatsResponse, JobRunSummary, TaskJobStats, TaskSummary, api } from "../api/client";
+import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
@@ -78,6 +79,7 @@ function renderTaskStatsRow(task: TaskJobStats) {
 }
 
 export function TasksListPage() {
+  const { refreshNotifications } = useNotifications();
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [stats, setStats] = useState<DashboardStatsResponse | null>(null);
   const [namespaces, setNamespaces] = useState<string[]>([]);
@@ -145,6 +147,7 @@ export function TasksListPage() {
     try {
       await action();
       await load();
+      await refreshNotifications();
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выполнить действие");

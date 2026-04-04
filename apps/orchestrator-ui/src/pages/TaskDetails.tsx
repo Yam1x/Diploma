@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { JobRunSummary, TaskDetail, api } from "../api/client";
+import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
@@ -103,6 +104,7 @@ function renderTaskParameters(task: TaskDetail) {
 export function TaskDetailsPage() {
   const { taskId } = useParams();
   const navigate = useNavigate();
+  const { refreshNotifications } = useNotifications();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [jobRuns, setJobRuns] = useState<JobRunSummary[]>([]);
   const [selectedRun, setSelectedRun] = useState<JobRunSummary | null>(null);
@@ -134,6 +136,7 @@ export function TaskDetailsPage() {
     try {
       await action();
       await load();
+      await refreshNotifications();
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выполнить действие");

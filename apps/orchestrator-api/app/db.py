@@ -24,6 +24,7 @@ def get_db():
 
 
 def init_db() -> None:
+    from app.models.notification import Notification  # noqa: F401
     from app.models.task import Task, TaskJobRun, TaskSecret  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
@@ -81,3 +82,26 @@ def _upgrade_task_schema() -> None:
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_task_job_runs_task_id ON task_job_runs(task_id)"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_text TEXT"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_collected_at TIMESTAMPTZ"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id SERIAL PRIMARY KEY,
+                    event_key VARCHAR(255) NOT NULL UNIQUE,
+                    kind VARCHAR(64) NOT NULL,
+                    severity VARCHAR(16) NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT NOT NULL,
+                    task_id INTEGER NULL REFERENCES tasks(id),
+                    job_run_id INTEGER NULL REFERENCES task_job_runs(id),
+                    link_path VARCHAR(255) NULL,
+                    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                    read_at TIMESTAMPTZ NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_event_key ON notifications(event_key)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_task_id ON notifications(task_id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_job_run_id ON notifications(job_run_id)"))

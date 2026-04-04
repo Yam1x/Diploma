@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import get_minio_browser_service, get_stats_service, get_task_service
+from app.api.deps import get_minio_browser_service, get_notification_service, get_stats_service, get_task_service
 from app.schemas.minio import MinioObjectsResponse
+from app.schemas.notification import NotificationsResponse
 from app.schemas.stats import DashboardStatsResponse, JobRunLogsResponse, TaskJobRunsResponse
 from app.schemas.task import (
     HealthResponse,
@@ -16,6 +17,7 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.services.minio_browser_service import MinioBrowserService
+from app.services.notification_service import NotificationService
 from app.services.stats_service import StatsService
 from app.services.task_service import TaskService
 
@@ -31,6 +33,28 @@ def health() -> HealthResponse:
 @api_router.get("/stats/overview", response_model=DashboardStatsResponse)
 def get_dashboard_stats(service: StatsService = Depends(get_stats_service)) -> DashboardStatsResponse:
     return service.get_dashboard_stats()
+
+
+@api_router.get("/notifications", response_model=NotificationsResponse)
+def list_notifications(
+    limit: int = Query(default=20, ge=1, le=100),
+    unread_only: bool = Query(default=False, alias="unreadOnly"),
+    service: NotificationService = Depends(get_notification_service),
+) -> NotificationsResponse:
+    return service.list_notifications(limit=limit, unread_only=unread_only)
+
+
+@api_router.post("/notifications/{notification_id}/read", status_code=204)
+def mark_notification_read(
+    notification_id: int,
+    service: NotificationService = Depends(get_notification_service),
+) -> None:
+    service.mark_read(notification_id)
+
+
+@api_router.post("/notifications/read-all", status_code=204)
+def mark_all_notifications_read(service: NotificationService = Depends(get_notification_service)) -> None:
+    service.mark_all_read()
 
 
 @api_router.get("/namespaces", response_model=NamespaceListResponse)
