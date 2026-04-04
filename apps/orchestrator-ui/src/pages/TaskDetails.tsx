@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { TaskDetail, api } from "../api/client";
+import { JobRunSummary, TaskDetail, api } from "../api/client";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
@@ -25,6 +25,25 @@ function formatApplyStatus(status: string | null) {
 
 function formatServiceType(serviceType: TaskDetail["serviceType"]) {
   return getTaskTypeByServiceType(serviceType)?.title ?? serviceType;
+}
+
+function formatDate(value: string | null) {
+  return value ? new Date(value).toLocaleString() : "Никогда";
+}
+
+function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
+  return triggerType === "manual" ? "Вручную" : "По расписанию";
+}
+
+function formatJobStatus(status: JobRunSummary["status"]) {
+  const labels: Record<JobRunSummary["status"], string> = {
+    running: "Выполняется",
+    succeeded: "Успешно",
+    failed: "Ошибка",
+    unknown: "Неизвестно",
+  };
+
+  return labels[status];
 }
 
 function renderTaskParameters(task: TaskDetail) {
@@ -85,15 +104,22 @@ export function TaskDetailsPage() {
   const { taskId } = useParams();
   const navigate = useNavigate();
   const [task, setTask] = useState<TaskDetail | null>(null);
+  const [jobRuns, setJobRuns] = useState<JobRunSummary[]>([]);
+  const [selectedRun, setSelectedRun] = useState<JobRunSummary | null>(null);
+  const [selectedRunLogs, setSelectedRunLogs] = useState("");
+  const [logsLoading, setLogsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logsError, setLogsError] = useState<string | null>(null);
 
   async function load() {
     if (!taskId) {
       return;
     }
     try {
-      const detail = await api.getTask(taskId);
+      const [detail, runsResponse] = await Promise.all([api.getTask(taskId), api.listTaskJobRuns(taskId)]);
       setTask(detail);
+      setJobRuns(runsResponse.runs);
+      setSelectedRun((current) => (current ? runsResponse.runs.find((run) => run.id === current.id) ?? null : null));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить задачу");
@@ -106,8 +132,8 @@ export function TaskDetailsPage() {
 
   async function run(action: () => Promise<TaskDetail>) {
     try {
-      const detail = await action();
-      setTask(detail);
+      await action();
+      await load();
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выполнить действие");
@@ -127,6 +153,26 @@ export function TaskDetailsPage() {
       navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить задачу");
+    }
+  }
+
+  async function handleLoadLogs(runItem: JobRunSummary) {
+    if (!taskId) {
+      return;
+    }
+    try {
+      setSelectedRun(runItem);
+      setLogsError(null);
+      setLogsLoading(true);
+      const response = await api.getTaskJobRunLogs(taskId, runItem.id);
+      setSelectedRun(response.run);
+      setSelectedRunLogs(response.logs);
+    } catch (err) {
+      setSelectedRun(runItem);
+      setSelectedRunLogs("");
+      setLogsError(err instanceof Error ? err.message : "Не удалось загрузить логи запуска");
+    } finally {
+      setLogsLoading(false);
     }
   }
 
@@ -206,6 +252,67 @@ export function TaskDetailsPage() {
         </article>
         {renderTaskParameters(task)}
       </div>
+
+      <article className="card table-wrap">
+        <div className="toolbar">
+          <div>
+            <h3>Последние запуски</h3>
+            <p className="subtle">Список последних `Job`-ов этой задачи с доступом к их логам.</p>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Запуск</th>
+              <th>Статус</th>
+              <th>Старт</th>
+              <th>Завершение</th>
+              <th>Последний sync</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {jobRuns.map((runItem) => (
+              <tr key={runItem.id}>
+                <td>{runItem.name}</td>
+                <td>{formatTriggerType(runItem.triggerType)}</td>
+                <td>{formatJobStatus(runItem.status)}</td>
+                <td>{formatDate(runItem.startedAt)}</td>
+                <td>{formatDate(runItem.completedAt)}</td>
+                <td>{formatDate(runItem.lastSeenAt)}</td>
+                <td className="row-actions">
+                  <button className="button ghost" onClick={() => void handleLoadLogs(runItem)} disabled={logsLoading && selectedRun?.id === runItem.id}>
+                    {logsLoading && selectedRun?.id === runItem.id ? "Загружаем..." : runItem.hasLogs ? "Логи" : "Получить логи"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {jobRuns.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="empty-state">
+                  Запуски `Job`-ов для этой задачи пока не найдены.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </article>
+
+      {selectedRun ? (
+        <article className="card">
+          <div className="toolbar">
+            <div>
+              <h3>Логи запуска</h3>
+              <p className="subtle">
+                `{selectedRun.name}` · {formatJobStatus(selectedRun.status)} · {formatDate(selectedRun.startedAt)}
+              </p>
+            </div>
+          </div>
+          {logsError ? <div className="alert">{logsError}</div> : null}
+          <pre className="log-output">{selectedRunLogs || (logsLoading ? "Загружаем логи..." : "Логи для этого запуска пока недоступны.")}</pre>
+        </article>
+      ) : null}
     </section>
   );
 }

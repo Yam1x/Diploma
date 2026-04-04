@@ -410,6 +410,21 @@ dd {
   flex: 1 1 320px;
 }
 
+.log-output {
+  margin: 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(20, 33, 61, 0.92);
+  color: #f4f1e8;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 960px) {
   .workspace {
     grid-template-columns: 1fr;

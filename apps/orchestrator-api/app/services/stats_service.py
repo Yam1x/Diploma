@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.config import get_settings
 from app.core.kube import KubeClient, KubernetesError
 from app.models.task import Task, TaskJobRun
-from app.schemas.stats import DashboardStatsResponse, JobRunSummary, JobsStats, StorageStats, TaskJobStats
+from app.schemas.stats import DashboardStatsResponse, JobRunLogsResponse, JobRunSummary, JobsStats, StorageStats, TaskJobRunsResponse, TaskJobStats
 from app.services.minio_browser_service import MinioBrowserService
 
 
@@ -59,6 +59,18 @@ class StatsService:
 
         return DashboardStatsResponse(storage=storage, jobs=jobs)
 
+    def list_task_job_runs(self, task_id: int, limit: int = 10) -> TaskJobRunsResponse:
+        task = self._get_task(task_id)
+        self._sync_job_history([task])
+        runs = self._load_runs([task.id], limit=limit)
+        return TaskJobRunsResponse(runs=[self._to_run_summary(run) for run in runs])
+
+    def get_task_job_run_logs(self, task_id: int, run_id: int) -> JobRunLogsResponse:
+        task = self._get_task(task_id)
+        run = self._get_run(task.id, run_id)
+        logs = self._resolve_run_logs(run, task)
+        return JobRunLogsResponse(run=self._to_run_summary(run), logs=logs)
+
     def _sync_job_history(self, tasks: list[Task]) -> None:
         if not tasks:
             return
@@ -102,10 +114,12 @@ class StatsService:
                     )
                     self.db.add(run)
                     existing_runs[(task.namespace, job_name)] = run
+                    changed = self._capture_logs_if_available(run, task) or changed
                     changed = True
                     continue
 
                 changed = self._update_run(run, task, trigger_type, status, started_at, completed_at, now) or changed
+                changed = self._capture_logs_if_available(run, task) or changed
 
         if changed:
             self.db.commit()
@@ -134,11 +148,11 @@ class StatsService:
         )
         return {(run.namespace, run.job_name): run for run in runs}
 
-    def _load_runs(self, task_ids: list[int]) -> list[TaskJobRun]:
+    def _load_runs(self, task_ids: list[int], limit: int | None = None) -> list[TaskJobRun]:
         if not task_ids:
             return []
 
-        return (
+        query = (
             self.db.query(TaskJobRun)
             .options(joinedload(TaskJobRun.task))
             .filter(TaskJobRun.task_id.in_(task_ids))
@@ -148,8 +162,10 @@ class StatsService:
                 TaskJobRun.created_at.desc(),
                 TaskJobRun.job_name.desc(),
             )
-            .all()
         )
+        if limit is not None:
+            query = query.limit(limit)
+        return query.all()
 
     @staticmethod
     def _resolve_job_status(job: dict) -> str:
@@ -197,9 +213,67 @@ class StatsService:
 
         return changed
 
+    def _resolve_run_logs(self, run: TaskJobRun, task: Task) -> str:
+        if run.status == "running" or not run.logs_text:
+            try:
+                live_logs = self.kube.get_job_logs(task.namespace, run.job_name)
+            except KubernetesError as exc:
+                if run.logs_text:
+                    return run.logs_text
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+            self._store_run_logs(run, live_logs)
+            self.db.commit()
+            return live_logs
+
+        return run.logs_text
+
+    def _capture_logs_if_available(self, run: TaskJobRun, task: Task) -> bool:
+        if run.status == "running":
+            return False
+
+        try:
+            logs = self.kube.get_job_logs(task.namespace, run.job_name)
+        except KubernetesError:
+            return False
+
+        return self._store_run_logs(run, logs)
+
+    @staticmethod
+    def _store_run_logs(run: TaskJobRun, logs: str) -> bool:
+        normalized_logs = logs.strip()
+        changed = False
+
+        if run.logs_text != normalized_logs:
+            run.logs_text = normalized_logs
+            changed = True
+        if run.logs_collected_at is None or changed:
+            run.logs_collected_at = datetime.now(timezone.utc)
+            changed = True
+
+        return changed
+
+    def _get_task(self, task_id: int) -> Task:
+        task = self.db.query(Task).filter(Task.id == task_id).one_or_none()
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return task
+
+    def _get_run(self, task_id: int, run_id: int) -> TaskJobRun:
+        run = (
+            self.db.query(TaskJobRun)
+            .options(joinedload(TaskJobRun.task))
+            .filter(TaskJobRun.id == run_id, TaskJobRun.task_id == task_id)
+            .one_or_none()
+        )
+        if run is None:
+            raise HTTPException(status_code=404, detail="Job run not found")
+        return run
+
     @staticmethod
     def _to_run_summary(run: TaskJobRun) -> JobRunSummary:
         return JobRunSummary(
+            id=run.id,
             name=run.job_name,
             namespace=run.namespace,
             taskId=run.task_id,
@@ -209,6 +283,8 @@ class StatsService:
             status=run.status,
             startedAt=run.started_at,
             completedAt=run.completed_at,
+            lastSeenAt=run.last_seen_at,
+            hasLogs=bool(run.logs_text),
         )
 
     def _build_task_stats(self, task: Task, runs: list[TaskJobRun]) -> TaskJobStats:

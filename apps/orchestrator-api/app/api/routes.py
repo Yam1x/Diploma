@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_minio_browser_service, get_stats_service, get_task_service
 from app.schemas.minio import MinioObjectsResponse
-from app.schemas.stats import DashboardStatsResponse
+from app.schemas.stats import DashboardStatsResponse, JobRunLogsResponse, TaskJobRunsResponse
 from app.schemas.task import (
     HealthResponse,
     NamespaceCreateRequest,
@@ -90,6 +90,16 @@ def create_task(payload: TaskCreate, service: TaskService = Depends(get_task_ser
 @api_router.get("/tasks/{task_id}", response_model=TaskDetail)
 def get_task(task_id: int, service: TaskService = Depends(get_task_service)) -> TaskDetail:
     return service.get_task(task_id)
+
+
+@api_router.get("/tasks/{task_id}/job-runs", response_model=TaskJobRunsResponse)
+def list_task_job_runs(task_id: int, service: StatsService = Depends(get_stats_service)) -> TaskJobRunsResponse:
+    return service.list_task_job_runs(task_id)
+
+
+@api_router.get("/tasks/{task_id}/job-runs/{run_id}/logs", response_model=JobRunLogsResponse)
+def get_task_job_run_logs(task_id: int, run_id: int, service: StatsService = Depends(get_stats_service)) -> JobRunLogsResponse:
+    return service.get_task_job_run_logs(task_id, run_id)
 
 
 @api_router.patch("/tasks/{task_id}", response_model=TaskDetail)

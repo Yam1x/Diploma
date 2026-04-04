@@ -43,6 +43,7 @@ export type StorageStats = {
 };
 
 export type JobRunSummary = {
+  id: number;
   name: string;
   namespace: string;
   taskId: number;
@@ -52,6 +53,8 @@ export type JobRunSummary = {
   status: "running" | "succeeded" | "failed" | "unknown";
   startedAt: string | null;
   completedAt: string | null;
+  lastSeenAt: string | null;
+  hasLogs: boolean;
 };
 
 export type TaskJobStats = {
@@ -85,6 +88,15 @@ export type JobsStats = {
 export type DashboardStatsResponse = {
   storage: StorageStats;
   jobs: JobsStats;
+};
+
+export type TaskJobRunsResponse = {
+  runs: JobRunSummary[];
+};
+
+export type JobRunLogsResponse = {
+  run: JobRunSummary;
+  logs: string;
 };
 
 type TaskSummaryBase = {
@@ -220,6 +232,8 @@ export const api = {
   getDashboardStats: () => request<DashboardStatsResponse>("/stats/overview"),
   listTasks: () => request<TaskSummary[]>("/tasks"),
   getTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}`),
+  listTaskJobRuns: (taskId: string) => request<TaskJobRunsResponse>(`/tasks/${taskId}/job-runs`),
+  getTaskJobRunLogs: (taskId: string, runId: number) => request<JobRunLogsResponse>(`/tasks/${taskId}/job-runs/${runId}/logs`),
   createTask: (payload: TaskPayload) => request<TaskDetail>("/tasks", { method: "POST", body: JSON.stringify(payload) }),
   updateTask: (taskId: string, payload: TaskPayload) =>
     request<TaskDetail>(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(payload) }),

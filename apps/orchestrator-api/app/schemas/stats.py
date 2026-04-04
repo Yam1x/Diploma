@@ -13,6 +13,7 @@ class StorageStats(BaseModel):
 
 
 class JobRunSummary(BaseModel):
+    id: int
     name: str
     namespace: str
     taskId: int
@@ -22,6 +23,8 @@ class JobRunSummary(BaseModel):
     status: Literal["running", "succeeded", "failed", "unknown"]
     startedAt: datetime | None
     completedAt: datetime | None
+    lastSeenAt: datetime | None
+    hasLogs: bool
 
 
 class TaskJobStats(BaseModel):
@@ -55,3 +58,12 @@ class JobsStats(BaseModel):
 class DashboardStatsResponse(BaseModel):
     storage: StorageStats
     jobs: JobsStats
+
+
+class TaskJobRunsResponse(BaseModel):
+    runs: list[JobRunSummary]
+
+
+class JobRunLogsResponse(BaseModel):
+    run: JobRunSummary
+    logs: str

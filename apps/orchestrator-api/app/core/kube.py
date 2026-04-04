@@ -112,6 +112,17 @@ class KubeClient:
         payload = json.loads(output)
         return payload["metadata"]["name"]
 
+    def get_job_logs(self, namespace: str, job_name: str) -> str:
+        command = [
+            "kubectl",
+            "logs",
+            f"job/{job_name}",
+            "-n",
+            namespace,
+            "--timestamps",
+        ]
+        return self._run(command).strip()
+
     def list_jobs(self, namespace: str) -> list[dict[str, Any]]:
         command = [
             "kubectl",

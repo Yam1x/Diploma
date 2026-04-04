@@ -67,6 +67,8 @@ def _upgrade_task_schema() -> None:
                     status VARCHAR(20) NOT NULL DEFAULT 'unknown',
                     started_at TIMESTAMPTZ NULL,
                     completed_at TIMESTAMPTZ NULL,
+                    logs_text TEXT NULL,
+                    logs_collected_at TIMESTAMPTZ NULL,
                     first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -77,3 +79,5 @@ def _upgrade_task_schema() -> None:
             )
         )
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_task_job_runs_task_id ON task_job_runs(task_id)"))
+        connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_text TEXT"))
+        connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_collected_at TIMESTAMPTZ"))
