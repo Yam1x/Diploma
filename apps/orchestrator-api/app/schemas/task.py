@@ -178,6 +178,10 @@ class S3TaskDetail(S3TaskSummary):
     destinationS3AwsBucketName: str
     hasSourceS3AwsSecretAccessKey: bool
     hasDestinationS3AwsSecretAccessKey: bool
+    eventWatcherStatus: str
+    lastEventDetectedAt: datetime | None
+    lastEventTriggeredAt: datetime | None
+    lastEventMessage: str | None
 
 
 class EnvSynchronizerTaskDetail(EnvSynchronizerTaskSummary):

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+import boto3
 import psycopg
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import Settings, get_settings
@@ -82,7 +87,7 @@ class EventWatcherService:
             .options(joinedload(Task.secret), joinedload(Task.event_watch_state))
             .filter(
                 Task.enabled.is_(True),
-                Task.service_type == ServiceType.DB_BACKUPPER,
+                Task.service_type.in_([ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER]),
                 Task.trigger_mode == TriggerMode.EVENT_BASED.value,
             )
             .order_by(Task.id.asc())
@@ -99,17 +104,28 @@ class EventWatcherService:
     ) -> None:
         now = datetime.now(timezone.utc)
         state = self._ensure_state(db, task)
-        counters = self._read_database_counters(task)
-
         state.last_polled_at = now
         state.last_error_message = None
 
-        if self._should_rebaseline(state, counters):
-            self._update_baseline(state, counters, pending_change=False)
-            return
+        if task.service_type == ServiceType.DB_BACKUPPER:
+            counters = self._read_database_counters(task)
+            if self._should_rebaseline_db(state, counters):
+                self._update_db_baseline(state, counters, pending_change=False)
+                return
 
-        changed = self._has_counter_increase(state, counters)
-        self._update_baseline(state, counters, pending_change=state.pending_change)
+            changed = self._has_counter_increase(state, counters)
+            self._update_db_baseline(state, counters, pending_change=state.pending_change)
+        elif task.service_type == ServiceType.S3_BACKUPPER:
+            observed_state_hash = self._read_s3_state_hash(task)
+            if self._should_rebaseline_s3(state):
+                state.last_observed_state_hash = observed_state_hash
+                state.pending_change = False
+                return
+
+            changed = observed_state_hash != state.last_observed_state_hash
+            state.last_observed_state_hash = observed_state_hash
+        else:
+            return
 
         if changed:
             state.pending_change = True
@@ -159,7 +175,7 @@ class EventWatcherService:
         return state
 
     @staticmethod
-    def _should_rebaseline(state: TaskEventWatchState, counters: DatabaseChangeCounters) -> bool:
+    def _should_rebaseline_db(state: TaskEventWatchState, counters: DatabaseChangeCounters) -> bool:
         if state.last_polled_at is None:
             return True
         if EventWatcherService._normalize_datetime(state.stats_reset_at) != EventWatcherService._normalize_datetime(counters.stats_reset_at):
@@ -173,6 +189,10 @@ class EventWatcherService:
         )
 
     @staticmethod
+    def _should_rebaseline_s3(state: TaskEventWatchState) -> bool:
+        return state.last_observed_state_hash is None
+
+    @staticmethod
     def _has_counter_increase(state: TaskEventWatchState, counters: DatabaseChangeCounters) -> bool:
         if state.last_tuple_ins is None or state.last_tuple_upd is None or state.last_tuple_del is None:
             return False
@@ -183,7 +203,7 @@ class EventWatcherService:
         )
 
     @staticmethod
-    def _update_baseline(
+    def _update_db_baseline(
         state: TaskEventWatchState,
         counters: DatabaseChangeCounters,
         *,
@@ -249,6 +269,72 @@ class EventWatcherService:
             tuple_del=int(row[2] or 0),
             stats_reset_at=stats_reset_at,
         )
+
+    def _read_s3_state_hash(self, task: Task) -> str:
+        source_secret = task.secret.source_s3_aws_secret_access_key_encrypted if task.secret else None
+        if not task.source_s3_aws_endpoint or not task.source_s3_aws_access_key_id or not source_secret or not task.source_s3_aws_bucket_name:
+            raise RuntimeError("Source S3 connection settings are incomplete")
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=task.source_s3_aws_endpoint,
+            aws_access_key_id=task.source_s3_aws_access_key_id,
+            aws_secret_access_key=source_secret,
+            region_name=self.settings.minio_region,
+            config=Config(signature_version="s3v4"),
+        )
+
+        continuation_token: str | None = None
+        object_snapshots: list[dict[str, str | int | None]] = []
+        prefix = (task.source_s3_aws_bucket_subfolder_name or "").strip()
+
+        try:
+            while True:
+                params = {
+                    "Bucket": task.source_s3_aws_bucket_name,
+                    "Prefix": prefix,
+                    "MaxKeys": 1000,
+                }
+                if continuation_token:
+                    params["ContinuationToken"] = continuation_token
+
+                response = client.list_objects_v2(**params)
+                for item in response.get("Contents", []):
+                    key = item.get("Key")
+                    if not key:
+                        continue
+
+                    last_modified = item.get("LastModified")
+                    if isinstance(last_modified, datetime) and last_modified.tzinfo is None:
+                        last_modified = last_modified.replace(tzinfo=timezone.utc)
+
+                    object_snapshots.append(
+                        {
+                            "key": str(key),
+                            "etag": (item.get("ETag") or "").strip('"') or None,
+                            "size": int(item.get("Size", 0) or 0),
+                            "last_modified": last_modified.isoformat() if isinstance(last_modified, datetime) else None,
+                        }
+                    )
+
+                if not response.get("IsTruncated"):
+                    break
+                continuation_token = response.get("NextContinuationToken")
+                if not continuation_token:
+                    break
+        except (BotoCoreError, ClientError) as exc:
+            raise RuntimeError(f"Failed to read source S3 bucket state: {exc}") from exc
+
+        object_snapshots.sort(
+            key=lambda item: (
+                str(item["key"]),
+                str(item["etag"] or ""),
+                int(item["size"]),
+                str(item["last_modified"] or ""),
+            )
+        )
+        payload = json.dumps(object_snapshots, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _normalize_datetime(value: datetime | None) -> datetime | None:

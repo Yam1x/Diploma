@@ -178,6 +178,10 @@ export type S3TaskDetail = S3TaskSummary & {
   destinationS3AwsBucketName: string;
   hasSourceS3AwsSecretAccessKey: boolean;
   hasDestinationS3AwsSecretAccessKey: boolean;
+  eventWatcherStatus: string;
+  lastEventDetectedAt: string | null;
+  lastEventTriggeredAt: string | null;
+  lastEventMessage: string | null;
 };
 
 export type EnvSynchronizerTaskDetail = EnvSynchronizerTaskSummary & {

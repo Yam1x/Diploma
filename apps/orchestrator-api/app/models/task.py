@@ -108,6 +108,7 @@ class TaskEventWatchState(Base):
     last_tuple_upd: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_tuple_del: Mapped[int | None] = mapped_column(Integer, nullable=True)
     stats_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_observed_state_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     pending_change: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_change_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

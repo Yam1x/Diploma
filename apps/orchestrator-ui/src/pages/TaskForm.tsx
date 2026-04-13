@@ -88,7 +88,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       name: detail.name,
       namespace: detail.namespace,
       enabled: detail.enabled,
-      schedule: detail.schedule ?? DEFAULT_SCHEDULE,
+      schedule: detail.triggerMode === "event_based" ? null : detail.schedule ?? DEFAULT_SCHEDULE,
       triggerMode: detail.triggerMode,
       s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
       sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
@@ -144,8 +144,8 @@ function buildS3EndpointOptions(discovery: ServiceDiscoveryResponse): DiscoveryO
   return discovery.services.flatMap((service) => service.endpoints);
 }
 
-function updateDbTriggerMode(value: TaskPayload, triggerMode: "scheduled" | "event_based"): TaskPayload {
-  if (value.serviceType !== "db_backupper") {
+function updateTriggerMode(value: TaskPayload, triggerMode: "scheduled" | "event_based"): TaskPayload {
+  if (value.serviceType !== "db_backupper" && value.serviceType !== "s3_backupper") {
     return value;
   }
 
@@ -314,17 +314,27 @@ export function TaskFormPage() {
       {error ? <div className="alert">{error}</div> : null}
       {value ? (
         <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
-          {value.serviceType === "db_backupper" ? (
+          {value.serviceType === "db_backupper" || value.serviceType === "s3_backupper" ? (
             <div className="card form-grid">
               <label>
                 <span>Режим запуска</span>
-                <small className="field-help">Выберите обычное расписание или запуск по изменениям в PostgreSQL.</small>
-                <select value={value.triggerMode} onChange={(event) => setValue(updateDbTriggerMode(value, event.target.value as typeof value.triggerMode))}>
+                <small className="field-help">
+                  {value.serviceType === "db_backupper"
+                    ? "Выберите обычное расписание или запуск по изменениям в PostgreSQL."
+                    : "Выберите обычное расписание или запуск по изменениям в source S3 bucket."}
+                </small>
+                <select value={value.triggerMode} onChange={(event) => setValue(updateTriggerMode(value, event.target.value as typeof value.triggerMode))}>
                   <option value="scheduled">По расписанию</option>
                   <option value="event_based">По событию</option>
                 </select>
               </label>
-              {value.triggerMode === "event_based" ? <p className="subtle">Задача будет запускаться event watcher по изменениям в PostgreSQL. Расписание не используется.</p> : null}
+              {value.triggerMode === "event_based" ? (
+                <p className="subtle">
+                  {value.serviceType === "db_backupper"
+                    ? "Задача будет запускаться event watcher по изменениям в PostgreSQL. Расписание не используется."
+                    : "Задача будет запускаться event watcher по изменениям в source S3 bucket или указанном subfolder. Расписание не используется."}
+                </p>
+              ) : null}
             </div>
           ) : null}
           <TaskFormFields

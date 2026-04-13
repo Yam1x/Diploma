@@ -90,6 +90,7 @@ def _upgrade_task_schema() -> None:
                     last_tuple_upd INTEGER NULL,
                     last_tuple_del INTEGER NULL,
                     stats_reset_at TIMESTAMPTZ NULL,
+                    last_observed_state_hash TEXT NULL,
                     pending_change BOOLEAN NOT NULL DEFAULT FALSE,
                     last_polled_at TIMESTAMPTZ NULL,
                     last_change_detected_at TIMESTAMPTZ NULL,
@@ -102,6 +103,7 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
+        connection.execute(text("ALTER TABLE task_event_watch_states ADD COLUMN IF NOT EXISTS last_observed_state_hash TEXT"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_task_job_runs_task_id ON task_job_runs(task_id)"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_text TEXT"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_collected_at TIMESTAMPTZ"))

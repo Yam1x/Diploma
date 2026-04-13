@@ -270,6 +270,14 @@ export function TaskDetailsPage() {
               <>
                 <dt>Префикс имени архива</dt>
                 <dd>{task.s3BackupsFilenamePrefix}</dd>
+                <dt>Event watcher</dt>
+                <dd>{formatEventWatcherStatus(task.eventWatcherStatus)}</dd>
+                <dt>Последнее событие</dt>
+                <dd>{formatDate(task.lastEventDetectedAt)}</dd>
+                <dt>Последний event backup</dt>
+                <dd>{formatDate(task.lastEventTriggeredAt)}</dd>
+                <dt>Сообщение watcher</dt>
+                <dd>{task.lastEventMessage ?? "Нет сообщений"}</dd>
               </>
             ) : null}
           </dl>

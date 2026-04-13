@@ -1,3 +1,5 @@
+triggerMode: scheduled
+
 image:
   registry: ghcr.io
   repository: yam1x/diploma-s3-backupper
