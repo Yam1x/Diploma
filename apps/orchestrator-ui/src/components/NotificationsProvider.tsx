@@ -41,14 +41,21 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void refreshNotifications();
-    const intervalId = window.setInterval(() => {
-      void refreshNotifications();
-    }, 30000);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void refreshNotifications();
+      }
+    }
+
+    window.addEventListener("focus", refreshNotifications);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshNotifications);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [refreshNotifications]);
+  }, []);
 
   async function markNotificationRead(notificationId: number) {
     try {

@@ -33,7 +33,8 @@ export function Layout({ children }: PropsWithChildren) {
 
 function LayoutContent({ children }: PropsWithChildren) {
   const location = useLocation();
-  const { unreadCount, items, loading, error, markAllNotificationsRead, markNotificationRead } = useNotifications();
+  const { unreadCount, items, loading, error, refreshNotifications, markAllNotificationsRead, markNotificationRead } =
+    useNotifications();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
@@ -56,7 +57,15 @@ function LayoutContent({ children }: PropsWithChildren) {
             className="notification-button"
             aria-label="Уведомления"
             aria-expanded={notificationsOpen}
-            onClick={() => setNotificationsOpen((current) => !current)}
+            onClick={() =>
+              setNotificationsOpen((current) => {
+                if (!current) {
+                  void refreshNotifications();
+                }
+
+                return !current;
+              })
+            }
           >
             <span className="notification-bell" aria-hidden="true">
               🔔
