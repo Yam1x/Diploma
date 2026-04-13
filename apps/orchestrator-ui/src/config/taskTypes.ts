@@ -15,7 +15,7 @@ export const taskTypes: TaskTypeDefinition[] = [
     title: "Резервное копирование БД",
     description:
       "Создаёт и деплоит задачу `db_backupper`, которая снимает дамп PostgreSQL и отправляет его в S3-совместимое хранилище.",
-    metadata: "Подходит для регулярных backup-задач по cron-расписанию.",
+    metadata: "Подходит для запуска backup-задач по расписанию или по событию в PostgreSQL.",
   },
   {
     routeType: "s3-backupper",

@@ -332,7 +332,7 @@ export function TasksListPage() {
                 <td>{formatBoolean(task.enabled)}</td>
                 <td>{formatBoolean(task.deployed)}</td>
                 <td>{formatTriggerMode(task.triggerMode)}</td>
-                <td>{task.triggerMode === "event_based" ? `${task.schedule} (fallback)` : task.schedule}</td>
+                <td>{task.schedule ?? "Не используется"}</td>
                 <td>{formatApplyStatus(task.lastApplyStatus)}</td>
                 <td>{new Date(task.updatedAt).toLocaleString()}</td>
                 <td className="row-actions">

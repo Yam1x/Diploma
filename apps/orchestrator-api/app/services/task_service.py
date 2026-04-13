@@ -114,6 +114,7 @@ class TaskService:
             task.env_repository = env_payload.envRepository
             task.path_to_helmfile = env_payload.pathToHelmfile
 
+        self._normalize_schedule(task)
         self.db.add(task)
         self.db.flush()
         task.release_name = self._build_release_name(task.id, task.service_type)
@@ -158,6 +159,7 @@ class TaskService:
                 env_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}),
             )
 
+        self._normalize_schedule(task)
         self.db.commit()
 
         if desired_enabled is True:
@@ -199,7 +201,16 @@ class TaskService:
             raise HTTPException(status_code=400, detail="Task must be deployed before running it manually")
 
         try:
-            job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name, trigger_type="manual")
+            if task.service_type == ServiceType.DB_BACKUPPER and task.trigger_mode == TriggerMode.EVENT_BASED.value:
+                config = self._get_deployment_config(task.service_type, self.settings)
+                job_name = self.kube.create_job(
+                    task.namespace,
+                    task.release_name,
+                    self._build_db_job_spec(task, config),
+                    trigger_type="manual",
+                )
+            else:
+                job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name, trigger_type="manual")
         except KubernetesError as exc:
             task.last_apply_status = "failed"
             task.last_apply_message = str(exc)
@@ -360,6 +371,20 @@ class TaskService:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     def _build_values(self, task: Task, config: ServiceDeploymentConfig) -> dict:
+        if task.service_type == ServiceType.DB_BACKUPPER:
+            runtime = self._build_db_runtime(task, config, include_schedule=task.trigger_mode != TriggerMode.EVENT_BASED.value)
+            return {
+                "image": {
+                    "registry": config.image_registry,
+                    "repository": config.image_repository,
+                    "tag": config.image_tag,
+                    "pullPolicy": config.image_pull_policy,
+                },
+                "resources": runtime["resources"],
+                "triggerMode": task.trigger_mode,
+                "extraConfigMapEnvVars": runtime["env"],
+            }
+
         return {
             "image": {
                 "registry": config.image_registry,
@@ -375,23 +400,9 @@ class TaskService:
         }
 
     def _build_env_vars(self, task: Task) -> dict[str, str]:
-        if task.service_type == ServiceType.DB_BACKUPPER:
-            return {
-                "BACKUPS_SCHEDULE": task.schedule,
-                "DB_BACKUPS_FILENAME_PREFIX": task.db_backups_filename_prefix or "",
-                "DATABASE_HOST": task.database_host or "",
-                "DATABASE_PASSWORD": task.secret.database_password_encrypted or "",
-                "DATABASE_USERNAME": task.database_username or "",
-                "DATABASE_NAME": task.database_name or "",
-                "DESTINATION_DB_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id or "",
-                "DESTINATION_DB_AWS_SECRET_ACCESS_KEY": task.secret.destination_aws_secret_access_key_encrypted or "",
-                "DESTINATION_DB_AWS_BUCKET_NAME": task.destination_aws_bucket_name or "",
-                "DESTINATION_DB_AWS_ENDPOINT": task.destination_aws_endpoint or "",
-            }
-
         if task.service_type == ServiceType.S3_BACKUPPER:
             return {
-                "BACKUPS_SCHEDULE": task.schedule,
+                "BACKUPS_SCHEDULE": task.schedule or "",
                 "S3_BACKUPS_FILENAME_PREFIX": task.s3_backups_filename_prefix or "",
                 "SOURCE_S3_AWS_ENDPOINT": task.source_s3_aws_endpoint or "",
                 "SOURCE_S3_AWS_ACCESS_KEY_ID": task.source_s3_aws_access_key_id or "",
@@ -405,12 +416,66 @@ class TaskService:
             }
 
         return {
-            "SCHEDULE": task.schedule,
+            "SCHEDULE": task.schedule or "",
             "SYNCHRONIZER_ENABLED": "true",
             "ENV_REPOSITORY": task.env_repository or "",
             "PATH_TO_HELMFILE": task.path_to_helmfile or "",
             "CONFIGMAP_NAME": "",
         }
+
+    def _build_db_runtime(self, task: Task, config: ServiceDeploymentConfig, include_schedule: bool) -> dict[str, Any]:
+        env = {
+            "DB_BACKUPS_FILENAME_PREFIX": task.db_backups_filename_prefix or "",
+            "DATABASE_HOST": task.database_host or "",
+            "DATABASE_PASSWORD": task.secret.database_password_encrypted or "",
+            "DATABASE_USERNAME": task.database_username or "",
+            "DATABASE_NAME": task.database_name or "",
+            "DESTINATION_DB_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id or "",
+            "DESTINATION_DB_AWS_SECRET_ACCESS_KEY": task.secret.destination_aws_secret_access_key_encrypted or "",
+            "DESTINATION_DB_AWS_BUCKET_NAME": task.destination_aws_bucket_name or "",
+            "DESTINATION_DB_AWS_ENDPOINT": task.destination_aws_endpoint or "",
+        }
+        if include_schedule and task.schedule:
+            env = {"BACKUPS_SCHEDULE": task.schedule, **env}
+
+        return {
+            "image": self._resolve_image(config),
+            "imagePullPolicy": config.image_pull_policy,
+            "resources": {
+                "limits": {"cpu": "200m", "memory": "512Mi"},
+                "requests": {"cpu": "1m", "memory": "256Mi"},
+            },
+            "env": env,
+        }
+
+    def _build_db_job_spec(self, task: Task, config: ServiceDeploymentConfig) -> dict[str, Any]:
+        runtime = self._build_db_runtime(task, config, include_schedule=False)
+        return {
+            "template": {
+                "spec": {
+                    "restartPolicy": "OnFailure",
+                    "containers": [
+                        {
+                            "name": task.release_name,
+                            "image": runtime["image"],
+                            "imagePullPolicy": runtime["imagePullPolicy"],
+                            "resources": runtime["resources"],
+                            "env": self._build_container_env(runtime["env"]),
+                        }
+                    ],
+                }
+            }
+        }
+
+    @staticmethod
+    def _resolve_image(config: ServiceDeploymentConfig) -> str:
+        if config.image_registry:
+            return f"{config.image_registry}/{config.image_repository}:{config.image_tag}"
+        return f"{config.image_repository}:{config.image_tag}"
+
+    @staticmethod
+    def _build_container_env(env_vars: dict[str, str]) -> list[dict[str, str]]:
+        return [{"name": name, "value": value} for name, value in env_vars.items()]
 
     def _validate_required_secrets(self, task: Task) -> None:
         if task.service_type == ServiceType.ENV_SYNCHRONIZER:
@@ -478,7 +543,13 @@ class TaskService:
         if not task.enabled or not task.release_name:
             raise ValueError("Task must be enabled and deployed before event-based runs can start")
 
-        job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name, trigger_type="event")
+        config = self._get_deployment_config(task.service_type, self.settings)
+        job_name = self.kube.create_job(
+            task.namespace,
+            task.release_name,
+            self._build_db_job_spec(task, config),
+            trigger_type="event",
+        )
         run = self._record_job_run(task, job_name, "event")
         self.notifications.notify_event_run_started(task, run)
         return run
@@ -502,7 +573,7 @@ class TaskService:
             "name": task.name,
             "namespace": task.namespace,
             "enabled": task.enabled,
-            "schedule": task.schedule,
+            "schedule": self._public_schedule(task),
             "triggerMode": task.trigger_mode,
             "deployed": task.last_apply_status == "deployed",
             "releaseName": task.release_name,
@@ -575,6 +646,21 @@ class TaskService:
         if event_triggered_at and event_triggered_at.timestamp() >= cooldown_cutoff:
             return "cooldown"
         return "watching"
+
+    @staticmethod
+    def _public_schedule(task: Task) -> str | None:
+        if task.service_type == ServiceType.DB_BACKUPPER and task.trigger_mode == TriggerMode.EVENT_BASED.value:
+            return None
+        return task.schedule
+
+    @staticmethod
+    def _normalize_schedule(task: Task) -> None:
+        if task.service_type == ServiceType.DB_BACKUPPER and task.trigger_mode == TriggerMode.EVENT_BASED.value:
+            task.schedule = None
+            return
+        if task.schedule:
+            return
+        raise HTTPException(status_code=400, detail="Schedule is required for scheduled tasks")
 
     @staticmethod
     def _validate_trigger_mode(service_type: ServiceType, trigger_mode: str) -> TriggerMode:

@@ -43,7 +43,7 @@ function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
 }
 
 function formatTriggerMode(triggerMode: TaskDetail["triggerMode"]) {
-  return triggerMode === "event_based" ? "По событию + cron fallback" : "По расписанию";
+  return triggerMode === "event_based" ? "По событию" : "По расписанию";
 }
 
 function formatEventWatcherStatus(status: string) {
@@ -252,7 +252,7 @@ export function TaskDetailsPage() {
             <dt>Режим запуска</dt>
             <dd>{formatTriggerMode(task.triggerMode)}</dd>
             <dt>Расписание</dt>
-            <dd>{task.triggerMode === "event_based" ? `${task.schedule} (fallback)` : task.schedule}</dd>
+            <dd>{task.schedule ?? "Не используется"}</dd>
             {task.serviceType === "db_backupper" ? (
               <>
                 <dt>Префикс имени файла</dt>

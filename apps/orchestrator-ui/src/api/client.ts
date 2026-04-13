@@ -127,7 +127,7 @@ type TaskSummaryBase = {
   namespace: string;
   enabled: boolean;
   serviceType: ServiceType;
-  schedule: string;
+  schedule: string | null;
   triggerMode: TriggerMode;
   deployed: boolean;
   releaseName: string;
@@ -196,7 +196,7 @@ type TaskPayloadBase = {
   name: string;
   namespace: string;
   enabled: boolean;
-  schedule: string;
+  schedule: string | null;
   triggerMode: TriggerMode;
 };
 

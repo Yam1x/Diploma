@@ -5,6 +5,8 @@ import { ServiceDiscoveryResponse, ServiceType, TaskDetail, TaskPayload, api } f
 import { ConfiguredSecrets, DiscoveryOption, TaskFormFields } from "../components/TaskFormFields";
 import { getTaskTypeByRouteType, getTaskTypeByServiceType } from "../config/taskTypes";
 
+const DEFAULT_SCHEDULE = "0 0 * * *";
+
 function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
   if (serviceType === "db_backupper") {
     return {
@@ -12,7 +14,7 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
       name: "",
       namespace: "",
       enabled: false,
-      schedule: "0 0 * * *",
+      schedule: DEFAULT_SCHEDULE,
       triggerMode: "scheduled",
       dbBackupsFilenamePrefix: "",
       databaseHost: "",
@@ -32,7 +34,7 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
       name: "",
       namespace: "",
       enabled: false,
-      schedule: "0 0 * * *",
+      schedule: DEFAULT_SCHEDULE,
       triggerMode: "scheduled",
       s3BackupsFilenamePrefix: "",
       sourceS3AwsEndpoint: "",
@@ -52,7 +54,7 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
     name: "",
     namespace: "",
     enabled: false,
-    schedule: "0 0 * * *",
+    schedule: DEFAULT_SCHEDULE,
     triggerMode: "scheduled",
     envRepository: "",
     pathToHelmfile: "",
@@ -66,7 +68,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       name: detail.name,
       namespace: detail.namespace,
       enabled: detail.enabled,
-      schedule: detail.schedule,
+      schedule: detail.triggerMode === "event_based" ? null : detail.schedule ?? DEFAULT_SCHEDULE,
       triggerMode: detail.triggerMode,
       dbBackupsFilenamePrefix: detail.dbBackupsFilenamePrefix,
       databaseHost: detail.databaseHost,
@@ -86,7 +88,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       name: detail.name,
       namespace: detail.namespace,
       enabled: detail.enabled,
-      schedule: detail.schedule,
+      schedule: detail.schedule ?? DEFAULT_SCHEDULE,
       triggerMode: detail.triggerMode,
       s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
       sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
@@ -106,7 +108,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
     name: detail.name,
     namespace: detail.namespace,
     enabled: detail.enabled,
-    schedule: detail.schedule,
+    schedule: detail.schedule ?? DEFAULT_SCHEDULE,
     triggerMode: detail.triggerMode,
     envRepository: detail.envRepository,
     pathToHelmfile: detail.pathToHelmfile,
@@ -140,6 +142,18 @@ function buildDbHostOptions(discovery: ServiceDiscoveryResponse): DiscoveryOptio
 
 function buildS3EndpointOptions(discovery: ServiceDiscoveryResponse): DiscoveryOption[] {
   return discovery.services.flatMap((service) => service.endpoints);
+}
+
+function updateDbTriggerMode(value: TaskPayload, triggerMode: "scheduled" | "event_based"): TaskPayload {
+  if (value.serviceType !== "db_backupper") {
+    return value;
+  }
+
+  return {
+    ...value,
+    triggerMode,
+    schedule: triggerMode === "event_based" ? null : value.schedule ?? DEFAULT_SCHEDULE,
+  };
 }
 
 export function TaskFormPage() {
@@ -304,18 +318,13 @@ export function TaskFormPage() {
             <div className="card form-grid">
               <label>
                 <span>Режим запуска</span>
-                <small className="field-help">Выберите обычное расписание или запуск по изменениям в PostgreSQL с резервным cron.</small>
-                <select
-                  value={value.triggerMode}
-                  onChange={(event) => setValue({ ...value, triggerMode: event.target.value as typeof value.triggerMode })}
-                >
+                <small className="field-help">Выберите обычное расписание или запуск по изменениям в PostgreSQL.</small>
+                <select value={value.triggerMode} onChange={(event) => setValue(updateDbTriggerMode(value, event.target.value as typeof value.triggerMode))}>
                   <option value="scheduled">По расписанию</option>
-                  <option value="event_based">По событию + cron fallback</option>
+                  <option value="event_based">По событию</option>
                 </select>
               </label>
-              {value.triggerMode === "event_based" ? (
-                <p className="subtle">Ниже cron остаётся fallback-расписанием, а основной запуск будет происходить по изменениям в PostgreSQL.</p>
-              ) : null}
+              {value.triggerMode === "event_based" ? <p className="subtle">Задача будет запускаться event watcher по изменениям в PostgreSQL. Расписание не используется.</p> : null}
             </div>
           ) : null}
           <TaskFormFields

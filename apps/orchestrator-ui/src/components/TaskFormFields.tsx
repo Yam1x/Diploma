@@ -45,6 +45,8 @@ const weekdayOptions = [
   { value: "0", label: "Воскресенье" },
 ];
 
+const DEFAULT_SCHEDULE = "0 0 * * *";
+
 function getNormalizedSchedule(draft: ScheduleDraft): string {
   return draft.mode === "custom" ? draft.custom.trim() : buildSchedule(draft);
 }
@@ -95,22 +97,25 @@ export function TaskFormFields({
   serviceDiscoveryError,
   onCreateNamespace,
 }: Props) {
-  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft>(() => parseSchedule(value.schedule));
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft>(() => parseSchedule(value.schedule ?? DEFAULT_SCHEDULE));
 
   useEffect(() => {
     setScheduleDraft((current) => {
-      const currentSchedule = getNormalizedSchedule(current);
-      const nextSchedule = value.schedule.trim();
+      const nextSchedule = (value.schedule ?? "").trim();
+      if (!nextSchedule) {
+        return current;
+      }
 
+      const currentSchedule = getNormalizedSchedule(current);
       if (currentSchedule === nextSchedule) {
         return current;
       }
 
-      return parseSchedule(value.schedule);
+      return parseSchedule(nextSchedule);
     });
   }, [value.schedule]);
 
-  const updateValue = (patch: Record<string, string>) => {
+  const updateValue = (patch: Record<string, string | null>) => {
     onChange({ ...value, ...patch } as TaskPayload);
   };
 
@@ -136,11 +141,12 @@ export function TaskFormFields({
     applyScheduleDraft({
       ...scheduleDraft,
       mode: nextMode,
-      custom: scheduleDraft.custom || value.schedule,
+      custom: scheduleDraft.custom || value.schedule || DEFAULT_SCHEDULE,
     });
   };
 
   const cronPreview = getNormalizedSchedule(scheduleDraft) || "Не задано";
+  const showSchedule = !(value.serviceType === "db_backupper" && value.triggerMode === "event_based");
   const serviceDiscoveryPlaceholder = !value.namespace
     ? "Сначала выберите namespace"
     : serviceDiscoveryLoading
@@ -173,89 +179,91 @@ export function TaskFormFields({
         </div>
         {serviceDiscoveryError ? <small className="field-help discovery-note">Service Discovery: {serviceDiscoveryError}</small> : null}
       </label>
-      <div className="schedule-field">
-        <div>
-          <span>Расписание</span>
-          <small className="field-help">Выберите готовый режим запуска, а интерфейс сам соберет cron-выражение.</small>
-        </div>
-        <div className="schedule-grid">
-          <label>
-            <span>Режим</span>
-            <select value={scheduleDraft.mode} onChange={handleScheduleModeChange}>
-              {scheduleModeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {scheduleDraft.mode === "hourly" ? (
+      {showSchedule ? (
+        <div className="schedule-field">
+          <div>
+            <span>Расписание</span>
+            <small className="field-help">Выберите готовый режим запуска, а интерфейс сам соберет cron-выражение.</small>
+          </div>
+          <div className="schedule-grid">
             <label>
-              <span>Минута часа</span>
-              <input
-                type="number"
-                min="0"
-                max="59"
-                value={scheduleDraft.minute}
-                onChange={(event) => updateScheduleDraft({ minute: event.target.value })}
-              />
-            </label>
-          ) : null}
-
-          {scheduleDraft.mode === "daily" || scheduleDraft.mode === "weekly" || scheduleDraft.mode === "monthly" ? (
-            <label>
-              <span>Время</span>
-              <input type="time" value={scheduleDraft.time} onChange={(event) => updateScheduleDraft({ time: event.target.value })} />
-            </label>
-          ) : null}
-
-          {scheduleDraft.mode === "weekly" ? (
-            <label>
-              <span>День недели</span>
-              <select value={scheduleDraft.weekday} onChange={(event) => updateScheduleDraft({ weekday: event.target.value })}>
-                {weekdayOptions.map((option) => (
+              <span>Режим</span>
+              <select value={scheduleDraft.mode} onChange={handleScheduleModeChange}>
+                {scheduleModeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </label>
-          ) : null}
 
-          {scheduleDraft.mode === "monthly" ? (
-            <label>
-              <span>День месяца</span>
-              <input
-                type="number"
-                min="1"
-                max="31"
-                value={scheduleDraft.monthDay}
-                onChange={(event) => updateScheduleDraft({ monthDay: event.target.value })}
-              />
-            </label>
-          ) : null}
+            {scheduleDraft.mode === "hourly" ? (
+              <label>
+                <span>Минута часа</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={scheduleDraft.minute}
+                  onChange={(event) => updateScheduleDraft({ minute: event.target.value })}
+                />
+              </label>
+            ) : null}
 
-          {scheduleDraft.mode === "custom" ? (
-            <label className="schedule-grid-full">
-              <span>Cron-выражение</span>
-              <input
-                value={scheduleDraft.custom}
-                onChange={(event) => {
-                  const nextCustom = event.target.value;
-                  applyScheduleDraft({ ...scheduleDraft, custom: nextCustom });
-                }}
-                placeholder="0 * * * *"
-                required
-              />
-            </label>
-          ) : null}
+            {scheduleDraft.mode === "daily" || scheduleDraft.mode === "weekly" || scheduleDraft.mode === "monthly" ? (
+              <label>
+                <span>Время</span>
+                <input type="time" value={scheduleDraft.time} onChange={(event) => updateScheduleDraft({ time: event.target.value })} />
+              </label>
+            ) : null}
+
+            {scheduleDraft.mode === "weekly" ? (
+              <label>
+                <span>День недели</span>
+                <select value={scheduleDraft.weekday} onChange={(event) => updateScheduleDraft({ weekday: event.target.value })}>
+                  {weekdayOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            {scheduleDraft.mode === "monthly" ? (
+              <label>
+                <span>День месяца</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={scheduleDraft.monthDay}
+                  onChange={(event) => updateScheduleDraft({ monthDay: event.target.value })}
+                />
+              </label>
+            ) : null}
+
+            {scheduleDraft.mode === "custom" ? (
+              <label className="schedule-grid-full">
+                <span>Cron-выражение</span>
+                <input
+                  value={scheduleDraft.custom}
+                  onChange={(event) => {
+                    const nextCustom = event.target.value;
+                    applyScheduleDraft({ ...scheduleDraft, custom: nextCustom });
+                  }}
+                  placeholder="0 * * * *"
+                  required
+                />
+              </label>
+            ) : null}
+          </div>
+          <div className="schedule-preview">
+            <span>Итоговый cron</span>
+            <code>{cronPreview}</code>
+          </div>
         </div>
-        <div className="schedule-preview">
-          <span>Итоговый cron</span>
-          <code>{cronPreview}</code>
-        </div>
-      </div>
+      ) : null}
 
       {value.serviceType === "db_backupper" ? (
         <>

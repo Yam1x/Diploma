@@ -12,7 +12,7 @@ class TaskRequestBase(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     namespace: str = Field(min_length=1, max_length=120)
     enabled: bool = False
-    schedule: str = Field(min_length=1, max_length=120)
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["scheduled", "event_based"] = "scheduled"
 
 
@@ -123,7 +123,7 @@ class TaskSummaryBase(BaseModel):
     namespace: str
     enabled: bool
     serviceType: Literal["db_backupper", "s3_backupper", "env_synchronizer"]
-    schedule: str
+    schedule: str | None
     triggerMode: Literal["scheduled", "event_based"]
     deployed: bool
     releaseName: str

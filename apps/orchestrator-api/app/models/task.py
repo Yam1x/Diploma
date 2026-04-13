@@ -28,7 +28,7 @@ class Task(Base):
     service_type: Mapped[ServiceType] = mapped_column(Enum(ServiceType), nullable=False, default=ServiceType.DB_BACKUPPER)
     namespace: Mapped[str] = mapped_column(String(120), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    schedule: Mapped[str] = mapped_column(String(120), nullable=False)
+    schedule: Mapped[str | None] = mapped_column(String(120), nullable=True)
     trigger_mode: Mapped[str] = mapped_column(String(20), nullable=False, default=TriggerMode.SCHEDULED.value)
     db_backups_filename_prefix: Mapped[str | None] = mapped_column(String(120), nullable=True)
     database_host: Mapped[str | None] = mapped_column(String(255), nullable=True)

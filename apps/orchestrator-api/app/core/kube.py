@@ -78,10 +78,7 @@ class KubeClient:
         return sorted(services, key=lambda service: str(service["name"]))
 
     def create_job_from_cronjob(self, namespace: str, cronjob_name: str, trigger_type: str = "manual") -> str:
-        timestamp = datetime.now(timezone.utc).strftime("%m%d%H%M%S")
-        suffix = f"-{trigger_type}-"
-        prefix = cronjob_name[: 63 - len(suffix) - len(timestamp)]
-        job_name = f"{prefix}{suffix}{timestamp}"
+        job_name = self._build_job_name(cronjob_name, trigger_type)
         command = [
             "kubectl",
             "create",
@@ -94,6 +91,29 @@ class KubeClient:
             "json",
         ]
         output = self._run(command)
+        payload = json.loads(output)
+        return payload["metadata"]["name"]
+
+    def create_job(self, namespace: str, release_name: str, job_spec: dict[str, Any], trigger_type: str = "manual") -> str:
+        job_name = self._build_job_name(release_name, trigger_type)
+        manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {
+                "name": job_name,
+                "namespace": namespace,
+            },
+            "spec": job_spec,
+        }
+        command = [
+            "kubectl",
+            "create",
+            "-f",
+            "-",
+            "-o",
+            "json",
+        ]
+        output = self._run(command, input_text=json.dumps(manifest))
         payload = json.loads(output)
         return payload["metadata"]["name"]
 
@@ -166,8 +186,15 @@ class KubeClient:
         )
         return jobs
 
-    def _run(self, command: list[str]) -> str:
-        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    @staticmethod
+    def _build_job_name(base_name: str, trigger_type: str) -> str:
+        timestamp = datetime.now(timezone.utc).strftime("%m%d%H%M%S")
+        suffix = f"-{trigger_type}-"
+        prefix = base_name[: 63 - len(suffix) - len(timestamp)]
+        return f"{prefix}{suffix}{timestamp}"
+
+    def _run(self, command: list[str], input_text: str | None = None) -> str:
+        completed = subprocess.run(command, capture_output=True, text=True, input=input_text, check=False)
         if completed.returncode != 0:
             message = completed.stderr.strip() or completed.stdout.strip() or "Kubernetes command failed"
             raise KubernetesError(message)

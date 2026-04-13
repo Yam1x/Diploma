@@ -56,6 +56,7 @@ def _upgrade_task_schema() -> None:
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_repository VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS path_to_helmfile VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trigger_mode VARCHAR(20) NOT NULL DEFAULT 'scheduled'"))
+        connection.execute(text("ALTER TABLE tasks ALTER COLUMN schedule DROP NOT NULL"))
         connection.execute(
             text(
                 """
