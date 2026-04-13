@@ -6,6 +6,30 @@ from fastapi import HTTPException
 from app.models.task import ServiceType, Task, TaskSecret, TriggerMode
 
 
+def build_db_event_task() -> Task:
+    task = Task(
+        name="Primary DB",
+        namespace="default",
+        service_type=ServiceType.DB_BACKUPPER,
+        enabled=True,
+        schedule="0 * * * *",
+        trigger_mode=TriggerMode.EVENT_BASED.value,
+        release_name="db-backupper-7",
+        db_backups_filename_prefix="primary",
+        database_host="postgresql",
+        database_name="app",
+        database_username="postgres",
+        destination_aws_endpoint="https://minio.local",
+        destination_aws_bucket_name="backups",
+        destination_aws_access_key_id="minio",
+    )
+    task.secret = TaskSecret(
+        database_password_encrypted="secret",
+        destination_aws_secret_access_key_encrypted="minio-secret",
+    )
+    return task
+
+
 def build_s3_task() -> Task:
     task = Task(
         name="Bucket archive",
@@ -81,3 +105,14 @@ def test_validate_trigger_mode_rejects_event_based_for_s3(service) -> None:
 
     assert exc.value.status_code == 400
     assert "Event-based trigger mode" in exc.value.detail
+
+
+def test_build_db_job_spec_adds_pgpassword_for_manual_jobs(service) -> None:
+    task = build_db_event_task()
+    config = service._get_deployment_config(ServiceType.DB_BACKUPPER, service.settings)
+
+    spec = service._build_db_job_spec(task, config)
+
+    env = {item["name"]: item["value"] for item in spec["template"]["spec"]["containers"][0]["env"]}
+    assert env["DATABASE_PASSWORD"] == "secret"
+    assert env["PGPASSWORD"] == "secret"

@@ -460,7 +460,7 @@ class TaskService:
                             "image": runtime["image"],
                             "imagePullPolicy": runtime["imagePullPolicy"],
                             "resources": runtime["resources"],
-                            "env": self._build_container_env(runtime["env"]),
+                            "env": self._build_db_job_env(runtime["env"]),
                         }
                     ],
                 }
@@ -476,6 +476,14 @@ class TaskService:
     @staticmethod
     def _build_container_env(env_vars: dict[str, str]) -> list[dict[str, str]]:
         return [{"name": name, "value": value} for name, value in env_vars.items()]
+
+    
+    def _build_db_job_env(self, env_vars: dict[str, str]) -> list[dict[str, str]]:
+        job_env = dict(env_vars)
+        password = job_env.get("DATABASE_PASSWORD")
+        if password is not None:
+            job_env["PGPASSWORD"] = password
+        return self._build_container_env(job_env)
 
     def _validate_required_secrets(self, task: Task) -> None:
         if task.service_type == ServiceType.ENV_SYNCHRONIZER:
