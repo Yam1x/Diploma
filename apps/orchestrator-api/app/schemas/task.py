@@ -13,6 +13,7 @@ class TaskRequestBase(BaseModel):
     namespace: str = Field(min_length=1, max_length=120)
     enabled: bool = False
     schedule: str = Field(min_length=1, max_length=120)
+    triggerMode: Literal["scheduled", "event_based"] = "scheduled"
 
 
 class DbTaskCreate(TaskRequestBase):
@@ -62,6 +63,7 @@ class DbTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["scheduled", "event_based"] | None = None
     dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
     databaseHost: str | None = Field(default=None, min_length=1, max_length=255)
     databaseName: str | None = Field(default=None, min_length=1, max_length=120)
@@ -81,6 +83,7 @@ class S3TaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["scheduled", "event_based"] | None = None
     s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
     sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
     sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
@@ -101,6 +104,7 @@ class EnvSynchronizerTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["scheduled", "event_based"] | None = None
     envRepository: str | None = Field(default=None, min_length=1, max_length=255)
     pathToHelmfile: str | None = Field(default=None, min_length=1, max_length=255)
 
@@ -120,6 +124,7 @@ class TaskSummaryBase(BaseModel):
     enabled: bool
     serviceType: Literal["db_backupper", "s3_backupper", "env_synchronizer"]
     schedule: str
+    triggerMode: Literal["scheduled", "event_based"]
     deployed: bool
     releaseName: str
     lastApplyStatus: str | None
@@ -156,6 +161,10 @@ class DbTaskDetail(DbTaskSummary):
     destinationAwsAccessKeyId: str
     hasDatabasePassword: bool
     hasDestinationAwsSecretAccessKey: bool
+    eventWatcherStatus: str
+    lastEventDetectedAt: datetime | None
+    lastEventTriggeredAt: datetime | None
+    lastEventMessage: str | None
 
 
 class S3TaskDetail(S3TaskSummary):

@@ -134,6 +134,29 @@ class NotificationService:
             link_path=f"/tasks/{task.id}",
         )
 
+    def notify_event_run_started(self, task: Task, run: TaskJobRun) -> None:
+        self.create_notification(
+            event_key=self._event_key("task", task.id, "event-run-started", run.job_name),
+            kind="task_event_run_started",
+            severity="info",
+            title=f"Событийный запуск начат: {task.name}",
+            message=f"Создан job {run.job_name}.",
+            task_id=task.id,
+            job_run_id=run.id,
+            link_path=f"/tasks/{task.id}",
+        )
+
+    def notify_event_watcher_issue(self, task: Task, message: str) -> None:
+        self.create_notification(
+            event_key=self._event_key("task", task.id, "event-watcher-issue", message),
+            kind="task_event_watcher_issue",
+            severity="warning",
+            title=f"Проблема event watcher: {task.name}",
+            message=message,
+            task_id=task.id,
+            link_path=f"/tasks/{task.id}",
+        )
+
     def notify_job_run_status(self, task: Task, run: TaskJobRun) -> None:
         if run.status not in {"failed", "succeeded"}:
             return

@@ -1,6 +1,7 @@
 const API_BASE_URL = "/api";
 
 export type ServiceType = "db_backupper" | "s3_backupper" | "env_synchronizer";
+export type TriggerMode = "scheduled" | "event_based";
 
 export type ServiceDiscoveryPort = {
   name: string | null;
@@ -49,7 +50,7 @@ export type JobRunSummary = {
   taskId: number;
   taskName: string;
   releaseName: string;
-  triggerType: "manual" | "scheduled";
+  triggerType: "manual" | "scheduled" | "event";
   status: "running" | "succeeded" | "failed" | "unknown";
   startedAt: string | null;
   completedAt: string | null;
@@ -65,6 +66,7 @@ export type TaskJobStats = {
   totalRuns: number;
   manualRuns: number;
   scheduledRuns: number;
+  eventRuns: number;
   succeededRuns: number;
   failedRuns: number;
   activeRuns: number;
@@ -77,6 +79,7 @@ export type JobsStats = {
   totalRuns: number;
   manualRuns: number;
   scheduledRuns: number;
+  eventRuns: number;
   succeededRuns: number;
   failedRuns: number;
   activeRuns: number;
@@ -125,6 +128,7 @@ type TaskSummaryBase = {
   enabled: boolean;
   serviceType: ServiceType;
   schedule: string;
+  triggerMode: TriggerMode;
   deployed: boolean;
   releaseName: string;
   lastApplyStatus: string | null;
@@ -157,6 +161,10 @@ export type DbTaskDetail = DbTaskSummary & {
   destinationAwsAccessKeyId: string;
   hasDatabasePassword: boolean;
   hasDestinationAwsSecretAccessKey: boolean;
+  eventWatcherStatus: string;
+  lastEventDetectedAt: string | null;
+  lastEventTriggeredAt: string | null;
+  lastEventMessage: string | null;
 };
 
 export type S3TaskDetail = S3TaskSummary & {
@@ -189,6 +197,7 @@ type TaskPayloadBase = {
   namespace: string;
   enabled: boolean;
   schedule: string;
+  triggerMode: TriggerMode;
 };
 
 export type DbTaskPayload = TaskPayloadBase & {

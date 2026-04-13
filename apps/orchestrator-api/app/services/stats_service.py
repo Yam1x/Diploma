@@ -52,6 +52,7 @@ class StatsService:
             totalRuns=len(runs),
             manualRuns=sum(1 for run in runs if run.trigger_type == "manual"),
             scheduledRuns=sum(1 for run in runs if run.trigger_type == "scheduled"),
+            eventRuns=sum(1 for run in runs if run.trigger_type == "event"),
             succeededRuns=sum(1 for run in runs if run.status == "succeeded"),
             failedRuns=sum(1 for run in runs if run.status == "failed"),
             activeRuns=sum(1 for run in runs if run.status == "running"),
@@ -89,6 +90,7 @@ class StatsService:
                 continue
 
             manual_prefix = f"{release_name}-manual-"
+            event_prefix = f"{release_name}-event-"
             scheduled_prefix = f"{release_name}-"
 
             for job in jobs_by_namespace.get(task.namespace, []):
@@ -98,7 +100,12 @@ class StatsService:
 
                 run = existing_runs.get((task.namespace, job_name))
                 status = self._resolve_job_status(job)
-                trigger_type = "manual" if job_name.startswith(manual_prefix) else "scheduled"
+                if job_name.startswith(manual_prefix):
+                    trigger_type = "manual"
+                elif job_name.startswith(event_prefix):
+                    trigger_type = "event"
+                else:
+                    trigger_type = "scheduled"
                 started_at = job.get("startTime")
                 completed_at = job.get("completionTime")
 
@@ -307,6 +314,7 @@ class StatsService:
             totalRuns=len(runs),
             manualRuns=sum(1 for run in runs if run.trigger_type == "manual"),
             scheduledRuns=sum(1 for run in runs if run.trigger_type == "scheduled"),
+            eventRuns=sum(1 for run in runs if run.trigger_type == "event"),
             succeededRuns=sum(1 for run in runs if run.status == "succeeded"),
             failedRuns=sum(1 for run in runs if run.status == "failed"),
             activeRuns=sum(1 for run in runs if run.status == "running"),

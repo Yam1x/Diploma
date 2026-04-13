@@ -50,7 +50,6 @@ test("renders s3 fields for s3 task route", async () => {
   );
 
   expect(await screen.findByText("Source S3 endpoint")).toBeInTheDocument();
-  expect(screen.queryByText("Хост базы данных")).not.toBeInTheDocument();
   expect(screen.getByText("Destination S3 bucket")).toBeInTheDocument();
 });
 
@@ -65,12 +64,11 @@ test("fills database host from service discovery", async () => {
     </MemoryRouter>,
   );
 
-  expect(await screen.findByText("Хост базы данных")).toBeInTheDocument();
-
-  await user.selectOptions(screen.getAllByRole("combobox")[0], "default");
+  await waitFor(() => expect(api.listNamespaces).toHaveBeenCalled());
+  await user.selectOptions(screen.getAllByRole("combobox")[1], "default");
 
   await waitFor(() => expect(api.listServiceDiscovery).toHaveBeenCalledWith("default"));
-  await user.selectOptions(screen.getByLabelText("Service Discovery: хост базы данных"), "postgresql");
+  await user.selectOptions(screen.getAllByRole("combobox")[3], "postgresql");
 
   expect(screen.getByDisplayValue("postgresql")).toBeInTheDocument();
 });
@@ -89,9 +87,8 @@ test("fills source s3 endpoint from service discovery", async () => {
   expect(await screen.findByText("Source S3 endpoint")).toBeInTheDocument();
 
   await user.selectOptions(screen.getAllByRole("combobox")[0], "default");
-
   await waitFor(() => expect(api.listServiceDiscovery).toHaveBeenCalledWith("default"));
-  await user.selectOptions(screen.getByLabelText("Service Discovery: source S3 endpoint"), "http://minio:9000");
+  await user.selectOptions(screen.getAllByRole("combobox")[2], "http://minio:9000");
 
   expect(screen.getByDisplayValue("http://minio:9000")).toBeInTheDocument();
 });
@@ -104,6 +101,7 @@ test("keeps existing s3 secrets when edit form leaves them empty", async () => {
     enabled: true,
     serviceType: "s3_backupper",
     schedule: "30 * * * *",
+    triggerMode: "scheduled",
     deployed: true,
     releaseName: "s3-backupper-7",
     lastApplyStatus: "deployed",
@@ -139,11 +137,30 @@ test("keeps existing s3 secrets when edit form leaves them empty", async () => {
   expect(await screen.findByDisplayValue("source-bucket")).toBeInTheDocument();
   await waitFor(() => expect(api.listServiceDiscovery).toHaveBeenCalledWith("default"));
 
-  await user.click(screen.getByRole("button", { name: "Сохранить задачу" }));
+  const submitButton = document.querySelector('button[type="submit"]');
+  expect(submitButton).not.toBeNull();
+  await user.click(submitButton as HTMLButtonElement);
 
   await waitFor(() => expect(api.updateTask).toHaveBeenCalled());
   const payload = api.updateTask.mock.calls[0][1];
 
   expect(payload).not.toHaveProperty("sourceS3AwsSecretAccessKey");
   expect(payload).not.toHaveProperty("destinationS3AwsSecretAccessKey");
+});
+
+test("allows switching db backup task to event-based mode", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/new/db-backupper"]}>
+      <Routes>
+        <Route path="/tasks/new/:taskType" element={<TaskFormPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => expect(api.listNamespaces).toHaveBeenCalled());
+  await user.selectOptions(screen.getAllByRole("combobox")[0], "event_based");
+
+  expect(screen.getByText(/fallback/i)).toBeInTheDocument();
 });

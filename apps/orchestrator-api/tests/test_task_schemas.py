@@ -17,6 +17,7 @@ def test_db_task_create_schema_accepts_db_payload() -> None:
         "namespace": "default",
         "enabled": True,
         "schedule": "0 * * * *",
+        "triggerMode": "event_based",
         "dbBackupsFilenamePrefix": "primary",
         "databaseHost": "postgresql",
         "databaseName": "app",
@@ -32,12 +33,14 @@ def test_db_task_create_schema_accepts_db_payload() -> None:
 
     assert result.serviceType == "db_backupper"
     assert result.dbBackupsFilenamePrefix == "primary"
+    assert result.triggerMode == "event_based"
 
 
 def test_s3_task_update_schema_accepts_s3_payload() -> None:
     payload = {
         "serviceType": "s3_backupper",
         "schedule": "15 * * * *",
+        "triggerMode": "scheduled",
         "sourceS3AwsBucketSubfolderName": "incoming",
         "destinationS3AwsBucketName": "archive",
     }

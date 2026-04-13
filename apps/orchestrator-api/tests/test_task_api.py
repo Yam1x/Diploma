@@ -8,6 +8,7 @@ def build_db_payload(enabled: bool = False) -> dict:
         "namespace": "default",
         "enabled": enabled,
         "schedule": "0 * * * *",
+        "triggerMode": "scheduled",
         "dbBackupsFilenamePrefix": "primary",
         "databaseHost": "postgresql",
         "databaseName": "app",
@@ -27,6 +28,7 @@ def build_s3_payload(enabled: bool = False) -> dict:
         "namespace": "default",
         "enabled": enabled,
         "schedule": "30 * * * *",
+        "triggerMode": "scheduled",
         "s3BackupsFilenamePrefix": "bucket-archive",
         "sourceS3AwsEndpoint": "https://source.local",
         "sourceS3AwsAccessKeyId": "source-key",
@@ -60,6 +62,7 @@ def test_db_task_api_lifecycle(client, fake_helm) -> None:
     assert create_response.status_code == 201
     created = create_response.json()
     assert created["serviceType"] == "db_backupper"
+    assert created["triggerMode"] == "scheduled"
     assert created["releaseName"] == "db-backupper-1"
     assert fake_helm.upgrade_calls[0]["chart_path"] == "diploma-db-backupper/ci"
     assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["DATABASE_NAME"] == "app"
@@ -71,6 +74,7 @@ def test_db_task_api_lifecycle(client, fake_helm) -> None:
     detail_response = client.get("/api/tasks/1")
     assert detail_response.status_code == 200
     assert detail_response.json()["hasDatabasePassword"] is True
+    assert detail_response.json()["eventWatcherStatus"] == "scheduled"
 
     update_response = client.patch(
         "/api/tasks/1",
@@ -98,6 +102,7 @@ def test_s3_task_api_lifecycle(client, fake_helm) -> None:
     assert create_response.status_code == 201
     created = create_response.json()
     assert created["serviceType"] == "s3_backupper"
+    assert created["triggerMode"] == "scheduled"
     assert created["releaseName"] == "s3-backupper-1"
 
     enable_response = client.post("/api/tasks/1/enable")
@@ -127,3 +132,26 @@ def test_s3_task_api_lifecycle(client, fake_helm) -> None:
 
     delete_response = client.delete("/api/tasks/1")
     assert delete_response.status_code == 204
+
+
+def test_db_task_api_accepts_event_based_trigger_mode(client, fake_helm) -> None:
+    payload = build_db_payload(enabled=True)
+    payload["triggerMode"] = "event_based"
+
+    response = client.post("/api/tasks", json=payload)
+
+    assert response.status_code == 201
+    created = response.json()
+    assert created["triggerMode"] == "event_based"
+    assert created["eventWatcherStatus"] == "waiting_for_baseline"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["DATABASE_NAME"] == "app"
+
+
+def test_non_db_task_rejects_event_based_trigger_mode(client) -> None:
+    payload = build_s3_payload()
+    payload["triggerMode"] = "event_based"
+
+    response = client.post("/api/tasks", json=payload)
+
+    assert response.status_code == 400
+    assert "Event-based trigger mode" in response.json()["detail"]

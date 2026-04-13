@@ -19,7 +19,7 @@ class JobRunSummary(BaseModel):
     taskId: int
     taskName: str
     releaseName: str
-    triggerType: Literal["manual", "scheduled"]
+    triggerType: Literal["manual", "scheduled", "event"]
     status: Literal["running", "succeeded", "failed", "unknown"]
     startedAt: datetime | None
     completedAt: datetime | None
@@ -35,6 +35,7 @@ class TaskJobStats(BaseModel):
     totalRuns: int
     manualRuns: int
     scheduledRuns: int
+    eventRuns: int
     succeededRuns: int
     failedRuns: int
     activeRuns: int
@@ -47,6 +48,7 @@ class JobsStats(BaseModel):
     totalRuns: int
     manualRuns: int
     scheduledRuns: int
+    eventRuns: int
     succeededRuns: int
     failedRuns: int
     activeRuns: int

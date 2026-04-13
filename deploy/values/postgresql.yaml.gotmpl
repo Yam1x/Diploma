@@ -6,5 +6,11 @@ auth:
   database: "{{ .StateValues.postgresql.auth.database }}"
 
 primary:
+  service:
+    type: NodePort
+    nodePorts:
+      postgresql: 30100
   persistence:
-    enabled: false
+    enabled: true
+    storageClass: local-path
+    size: 8Gi

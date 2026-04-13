@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     minio_secret_access_key: str = "minio123456"
     minio_bucket_name: str = "backups"
     minio_region: str = "us-east-1"
+    event_watcher_enabled: bool = False
+    event_watcher_poll_interval_seconds: int = 60
+    event_watcher_cooldown_seconds: int = 600
 
 
 @lru_cache

@@ -28,6 +28,10 @@ function formatServiceType(serviceType: TaskSummary["serviceType"]) {
   return getTaskTypeByServiceType(serviceType)?.title ?? serviceType;
 }
 
+function formatTriggerMode(triggerMode: TaskSummary["triggerMode"]) {
+  return triggerMode === "event_based" ? "По событию" : "По расписанию";
+}
+
 function formatSize(size: number) {
   if (size < 1024) {
     return `${size} B`;
@@ -46,7 +50,13 @@ function formatDate(value: string | null) {
 }
 
 function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
-  return triggerType === "manual" ? "Вручную" : "По расписанию";
+  if (triggerType === "manual") {
+    return "Вручную";
+  }
+  if (triggerType === "event") {
+    return "По событию";
+  }
+  return "По расписанию";
 }
 
 function formatJobStatus(status: JobRunSummary["status"]) {
@@ -70,6 +80,7 @@ function renderTaskStatsRow(task: TaskJobStats) {
       <td>{task.totalRuns}</td>
       <td>{task.manualRuns}</td>
       <td>{task.scheduledRuns}</td>
+      <td>{task.eventRuns}</td>
       <td>{task.succeededRuns}</td>
       <td>{task.failedRuns}</td>
       <td>{task.activeRuns}</td>
@@ -100,7 +111,7 @@ export function TasksListPage() {
     }
 
     if (namespacesResult.status === "rejected") {
-      setError(namespacesResult.reason instanceof Error ? namespacesResult.reason.message : "Не удалось загрузить задачи");
+      setError(namespacesResult.reason instanceof Error ? namespacesResult.reason.message : "Не удалось загрузить namespace");
       return;
     }
 
@@ -200,9 +211,9 @@ export function TasksListPage() {
             <article className="card metric-card">
               <p className="eyebrow">Triggers</p>
               <h3>
-                {stats.jobs.scheduledRuns} / {stats.jobs.manualRuns}
+                {stats.jobs.scheduledRuns} / {stats.jobs.eventRuns} / {stats.jobs.manualRuns}
               </h3>
-              <p className="subtle">По расписанию / вручную</p>
+              <p className="subtle">По расписанию / по событию / вручную</p>
             </article>
             <article className="card metric-card">
               <p className="eyebrow">Result</p>
@@ -218,7 +229,7 @@ export function TasksListPage() {
               <div className="toolbar">
                 <div>
                   <h3>Статистика по задачам</h3>
-                  <p className="subtle">Сколько раз запускались `Job`-ы каждой задачи и каким способом они были созданы.</p>
+                  <p className="subtle">Сколько раз запускались `Job` каждой задачи и каким способом они были созданы.</p>
                 </div>
               </div>
               <table>
@@ -229,6 +240,7 @@ export function TasksListPage() {
                     <th>Всего</th>
                     <th>Вручную</th>
                     <th>По расписанию</th>
+                    <th>По событию</th>
                     <th>Успешно</th>
                     <th>Ошибки</th>
                     <th>Активно</th>
@@ -239,7 +251,7 @@ export function TasksListPage() {
                   {visibleTaskStats.map((task) => renderTaskStatsRow(task))}
                   {visibleTaskStats.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="empty-state">
+                      <td colSpan={10} className="empty-state">
                         Для выбранного namespace статистики запусков пока нет.
                       </td>
                     </tr>
@@ -252,7 +264,7 @@ export function TasksListPage() {
               <div className="toolbar">
                 <div>
                   <h3>Последние запуски</h3>
-                  <p className="subtle">Последние `Job`-ы, найденные в Kubernetes по release name задач.</p>
+                  <p className="subtle">Последние `Job`, найденные в Kubernetes по release name задач.</p>
                 </div>
               </div>
               <table>
@@ -282,7 +294,7 @@ export function TasksListPage() {
                   {visibleRecentRuns.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="empty-state">
-                        Запуски `Job`-ов пока не найдены.
+                        Запуски `Job` пока не найдены.
                       </td>
                     </tr>
                   ) : null}
@@ -302,6 +314,7 @@ export function TasksListPage() {
               <th>Namespace</th>
               <th>Включена</th>
               <th>Задеплоена</th>
+              <th>Режим</th>
               <th>Расписание</th>
               <th>Последнее применение</th>
               <th>Обновлена</th>
@@ -318,7 +331,8 @@ export function TasksListPage() {
                 <td>{task.namespace}</td>
                 <td>{formatBoolean(task.enabled)}</td>
                 <td>{formatBoolean(task.deployed)}</td>
-                <td>{task.schedule}</td>
+                <td>{formatTriggerMode(task.triggerMode)}</td>
+                <td>{task.triggerMode === "event_based" ? `${task.schedule} (fallback)` : task.schedule}</td>
                 <td>{formatApplyStatus(task.lastApplyStatus)}</td>
                 <td>{new Date(task.updatedAt).toLocaleString()}</td>
                 <td className="row-actions">
@@ -353,7 +367,7 @@ export function TasksListPage() {
             ))}
             {visibleTasks.length === 0 ? (
               <tr>
-                <td colSpan={9} className="empty-state">
+                <td colSpan={10} className="empty-state">
                   Задачи не найдены.
                 </td>
               </tr>

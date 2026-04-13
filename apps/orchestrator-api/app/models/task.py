@@ -15,6 +15,11 @@ class ServiceType(str, enum.Enum):
     ENV_SYNCHRONIZER = "env_synchronizer"
 
 
+class TriggerMode(str, enum.Enum):
+    SCHEDULED = "scheduled"
+    EVENT_BASED = "event_based"
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -24,6 +29,7 @@ class Task(Base):
     namespace: Mapped[str] = mapped_column(String(120), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     schedule: Mapped[str] = mapped_column(String(120), nullable=False)
+    trigger_mode: Mapped[str] = mapped_column(String(20), nullable=False, default=TriggerMode.SCHEDULED.value)
     db_backups_filename_prefix: Mapped[str | None] = mapped_column(String(120), nullable=True)
     database_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     database_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -50,6 +56,11 @@ class Task(Base):
 
     secret: Mapped["TaskSecret"] = relationship(back_populates="task", uselist=False, cascade="all, delete-orphan")
     job_runs: Mapped[list["TaskJobRun"]] = relationship(back_populates="task", cascade="all, delete-orphan")
+    event_watch_state: Mapped["TaskEventWatchState | None"] = relationship(
+        back_populates="task",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 class TaskSecret(Base):
@@ -87,3 +98,23 @@ class TaskJobRun(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     task: Mapped[Task] = relationship(back_populates="job_runs")
+
+
+class TaskEventWatchState(Base):
+    __tablename__ = "task_event_watch_states"
+
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), primary_key=True)
+    last_tuple_ins: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_tuple_upd: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_tuple_del: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stats_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pending_change: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_change_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_event_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    task: Mapped[Task] = relationship(back_populates="event_watch_state")

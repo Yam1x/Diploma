@@ -45,6 +45,15 @@ releases:
     values:
       - values/api.yaml.gotmpl
 
+  - name: diploma-orchestrator-event-watcher
+    namespace: {{ .Values.namespace }}
+    chart: ./charts/orchestrator-event-watcher
+    needs:
+      - {{ .Values.namespace }}/postgresql
+      - {{ .Values.namespace }}/diploma-orchestrator-api
+    values:
+      - values/event-watcher.yaml.gotmpl
+
   - name: diploma-orchestrator-ui
     namespace: {{ .Values.namespace }}
     chart: ./charts/orchestrator-ui

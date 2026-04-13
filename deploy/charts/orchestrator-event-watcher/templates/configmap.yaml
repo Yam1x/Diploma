@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: diploma-orchestrator-api-config
+  name: diploma-orchestrator-event-watcher-config
   namespace: {{ .Release.Namespace }}
 data:
   ORCHESTRATOR_DATABASE_URL: {{ .Values.config.databaseUrl | quote }}

@@ -61,6 +61,8 @@ class FakeKube:
             ],
             "backups": [],
         }
+        self.created_jobs: list[tuple[str, str, str]] = []
+        self.jobs: dict[str, list[dict]] = {"default": [], "backups": []}
 
     def list_namespaces(self) -> list[str]:
         return sorted(self.namespaces)
@@ -73,10 +75,20 @@ class FakeKube:
             raise RuntimeError(f"Namespace {namespace} already exists")
         self.namespaces.add(namespace)
         self.services.setdefault(namespace, [])
+        self.jobs.setdefault(namespace, [])
         return namespace
 
     def namespace_exists(self, namespace: str) -> bool:
         return namespace in self.namespaces
+
+    def create_job_from_cronjob(self, namespace: str, cronjob_name: str, trigger_type: str = "manual") -> str:
+        job_name = f"{cronjob_name}-{trigger_type}-001"
+        self.created_jobs.append((namespace, cronjob_name, trigger_type))
+        self.jobs.setdefault(namespace, []).append({"name": job_name, "active": 1, "succeeded": 0, "failed": 0})
+        return job_name
+
+    def list_jobs(self, namespace: str) -> list[dict]:
+        return list(self.jobs.get(namespace, []))
 
 
 class FakeMinioBrowserService:

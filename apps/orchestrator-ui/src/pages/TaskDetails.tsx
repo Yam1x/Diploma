@@ -33,7 +33,31 @@ function formatDate(value: string | null) {
 }
 
 function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
-  return triggerType === "manual" ? "Вручную" : "По расписанию";
+  if (triggerType === "manual") {
+    return "Вручную";
+  }
+  if (triggerType === "event") {
+    return "По событию";
+  }
+  return "По расписанию";
+}
+
+function formatTriggerMode(triggerMode: TaskDetail["triggerMode"]) {
+  return triggerMode === "event_based" ? "По событию + cron fallback" : "По расписанию";
+}
+
+function formatEventWatcherStatus(status: string) {
+  const labels: Record<string, string> = {
+    scheduled: "Плановый режим",
+    disabled: "Выключена",
+    waiting_for_baseline: "Инициализация baseline",
+    watching: "Отслеживает изменения",
+    pending: "Ожидает запуск",
+    cooldown: "Cooldown",
+    error: "Ошибка",
+  };
+
+  return labels[status] ?? status;
 }
 
 function formatJobStatus(status: JobRunSummary["status"]) {
@@ -225,12 +249,22 @@ export function TaskDetailsPage() {
             <dd>{formatBoolean(task.enabled)}</dd>
             <dt>Тип сервиса</dt>
             <dd>{formatServiceType(task.serviceType)}</dd>
+            <dt>Режим запуска</dt>
+            <dd>{formatTriggerMode(task.triggerMode)}</dd>
             <dt>Расписание</dt>
-            <dd>{task.schedule}</dd>
+            <dd>{task.triggerMode === "event_based" ? `${task.schedule} (fallback)` : task.schedule}</dd>
             {task.serviceType === "db_backupper" ? (
               <>
                 <dt>Префикс имени файла</dt>
                 <dd>{task.dbBackupsFilenamePrefix}</dd>
+                <dt>Event watcher</dt>
+                <dd>{formatEventWatcherStatus(task.eventWatcherStatus)}</dd>
+                <dt>Последнее событие</dt>
+                <dd>{formatDate(task.lastEventDetectedAt)}</dd>
+                <dt>Последний event backup</dt>
+                <dd>{formatDate(task.lastEventTriggeredAt)}</dd>
+                <dt>Сообщение watcher</dt>
+                <dd>{task.lastEventMessage ?? "Нет сообщений"}</dd>
               </>
             ) : task.serviceType === "s3_backupper" ? (
               <>
@@ -260,7 +294,7 @@ export function TaskDetailsPage() {
         <div className="toolbar">
           <div>
             <h3>Последние запуски</h3>
-            <p className="subtle">Список последних `Job`-ов этой задачи с доступом к их логам.</p>
+            <p className="subtle">Список последних `Job` этой задачи с доступом к их логам.</p>
           </div>
         </div>
         <table>
@@ -294,7 +328,7 @@ export function TaskDetailsPage() {
             {jobRuns.length === 0 ? (
               <tr>
                 <td colSpan={7} className="empty-state">
-                  Запуски `Job`-ов для этой задачи пока не найдены.
+                  Запуски `Job` для этой задачи пока не найдены.
                 </td>
               </tr>
             ) : null}

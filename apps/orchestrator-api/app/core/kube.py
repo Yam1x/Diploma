@@ -77,10 +77,11 @@ class KubeClient:
 
         return sorted(services, key=lambda service: str(service["name"]))
 
-    def create_job_from_cronjob(self, namespace: str, cronjob_name: str) -> str:
+    def create_job_from_cronjob(self, namespace: str, cronjob_name: str, trigger_type: str = "manual") -> str:
         timestamp = datetime.now(timezone.utc).strftime("%m%d%H%M%S")
-        prefix = cronjob_name[: 63 - len("-manual-") - len(timestamp)]
-        job_name = f"{prefix}-manual-{timestamp}"
+        suffix = f"-{trigger_type}-"
+        prefix = cronjob_name[: 63 - len(suffix) - len(timestamp)]
+        job_name = f"{prefix}{suffix}{timestamp}"
         command = [
             "kubectl",
             "create",

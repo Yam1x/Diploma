@@ -6,6 +6,7 @@ const { api } = vi.hoisted(() => ({
   api: {
     listTasks: vi.fn(),
     listNamespaces: vi.fn(),
+    getDashboardStats: vi.fn(),
     refreshTask: vi.fn(),
     disableTask: vi.fn(),
     enableTask: vi.fn(),
@@ -29,6 +30,7 @@ beforeEach(() => {
       deployed: true,
       serviceType: "db_backupper",
       schedule: "0 * * * *",
+      triggerMode: "event_based",
       releaseName: "db-backupper-1",
       lastApplyStatus: "deployed",
       lastApplyMessage: "ok",
@@ -43,6 +45,7 @@ beforeEach(() => {
       deployed: false,
       serviceType: "s3_backupper",
       schedule: "30 * * * *",
+      triggerMode: "scheduled",
       releaseName: "s3-backupper-2",
       lastApplyStatus: null,
       lastApplyMessage: null,
@@ -51,9 +54,24 @@ beforeEach(() => {
     },
   ]);
   api.listNamespaces.mockResolvedValue({ namespaces: ["default"] });
+  api.getDashboardStats.mockResolvedValue({
+    storage: { bucketName: "backups", objectCount: 2, totalSize: 1024 },
+    jobs: {
+      totalRuns: 3,
+      manualRuns: 1,
+      scheduledRuns: 1,
+      eventRuns: 1,
+      succeededRuns: 2,
+      failedRuns: 0,
+      activeRuns: 1,
+      unknownRuns: 0,
+      recentRuns: [],
+      tasks: [],
+    },
+  });
 });
 
-test("renders task list with both service types", async () => {
+test("renders task list with trigger modes", async () => {
   render(
     <BrowserRouter>
       <TasksListPage />
@@ -62,6 +80,6 @@ test("renders task list with both service types", async () => {
 
   expect(await screen.findByText("Primary DB")).toBeInTheDocument();
   expect(screen.getByText("Bucket archive")).toBeInTheDocument();
-  expect(screen.getByText("Резервное копирование БД")).toBeInTheDocument();
-  expect(screen.getByText("Резервное копирование S3")).toBeInTheDocument();
+  expect(screen.getByText("По событию")).toBeInTheDocument();
+  expect(screen.getByText("По расписанию")).toBeInTheDocument();
 });

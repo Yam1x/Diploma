@@ -25,7 +25,7 @@ def get_db():
 
 def init_db() -> None:
     from app.models.notification import Notification  # noqa: F401
-    from app.models.task import Task, TaskJobRun, TaskSecret  # noqa: F401
+    from app.models.task import Task, TaskEventWatchState, TaskJobRun, TaskSecret  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _upgrade_task_schema()
@@ -55,6 +55,7 @@ def _upgrade_task_schema() -> None:
 
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_repository VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS path_to_helmfile VARCHAR(255)"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trigger_mode VARCHAR(20) NOT NULL DEFAULT 'scheduled'"))
         connection.execute(
             text(
                 """
@@ -75,6 +76,27 @@ def _upgrade_task_schema() -> None:
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     CONSTRAINT uq_task_job_runs_namespace_job_name UNIQUE (namespace, job_name)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS task_event_watch_states (
+                    task_id INTEGER PRIMARY KEY REFERENCES tasks(id),
+                    last_tuple_ins INTEGER NULL,
+                    last_tuple_upd INTEGER NULL,
+                    last_tuple_del INTEGER NULL,
+                    stats_reset_at TIMESTAMPTZ NULL,
+                    pending_change BOOLEAN NOT NULL DEFAULT FALSE,
+                    last_polled_at TIMESTAMPTZ NULL,
+                    last_change_detected_at TIMESTAMPTZ NULL,
+                    last_event_triggered_at TIMESTAMPTZ NULL,
+                    last_error_at TIMESTAMPTZ NULL,
+                    last_error_message TEXT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
             )

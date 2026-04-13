@@ -13,6 +13,7 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
       namespace: "",
       enabled: false,
       schedule: "0 0 * * *",
+      triggerMode: "scheduled",
       dbBackupsFilenamePrefix: "",
       databaseHost: "",
       databaseName: "",
@@ -32,6 +33,7 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
       namespace: "",
       enabled: false,
       schedule: "0 0 * * *",
+      triggerMode: "scheduled",
       s3BackupsFilenamePrefix: "",
       sourceS3AwsEndpoint: "",
       sourceS3AwsAccessKeyId: "",
@@ -51,6 +53,7 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
     namespace: "",
     enabled: false,
     schedule: "0 0 * * *",
+    triggerMode: "scheduled",
     envRepository: "",
     pathToHelmfile: "",
   };
@@ -64,6 +67,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       namespace: detail.namespace,
       enabled: detail.enabled,
       schedule: detail.schedule,
+      triggerMode: detail.triggerMode,
       dbBackupsFilenamePrefix: detail.dbBackupsFilenamePrefix,
       databaseHost: detail.databaseHost,
       databaseName: detail.databaseName,
@@ -83,6 +87,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       namespace: detail.namespace,
       enabled: detail.enabled,
       schedule: detail.schedule,
+      triggerMode: detail.triggerMode,
       s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
       sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
       sourceS3AwsAccessKeyId: detail.sourceS3AwsAccessKeyId,
@@ -102,6 +107,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
     namespace: detail.namespace,
     enabled: detail.enabled,
     schedule: detail.schedule,
+    triggerMode: detail.triggerMode,
     envRepository: detail.envRepository,
     pathToHelmfile: detail.pathToHelmfile,
   };
@@ -294,6 +300,24 @@ export function TaskFormPage() {
       {error ? <div className="alert">{error}</div> : null}
       {value ? (
         <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
+          {value.serviceType === "db_backupper" ? (
+            <div className="card form-grid">
+              <label>
+                <span>Режим запуска</span>
+                <small className="field-help">Выберите обычное расписание или запуск по изменениям в PostgreSQL с резервным cron.</small>
+                <select
+                  value={value.triggerMode}
+                  onChange={(event) => setValue({ ...value, triggerMode: event.target.value as typeof value.triggerMode })}
+                >
+                  <option value="scheduled">По расписанию</option>
+                  <option value="event_based">По событию + cron fallback</option>
+                </select>
+              </label>
+              {value.triggerMode === "event_based" ? (
+                <p className="subtle">Ниже cron остаётся fallback-расписанием, а основной запуск будет происходить по изменениям в PostgreSQL.</p>
+              ) : null}
+            </div>
+          ) : null}
           <TaskFormFields
             value={value}
             onChange={setValue}

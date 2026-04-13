@@ -5,8 +5,10 @@ image:
   tag: "latest"
   pullPolicy: Always
 
-service:
-  port: 8000
+command:
+  - python
+  - -m
+  - app.event_watcher
 
 config:
   databaseUrl: {{ printf "postgresql+psycopg://postgres:%s@%s:%v/%s" .StateValues.postgresql.auth.postgresPassword .StateValues.postgresql.service.host .StateValues.postgresql.service.port .StateValues.postgresql.auth.database | quote }}

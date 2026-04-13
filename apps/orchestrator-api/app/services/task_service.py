@@ -11,7 +11,7 @@ from app.core.config import Settings, get_settings
 from app.core.helm import HelmClient, HelmError
 from app.core.kube import KubeClient, KubernetesError
 from app.core.security import SecretCipher
-from app.models.task import ServiceType, Task, TaskJobRun, TaskSecret
+from app.models.task import ServiceType, Task, TaskEventWatchState, TaskJobRun, TaskSecret, TriggerMode
 from app.services.notification_service import NotificationService
 from app.schemas.task import (
     DbTaskCreate,
@@ -74,12 +74,14 @@ class TaskService:
 
     def create_task(self, payload: TaskCreate) -> TaskDetail:
         service_type = ServiceType(payload.serviceType)
+        trigger_mode = self._validate_trigger_mode(service_type, payload.triggerMode)
         task = Task(
             name=payload.name,
             namespace=payload.namespace,
             enabled=False,
             service_type=service_type,
             schedule=payload.schedule,
+            trigger_mode=trigger_mode.value,
             release_name="pending",
         )
         task.secret = TaskSecret()
@@ -135,9 +137,13 @@ class TaskService:
             "name": "name",
             "namespace": "namespace",
             "schedule": "schedule",
+            "triggerMode": "trigger_mode",
         }.items():
             if source in changes:
-                setattr(task, target, changes[source])
+                value = changes[source]
+                if source == "triggerMode":
+                    value = self._validate_trigger_mode(task.service_type, value).value
+                setattr(task, target, value)
 
         if task.service_type == ServiceType.DB_BACKUPPER:
             db_changes = self._expect_db_update(payload)
@@ -193,7 +199,7 @@ class TaskService:
             raise HTTPException(status_code=400, detail="Task must be deployed before running it manually")
 
         try:
-            job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name)
+            job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name, trigger_type="manual")
         except KubernetesError as exc:
             task.last_apply_status = "failed"
             task.last_apply_message = str(exc)
@@ -204,7 +210,7 @@ class TaskService:
         task.last_apply_status = "deployed"
         task.last_apply_message = f"Manual run started: {job_name}"
         task.last_applied_at = datetime.now(timezone.utc)
-        run = self._record_manual_job_run(task, job_name)
+        run = self._record_job_run(task, job_name, "manual")
         self.db.commit()
         self.notifications.notify_manual_run_started(task, run)
         return self._to_detail(task)
@@ -433,7 +439,7 @@ class TaskService:
         config = self._get_deployment_config(service_type, self.settings)
         return f"{config.release_prefix}-{task_id}"[:53]
 
-    def _record_manual_job_run(self, task: Task, job_name: str) -> TaskJobRun:
+    def _record_job_run(self, task: Task, job_name: str, trigger_type: str) -> TaskJobRun:
         now = datetime.now(timezone.utc)
         run = (
             self.db.query(TaskJobRun)
@@ -447,7 +453,7 @@ class TaskService:
                 namespace=task.namespace,
                 release_name=task.release_name,
                 job_name=job_name,
-                trigger_type="manual",
+                trigger_type=trigger_type,
                 status="running",
                 started_at=now,
                 first_seen_at=now,
@@ -459,15 +465,31 @@ class TaskService:
 
         run.task_id = task.id
         run.release_name = task.release_name
-        run.trigger_type = "manual"
+        run.trigger_type = trigger_type
         run.status = "running"
         run.started_at = run.started_at or now
         run.last_seen_at = now
         self.db.flush()
         return run
 
+    def create_event_job_run(self, task: Task) -> TaskJobRun:
+        if task.service_type != ServiceType.DB_BACKUPPER or task.trigger_mode != TriggerMode.EVENT_BASED.value:
+            raise ValueError("Event-based job runs are only supported for db_backupper tasks in event mode")
+        if not task.enabled or not task.release_name:
+            raise ValueError("Task must be enabled and deployed before event-based runs can start")
+
+        job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name, trigger_type="event")
+        run = self._record_job_run(task, job_name, "event")
+        self.notifications.notify_event_run_started(task, run)
+        return run
+
     def _get_task_model(self, task_id: int) -> Task:
-        task = self.db.query(Task).options(joinedload(Task.secret)).filter(Task.id == task_id).one_or_none()
+        task = (
+            self.db.query(Task)
+            .options(joinedload(Task.secret), joinedload(Task.event_watch_state))
+            .filter(Task.id == task_id)
+            .one_or_none()
+        )
         if task is None:
             raise HTTPException(status_code=404, detail="Task not found")
         if task.secret is None:
@@ -481,6 +503,7 @@ class TaskService:
             "namespace": task.namespace,
             "enabled": task.enabled,
             "schedule": task.schedule,
+            "triggerMode": task.trigger_mode,
             "deployed": task.last_apply_status == "deployed",
             "releaseName": task.release_name,
             "lastApplyStatus": task.last_apply_status,
@@ -497,6 +520,7 @@ class TaskService:
     def _to_detail(self, task: Task) -> TaskDetail:
         summary = self._to_summary(task)
         if task.service_type == ServiceType.DB_BACKUPPER:
+            state = task.event_watch_state
             return DbTaskDetail(
                 **summary.model_dump(),
                 dbBackupsFilenamePrefix=task.db_backups_filename_prefix or "",
@@ -508,6 +532,10 @@ class TaskService:
                 destinationAwsAccessKeyId=task.destination_aws_access_key_id or "",
                 hasDatabasePassword=bool(task.secret.database_password_encrypted),
                 hasDestinationAwsSecretAccessKey=bool(task.secret.destination_aws_secret_access_key_encrypted),
+                eventWatcherStatus=self._resolve_event_watcher_status(task, state),
+                lastEventDetectedAt=state.last_change_detected_at if state else None,
+                lastEventTriggeredAt=state.last_event_triggered_at if state else None,
+                lastEventMessage=state.last_error_message if state else None,
             )
 
         if task.service_type == ServiceType.S3_BACKUPPER:
@@ -530,6 +558,36 @@ class TaskService:
             envRepository=task.env_repository or "",
             pathToHelmfile=task.path_to_helmfile or "",
         )
+
+    def _resolve_event_watcher_status(self, task: Task, state: TaskEventWatchState | None) -> str:
+        if task.trigger_mode != TriggerMode.EVENT_BASED.value:
+            return "scheduled"
+        if not task.enabled:
+            return "disabled"
+        if state is None or state.last_polled_at is None:
+            return "waiting_for_baseline"
+        if state.last_error_at and (state.last_polled_at is None or state.last_error_at >= state.last_polled_at):
+            return "error"
+        if state.pending_change:
+            return "pending"
+        cooldown_cutoff = datetime.now(timezone.utc).timestamp() - self.settings.event_watcher_cooldown_seconds
+        event_triggered_at = self._normalize_datetime(state.last_event_triggered_at)
+        if event_triggered_at and event_triggered_at.timestamp() >= cooldown_cutoff:
+            return "cooldown"
+        return "watching"
+
+    @staticmethod
+    def _validate_trigger_mode(service_type: ServiceType, trigger_mode: str) -> TriggerMode:
+        normalized = TriggerMode(trigger_mode)
+        if normalized == TriggerMode.EVENT_BASED and service_type != ServiceType.DB_BACKUPPER:
+            raise HTTPException(status_code=400, detail="Event-based trigger mode is supported only for db_backupper tasks")
+        return normalized
+
+    @staticmethod
+    def _normalize_datetime(value: datetime | None) -> datetime | None:
+        if value is None or value.tzinfo is not None:
+            return value
+        return value.replace(tzinfo=timezone.utc)
 
     def _build_discovered_service(self, service: dict[str, Any]) -> ServiceDiscoveryService:
         name = str(service["name"])

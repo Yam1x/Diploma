@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from app.models.task import ServiceType, Task, TaskSecret
+from app.models.task import ServiceType, Task, TaskSecret, TriggerMode
 
 
 def build_s3_task() -> Task:
@@ -13,6 +13,7 @@ def build_s3_task() -> Task:
         service_type=ServiceType.S3_BACKUPPER,
         enabled=False,
         schedule="0 * * * *",
+        trigger_mode=TriggerMode.SCHEDULED.value,
         release_name="s3-backupper-7",
         s3_backups_filename_prefix="bucket",
         source_s3_aws_endpoint="https://source.local",
@@ -72,3 +73,11 @@ def test_validate_required_s3_secrets_requires_both_keys(service) -> None:
 
     assert exc.value.status_code == 400
     assert "Source S3 AWS secret access key" in exc.value.detail
+
+
+def test_validate_trigger_mode_rejects_event_based_for_s3(service) -> None:
+    with pytest.raises(HTTPException) as exc:
+        service._validate_trigger_mode(ServiceType.S3_BACKUPPER, "event_based")
+
+    assert exc.value.status_code == 400
+    assert "Event-based trigger mode" in exc.value.detail
