@@ -30,10 +30,10 @@ test("renders sidebar with backup and minio sections", async () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByText("РЎРµСЂРІРёСЃС‹ Р±СЌРєР°РїРёСЂРѕРІР°РЅРёСЏ")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "РќР°СЃС‚СЂРѕР№РєР° СЃРµСЂРІРёСЃРѕРІ" })).toBeInTheDocument();
+  expect(screen.getByText("Сервисы резервного копирования")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Настройка сервисов" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Combined Event Rules" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "РџСЂРѕСЃРјРѕС‚СЂ С„Р°Р№Р»РѕРІ РІ MinIO" })).toHaveClass("active");
+  expect(screen.getByRole("link", { name: "Просмотр файлов в MinIO" })).toHaveClass("active");
   expect(await screen.findByText("content")).toBeInTheDocument();
 });
 

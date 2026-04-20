@@ -105,7 +105,7 @@ class MinioBrowserService:
                 if not continuation_token:
                     break
         except (BotoCoreError, ClientError) as exc:
-            raise HTTPException(status_code=502, detail=f"РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃС‚Р°С‚РёСЃС‚РёРєСѓ MinIO: {exc}") from exc
+            raise HTTPException(status_code=502, detail=f"Не удалось получить статистику MinIO: {exc}") from exc
 
         return {
             "objectCount": object_count,

@@ -166,13 +166,13 @@ class NotificationService:
         db_job_name: str,
         s3_job_name: str,
     ) -> None:
-        trigger_label = "РІСЂСѓС‡РЅСѓСЋ" if trigger_type == "manual" else "РїРѕ СЃРѕР±С‹С‚РёСЋ"
+        trigger_label = "вручную" if trigger_type == "manual" else "по событию"
         self.create_notification(
             event_key=self._event_key("backup-event-rule", rule.id, "run-started", trigger_type, db_job_name, s3_job_name),
             kind="backup_event_rule_run_started",
             severity="info",
-            title=f"Combined backup Р·Р°РїСѓС‰РµРЅ: {rule.name}",
-            message=f"DB job {db_job_name} Рё S3 job {s3_job_name} Р·Р°РїСѓС‰РµРЅС‹ {trigger_label}.",
+            title=f"Combined backup запущен: {rule.name}",
+            message=f"DB job {db_job_name} и S3 job {s3_job_name} запущены {trigger_label}.",
             link_path=f"/event-rules/{rule.id}",
         )
 
@@ -181,7 +181,7 @@ class NotificationService:
             event_key=self._event_key("backup-event-rule", rule.id, "issue", message),
             kind="backup_event_rule_issue",
             severity="warning",
-            title=f"РџСЂРѕР±Р»РµРјР° event rule: {rule.name}",
+            title=f"Проблема event rule: {rule.name}",
             message=message,
             link_path=f"/event-rules/{rule.id}",
         )

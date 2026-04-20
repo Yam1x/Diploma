@@ -39,7 +39,7 @@ export function EventRuleFormPage() {
         }
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕСЂРјСѓ event rule");
+        setError(err instanceof Error ? err.message : "Не удалось загрузить форму event rule");
       }
     }
 
@@ -61,7 +61,7 @@ export function EventRuleFormPage() {
         navigate(`/event-rules/${rule.id}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ event rule");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить event rule");
     }
   }
 
@@ -69,11 +69,11 @@ export function EventRuleFormPage() {
     <section className="stack">
       <div className="toolbar">
         <div>
-          <h2>{ruleId ? "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ event rule" : "РЎРѕР·РґР°РЅРёРµ event rule"}</h2>
-          <p className="subtle">РџСЂР°РІРёР»Рѕ Р·Р°РїСѓСЃРєР°РµС‚ РѕР±Р° backup job, РєРѕРіРґР° DB Рё S3 РёР·РјРµРЅРёР»РёСЃСЊ РІ РѕРґРЅРѕРј watcher poll.</p>
+          <h2>{ruleId ? "Редактирование event rule" : "Создание event rule"}</h2>
+          <p className="subtle">Правило запускает оба backup job, когда DB и S3 изменились в одном watcher poll.</p>
         </div>
         <Link className="button ghost" to={ruleId ? `/event-rules/${ruleId}` : "/event-rules"}>
-          РћС‚РјРµРЅР°
+          Отмена
         </Link>
       </div>
 
@@ -81,14 +81,14 @@ export function EventRuleFormPage() {
 
       <form className="card form-grid" onSubmit={(event) => void handleSubmit(event)}>
         <label>
-          <span>РќР°Р·РІР°РЅРёРµ</span>
+          <span>Название</span>
           <input value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} required />
         </label>
         <label>
           <span>DB task</span>
-          <small className="field-help">Р”РѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ РІРєР»СЋС‡РµРЅРЅС‹Рµ Рё deployed `db_backupper` РІ event mode.</small>
+          <small className="field-help">Доступны только включенные и deployed `db_backupper` в event mode.</small>
           <select value={value.dbTaskId || ""} onChange={(event) => setValue({ ...value, dbTaskId: Number(event.target.value) })} required>
-            <option value="">Р’С‹Р±РµСЂРёС‚Рµ DB task</option>
+            <option value="">Выберите DB task</option>
             {dbTasks.map((task) => (
               <option key={task.id} value={task.id}>
                 {buildTaskOptionLabel(task)}
@@ -98,9 +98,9 @@ export function EventRuleFormPage() {
         </label>
         <label>
           <span>S3 task</span>
-          <small className="field-help">Р”РѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ РІРєР»СЋС‡РµРЅРЅС‹Рµ Рё deployed `s3_backupper` РІ event mode.</small>
+          <small className="field-help">Доступны только включенные и deployed `s3_backupper` в event mode.</small>
           <select value={value.s3TaskId || ""} onChange={(event) => setValue({ ...value, s3TaskId: Number(event.target.value) })} required>
-            <option value="">Р’С‹Р±РµСЂРёС‚Рµ S3 task</option>
+            <option value="">Выберите S3 task</option>
             {s3Tasks.map((task) => (
               <option key={task.id} value={task.id}>
                 {buildTaskOptionLabel(task)}
@@ -110,11 +110,11 @@ export function EventRuleFormPage() {
         </label>
         <label className="toggle">
           <input type="checkbox" checked={value.enabled} onChange={(event) => setValue({ ...value, enabled: event.target.checked })} />
-          <span>Р’РєР»СЋС‡РёС‚СЊ event rule</span>
+          <span>Включить event rule</span>
         </label>
         <div className="toolbar-actions">
           <button className="button primary" type="submit">
-            РЎРѕС…СЂР°РЅРёС‚СЊ event rule
+            Сохранить event rule
           </button>
         </div>
       </form>
