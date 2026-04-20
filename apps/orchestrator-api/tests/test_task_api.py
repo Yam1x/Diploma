@@ -147,11 +147,14 @@ def test_db_task_api_accepts_event_based_trigger_mode(client, fake_helm) -> None
     assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["DATABASE_NAME"] == "app"
 
 
-def test_non_db_task_rejects_event_based_trigger_mode(client) -> None:
+def test_s3_task_api_accepts_event_based_trigger_mode(client, fake_helm) -> None:
     payload = build_s3_payload()
     payload["triggerMode"] = "event_based"
 
     response = client.post("/api/tasks", json=payload)
 
-    assert response.status_code == 400
-    assert "Event-based trigger mode" in response.json()["detail"]
+    assert response.status_code == 201
+    created = response.json()
+    assert created["triggerMode"] == "event_based"
+    assert created["eventWatcherStatus"] == "waiting_for_baseline"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["SOURCE_S3_AWS_BUCKET_NAME"] == "source-bucket"

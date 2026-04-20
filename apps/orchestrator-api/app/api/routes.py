@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import get_minio_browser_service, get_notification_service, get_stats_service, get_task_service
+from app.api.deps import get_event_rule_service, get_minio_browser_service, get_notification_service, get_stats_service, get_task_service
+from app.schemas.event_rule import BackupEventRuleCreate, BackupEventRuleDetail, BackupEventRuleSummary, BackupEventRuleUpdate
 from app.schemas.minio import MinioObjectsResponse
 from app.schemas.notification import NotificationsResponse
 from app.schemas.stats import DashboardStatsResponse, JobRunLogsResponse, TaskJobRunsResponse
@@ -18,6 +19,7 @@ from app.schemas.task import (
 )
 from app.services.minio_browser_service import MinioBrowserService
 from app.services.notification_service import NotificationService
+from app.services.event_rule_service import EventRuleService
 from app.services.stats_service import StatsService
 from app.services.task_service import TaskService
 
@@ -154,3 +156,47 @@ def refresh_task(task_id: int, service: TaskService = Depends(get_task_service))
 @api_router.delete("/tasks/{task_id}", status_code=204)
 def delete_task(task_id: int, service: TaskService = Depends(get_task_service)) -> None:
     service.delete_task(task_id)
+
+
+@api_router.get("/event-rules", response_model=list[BackupEventRuleSummary])
+def list_event_rules(service: EventRuleService = Depends(get_event_rule_service)) -> list[BackupEventRuleSummary]:
+    return service.list_rules()
+
+
+@api_router.post("/event-rules", response_model=BackupEventRuleDetail, status_code=201)
+def create_event_rule(payload: BackupEventRuleCreate, service: EventRuleService = Depends(get_event_rule_service)) -> BackupEventRuleDetail:
+    return service.create_rule(payload)
+
+
+@api_router.get("/event-rules/{rule_id}", response_model=BackupEventRuleDetail)
+def get_event_rule(rule_id: int, service: EventRuleService = Depends(get_event_rule_service)) -> BackupEventRuleDetail:
+    return service.get_rule(rule_id)
+
+
+@api_router.patch("/event-rules/{rule_id}", response_model=BackupEventRuleDetail)
+def update_event_rule(
+    rule_id: int,
+    payload: BackupEventRuleUpdate,
+    service: EventRuleService = Depends(get_event_rule_service),
+) -> BackupEventRuleDetail:
+    return service.update_rule(rule_id, payload)
+
+
+@api_router.post("/event-rules/{rule_id}/enable", response_model=BackupEventRuleDetail)
+def enable_event_rule(rule_id: int, service: EventRuleService = Depends(get_event_rule_service)) -> BackupEventRuleDetail:
+    return service.enable_rule(rule_id)
+
+
+@api_router.post("/event-rules/{rule_id}/run", response_model=BackupEventRuleDetail)
+def run_event_rule(rule_id: int, service: EventRuleService = Depends(get_event_rule_service)) -> BackupEventRuleDetail:
+    return service.run_rule(rule_id)
+
+
+@api_router.post("/event-rules/{rule_id}/disable", response_model=BackupEventRuleDetail)
+def disable_event_rule(rule_id: int, service: EventRuleService = Depends(get_event_rule_service)) -> BackupEventRuleDetail:
+    return service.disable_rule(rule_id)
+
+
+@api_router.delete("/event-rules/{rule_id}", status_code=204)
+def delete_event_rule(rule_id: int, service: EventRuleService = Depends(get_event_rule_service)) -> None:
+    service.delete_rule(rule_id)

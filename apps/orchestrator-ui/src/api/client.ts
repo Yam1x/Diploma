@@ -3,6 +3,8 @@ const API_BASE_URL = "/api";
 export type ServiceType = "db_backupper" | "s3_backupper" | "env_synchronizer";
 export type TriggerMode = "scheduled" | "event_based";
 
+export type EventRuleWatcherStatus = "disabled" | "waiting_for_baseline" | "watching" | "cooldown" | "error";
+
 export type ServiceDiscoveryPort = {
   name: string | null;
   port: number;
@@ -191,6 +193,36 @@ export type EnvSynchronizerTaskDetail = EnvSynchronizerTaskSummary & {
 
 export type TaskDetail = DbTaskDetail | S3TaskDetail | EnvSynchronizerTaskDetail;
 
+export type BackupEventRuleSummary = {
+  id: number;
+  name: string;
+  enabled: boolean;
+  dbTaskId: number;
+  dbTaskName: string;
+  s3TaskId: number;
+  s3TaskName: string;
+  eventWatcherStatus: EventRuleWatcherStatus | string;
+  lastTriggeredAt: string | null;
+  updatedAt: string;
+};
+
+export type BackupEventRuleDetail = BackupEventRuleSummary & {
+  lastPolledAt: string | null;
+  lastDbChangeAt: string | null;
+  lastS3ChangeAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorMessage: string | null;
+};
+
+export type BackupEventRulePayload = {
+  name: string;
+  enabled: boolean;
+  dbTaskId: number;
+  s3TaskId: number;
+};
+
+export type BackupEventRuleUpdatePayload = Partial<BackupEventRulePayload>;
+
 export type NamespacePayload = {
   name: string;
 };
@@ -268,6 +300,16 @@ export const api = {
   markAllNotificationsRead: () => request<void>("/notifications/read-all", { method: "POST" }),
   listTasks: () => request<TaskSummary[]>("/tasks"),
   getTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}`),
+  listEventRules: () => request<BackupEventRuleSummary[]>("/event-rules"),
+  getEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}`),
+  createEventRule: (payload: BackupEventRulePayload) =>
+    request<BackupEventRuleDetail>("/event-rules", { method: "POST", body: JSON.stringify(payload) }),
+  updateEventRule: (ruleId: string, payload: BackupEventRuleUpdatePayload) =>
+    request<BackupEventRuleDetail>(`/event-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  enableEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/enable`, { method: "POST" }),
+  runEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/run`, { method: "POST" }),
+  disableEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/disable`, { method: "POST" }),
+  deleteEventRule: (ruleId: string) => request<void>(`/event-rules/${ruleId}`, { method: "DELETE" }),
   listTaskJobRuns: (taskId: string) => request<TaskJobRunsResponse>(`/tasks/${taskId}/job-runs`),
   getTaskJobRunLogs: (taskId: string, runId: number) => request<JobRunLogsResponse>(`/tasks/${taskId}/job-runs/${runId}/logs`),
   createTask: (payload: TaskPayload) => request<TaskDetail>("/tasks", { method: "POST", body: JSON.stringify(payload) }),

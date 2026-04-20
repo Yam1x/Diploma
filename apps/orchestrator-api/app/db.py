@@ -24,6 +24,7 @@ def get_db():
 
 
 def init_db() -> None:
+    from app.models.event_rule import BackupEventRule, BackupEventRuleState  # noqa: F401
     from app.models.notification import Notification  # noqa: F401
     from app.models.task import Task, TaskEventWatchState, TaskJobRun, TaskSecret  # noqa: F401
 
@@ -104,6 +105,45 @@ def _upgrade_task_schema() -> None:
             )
         )
         connection.execute(text("ALTER TABLE task_event_watch_states ADD COLUMN IF NOT EXISTS last_observed_state_hash TEXT"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS backup_event_rules (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(120) NOT NULL UNIQUE,
+                    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                    db_task_id INTEGER NOT NULL REFERENCES tasks(id),
+                    s3_task_id INTEGER NOT NULL REFERENCES tasks(id),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS backup_event_rule_states (
+                    rule_id INTEGER PRIMARY KEY REFERENCES backup_event_rules(id),
+                    last_tuple_ins INTEGER NULL,
+                    last_tuple_upd INTEGER NULL,
+                    last_tuple_del INTEGER NULL,
+                    stats_reset_at TIMESTAMPTZ NULL,
+                    last_observed_state_hash TEXT NULL,
+                    last_polled_at TIMESTAMPTZ NULL,
+                    last_db_change_at TIMESTAMPTZ NULL,
+                    last_s3_change_at TIMESTAMPTZ NULL,
+                    last_triggered_at TIMESTAMPTZ NULL,
+                    last_error_at TIMESTAMPTZ NULL,
+                    last_error_message TEXT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_db_task_id ON backup_event_rules(db_task_id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_s3_task_id ON backup_event_rules(s3_task_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_task_job_runs_task_id ON task_job_runs(task_id)"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_text TEXT"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_collected_at TIMESTAMPTZ"))

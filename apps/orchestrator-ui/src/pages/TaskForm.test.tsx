@@ -162,5 +162,5 @@ test("allows switching db backup task to event-based mode", async () => {
   await waitFor(() => expect(api.listNamespaces).toHaveBeenCalled());
   await user.selectOptions(screen.getAllByRole("combobox")[0], "event_based");
 
-  expect(screen.getByText(/fallback/i)).toBeInTheDocument();
+  expect(screen.getByText(/Event Rules/i)).toBeInTheDocument();
 });

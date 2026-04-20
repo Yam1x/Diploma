@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.models.event_rule import BackupEventRule
 from app.models.notification import Notification
 from app.models.task import Task, TaskJobRun
 from app.schemas.notification import NotificationItem, NotificationsResponse
@@ -155,6 +156,34 @@ class NotificationService:
             message=message,
             task_id=task.id,
             link_path=f"/tasks/{task.id}",
+        )
+
+    def notify_backup_event_rule_run_started(
+        self,
+        rule: BackupEventRule,
+        *,
+        trigger_type: str,
+        db_job_name: str,
+        s3_job_name: str,
+    ) -> None:
+        trigger_label = "РІСЂСѓС‡РЅСѓСЋ" if trigger_type == "manual" else "РїРѕ СЃРѕР±С‹С‚РёСЋ"
+        self.create_notification(
+            event_key=self._event_key("backup-event-rule", rule.id, "run-started", trigger_type, db_job_name, s3_job_name),
+            kind="backup_event_rule_run_started",
+            severity="info",
+            title=f"Combined backup Р·Р°РїСѓС‰РµРЅ: {rule.name}",
+            message=f"DB job {db_job_name} Рё S3 job {s3_job_name} Р·Р°РїСѓС‰РµРЅС‹ {trigger_label}.",
+            link_path=f"/event-rules/{rule.id}",
+        )
+
+    def notify_backup_event_rule_issue(self, rule: BackupEventRule, message: str) -> None:
+        self.create_notification(
+            event_key=self._event_key("backup-event-rule", rule.id, "issue", message),
+            kind="backup_event_rule_issue",
+            severity="warning",
+            title=f"РџСЂРѕР±Р»РµРјР° event rule: {rule.name}",
+            message=message,
+            link_path=f"/event-rules/{rule.id}",
         )
 
     def notify_job_run_status(self, task: Task, run: TaskJobRun) -> None:

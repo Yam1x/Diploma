@@ -202,14 +202,16 @@ class TaskService:
 
         try:
             if task.trigger_mode == TriggerMode.EVENT_BASED.value and self._supports_event_mode(task.service_type):
-                job_name = self.kube.create_job(
-                    task.namespace,
-                    task.release_name,
-                    self._build_ad_hoc_job_spec(task),
-                    trigger_type="manual",
-                )
+                self.create_triggered_job_run(task, trigger_type="manual")
             else:
                 job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name, trigger_type="manual")
+                task.last_apply_status = "deployed"
+                task.last_apply_message = f"Manual run started: {job_name}"
+                task.last_applied_at = datetime.now(timezone.utc)
+                run = self._record_job_run(task, job_name, "manual")
+                self.db.commit()
+                self.notifications.notify_manual_run_started(task, run)
+                return self._to_detail(task)
         except KubernetesError as exc:
             task.last_apply_status = "failed"
             task.last_apply_message = str(exc)
@@ -217,13 +219,8 @@ class TaskService:
             self.db.commit()
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-        task.last_apply_status = "deployed"
-        task.last_apply_message = f"Manual run started: {job_name}"
-        task.last_applied_at = datetime.now(timezone.utc)
-        run = self._record_job_run(task, job_name, "manual")
         self.db.commit()
-        self.notifications.notify_manual_run_started(task, run)
-        return self._to_detail(task)
+        return self._to_detail(self._get_task_model(task.id))
 
     def refresh_task(self, task_id: int) -> TaskDetail:
         task = self._get_task_model(task_id)
@@ -598,17 +595,33 @@ class TaskService:
     def create_event_job_run(self, task: Task) -> TaskJobRun:
         if task.trigger_mode != TriggerMode.EVENT_BASED.value or not self._supports_event_mode(task.service_type):
             raise ValueError("Event-based job runs are supported only for db_backupper and s3_backupper tasks in event mode")
+        return self.create_triggered_job_run(task, trigger_type="event")
+
+    def create_triggered_job_run(self, task: Task, trigger_type: str) -> TaskJobRun:
+        if trigger_type not in {"manual", "event"}:
+            raise ValueError("Unsupported trigger type")
+        if task.trigger_mode != TriggerMode.EVENT_BASED.value or not self._supports_event_mode(task.service_type):
+            raise ValueError("Event-mode ad-hoc runs are supported only for db_backupper and s3_backupper tasks in event mode")
         if not task.enabled or not task.release_name:
-            raise ValueError("Task must be enabled and deployed before event-based runs can start")
+            raise ValueError("Task must be enabled and deployed before ad-hoc runs can start")
 
         job_name = self.kube.create_job(
             task.namespace,
             task.release_name,
             self._build_ad_hoc_job_spec(task),
-            trigger_type="event",
+            trigger_type=trigger_type,
         )
-        run = self._record_job_run(task, job_name, "event")
-        self.notifications.notify_event_run_started(task, run)
+        run = self._record_job_run(task, job_name, trigger_type)
+        task.last_apply_status = "deployed"
+        task.last_apply_message = f"{trigger_type.capitalize()} run started: {job_name}"
+        task.last_applied_at = datetime.now(timezone.utc)
+        self.db.flush()
+
+        if trigger_type == "event":
+            self.notifications.notify_event_run_started(task, run)
+        else:
+            self.notifications.notify_manual_run_started(task, run)
+
         return run
 
     def _get_task_model(self, task_id: int) -> Task:

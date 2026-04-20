@@ -11,12 +11,15 @@ import boto3
 import psycopg
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import Settings, get_settings
 from app.core.kube import KubeClient, KubernetesError
 from app.db import SessionLocal
+from app.models.event_rule import BackupEventRule, BackupEventRuleState
 from app.models.task import ServiceType, Task, TaskEventWatchState, TriggerMode
+from app.services.event_rule_service import EventRuleService
 from app.services.notification_service import NotificationService
 from app.services.task_service import TaskService
 
@@ -64,7 +67,9 @@ class EventWatcherService:
         with self.session_factory() as db:
             notifications = NotificationService(db)
             task_service = TaskService(db=db, kube=self.kube, notifications=notifications)
+            event_rule_service = EventRuleService(db=db, notifications=notifications, task_service=task_service)
             tasks = self._load_tasks(db)
+            rules = self._load_rules(db)
             jobs_by_namespace: dict[str, list[dict]] = {}
 
             for task in tasks:
@@ -79,10 +84,25 @@ class EventWatcherService:
                 except Exception as exc:
                     self._mark_task_error(db, task, notifications, str(exc))
 
+            for rule in rules:
+                try:
+                    self._process_rule(db, rule, jobs_by_namespace, event_rule_service)
+                except KubernetesError as exc:
+                    event_rule_service.record_rule_error(rule, f"Kubernetes error: {exc}")
+                except Exception as exc:
+                    event_rule_service.record_rule_error(rule, str(exc))
+
             db.commit()
 
     def _load_tasks(self, db: Session) -> list[Task]:
-        return (
+        linked_task_ids = {
+            task_id
+            for db_task_id, s3_task_id in db.query(BackupEventRule.db_task_id, BackupEventRule.s3_task_id)
+            .filter(BackupEventRule.enabled.is_(True))
+            .all()
+            for task_id in (db_task_id, s3_task_id)
+        }
+        query = (
             db.query(Task)
             .options(joinedload(Task.secret), joinedload(Task.event_watch_state))
             .filter(
@@ -91,6 +111,24 @@ class EventWatcherService:
                 Task.trigger_mode == TriggerMode.EVENT_BASED.value,
             )
             .order_by(Task.id.asc())
+        )
+        if linked_task_ids:
+            query = query.filter(Task.id.notin_(linked_task_ids))
+
+        return query.all()
+
+    def _load_rules(self, db: Session) -> list[BackupEventRule]:
+        return (
+            db.query(BackupEventRule)
+            .options(
+                joinedload(BackupEventRule.db_task).joinedload(Task.secret),
+                joinedload(BackupEventRule.db_task).joinedload(Task.event_watch_state),
+                joinedload(BackupEventRule.s3_task).joinedload(Task.secret),
+                joinedload(BackupEventRule.s3_task).joinedload(Task.event_watch_state),
+                joinedload(BackupEventRule.state),
+            )
+            .filter(BackupEventRule.enabled.is_(True))
+            .order_by(BackupEventRule.id.asc())
             .all()
         )
 
@@ -163,6 +201,63 @@ class EventWatcherService:
         state.last_error_message = message
         notifications.notify_event_watcher_issue(task, message)
 
+    def _process_rule(
+        self,
+        db: Session,
+        rule: BackupEventRule,
+        jobs_by_namespace: dict[str, list[dict]],
+        event_rule_service: EventRuleService,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        state = self._ensure_rule_state(db, rule)
+        state.last_polled_at = now
+        state.last_error_message = None
+
+        event_rule_service._validate_linked_tasks(rule.db_task, rule.s3_task)
+
+        counters = self._read_database_counters(rule.db_task)
+        observed_state_hash = self._read_s3_state_hash(rule.s3_task)
+
+        if self._should_rebaseline_db(state, counters) or self._should_rebaseline_s3(state):
+            self._update_rule_db_baseline(state, counters)
+            state.last_observed_state_hash = observed_state_hash
+            return
+
+        db_changed = self._has_counter_increase(state, counters)
+        s3_changed = observed_state_hash != state.last_observed_state_hash
+
+        self._update_rule_db_baseline(state, counters)
+        state.last_observed_state_hash = observed_state_hash
+
+        if db_changed:
+            state.last_db_change_at = now
+        if s3_changed:
+            state.last_s3_change_at = now
+
+        if not db_changed or not s3_changed:
+            return
+
+        db_jobs = jobs_by_namespace.get(rule.db_task.namespace)
+        if db_jobs is None:
+            db_jobs = self.kube.list_jobs(rule.db_task.namespace)
+            jobs_by_namespace[rule.db_task.namespace] = db_jobs
+
+        s3_jobs = jobs_by_namespace.get(rule.s3_task.namespace)
+        if s3_jobs is None:
+            s3_jobs = self.kube.list_jobs(rule.s3_task.namespace)
+            jobs_by_namespace[rule.s3_task.namespace] = s3_jobs
+
+        if self._has_active_job(rule.db_task.release_name, db_jobs) or self._has_active_job(rule.s3_task.release_name, s3_jobs):
+            return
+
+        if not self._rule_cooldown_elapsed(state, now):
+            return
+
+        try:
+            event_rule_service._start_rule_jobs(rule, trigger_type="event")
+        except HTTPException:
+            return
+
     @staticmethod
     def _ensure_state(db: Session, task: Task) -> TaskEventWatchState:
         state = task.event_watch_state
@@ -170,6 +265,17 @@ class EventWatcherService:
             return state
 
         state = TaskEventWatchState(task=task)
+        db.add(state)
+        db.flush()
+        return state
+
+    @staticmethod
+    def _ensure_rule_state(db: Session, rule: BackupEventRule) -> BackupEventRuleState:
+        state = rule.state
+        if state is not None:
+            return state
+
+        state = BackupEventRuleState(rule=rule)
         db.add(state)
         db.flush()
         return state
@@ -215,8 +321,25 @@ class EventWatcherService:
         state.stats_reset_at = counters.stats_reset_at
         state.pending_change = pending_change
 
+    @staticmethod
+    def _update_rule_db_baseline(
+        state: BackupEventRuleState,
+        counters: DatabaseChangeCounters,
+    ) -> None:
+        state.last_tuple_ins = counters.tuple_ins
+        state.last_tuple_upd = counters.tuple_upd
+        state.last_tuple_del = counters.tuple_del
+        state.stats_reset_at = counters.stats_reset_at
+
     def _cooldown_elapsed(self, state: TaskEventWatchState, now: datetime) -> bool:
         last_triggered_at = self._normalize_datetime(state.last_event_triggered_at)
+        if last_triggered_at is None:
+            return True
+
+        return (now - last_triggered_at).total_seconds() >= self.settings.event_watcher_cooldown_seconds
+
+    def _rule_cooldown_elapsed(self, state: BackupEventRuleState, now: datetime) -> bool:
+        last_triggered_at = self._normalize_datetime(state.last_triggered_at)
         if last_triggered_at is None:
             return True
 

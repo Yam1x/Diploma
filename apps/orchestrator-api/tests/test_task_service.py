@@ -99,12 +99,10 @@ def test_validate_required_s3_secrets_requires_both_keys(service) -> None:
     assert "Source S3 AWS secret access key" in exc.value.detail
 
 
-def test_validate_trigger_mode_rejects_event_based_for_s3(service) -> None:
-    with pytest.raises(HTTPException) as exc:
-        service._validate_trigger_mode(ServiceType.S3_BACKUPPER, "event_based")
+def test_validate_trigger_mode_accepts_event_based_for_s3(service) -> None:
+    result = service._validate_trigger_mode(ServiceType.S3_BACKUPPER, "event_based")
 
-    assert exc.value.status_code == 400
-    assert "Event-based trigger mode" in exc.value.detail
+    assert result == TriggerMode.EVENT_BASED
 
 
 def test_build_db_job_spec_adds_pgpassword_for_manual_jobs(service) -> None:

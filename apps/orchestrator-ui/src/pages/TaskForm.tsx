@@ -337,6 +337,11 @@ export function TaskFormPage() {
               ) : null}
             </div>
           ) : null}
+          {value.triggerMode === "event_based" && (value.serviceType === "db_backupper" || value.serviceType === "s3_backupper") ? (
+            <div className="card">
+              <p className="subtle">Event matching and combined orchestration are configured in the separate Event Rules section.</p>
+            </div>
+          ) : null}
           <TaskFormFields
             value={value}
             onChange={setValue}
