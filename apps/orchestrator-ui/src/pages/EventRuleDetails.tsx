@@ -4,24 +4,24 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { BackupEventRuleDetail, api } from "../api/client";
 
 function formatBoolean(value: boolean) {
-  return value ? "Р”Р°" : "РќРµС‚";
+  return value ? "Да" : "Нет";
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString() : "РќРёРєРѕРіРґР°";
+  return value ? new Date(value).toLocaleString() : "Никогда";
 }
 
 function formatConfigured(value: boolean) {
-  return value ? "РќР°СЃС‚СЂРѕРµРЅРѕ" : "РќРµС‚";
+  return value ? "Настроено" : "Нет";
 }
 
 function formatEventWatcherStatus(status: string) {
   const labels: Record<string, string> = {
-    disabled: "Р’С‹РєР»СЋС‡РµРЅРѕ",
-    waiting_for_baseline: "РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ baseline",
-    watching: "РћС‚СЃР»РµР¶РёРІР°РµС‚ РёР·РјРµРЅРµРЅРёСЏ",
+    disabled: "Выключено",
+    waiting_for_baseline: "Инициализация baseline",
+    watching: "Отслеживает изменения",
     cooldown: "Cooldown",
-    error: "РћС€РёР±РєР°",
+    error: "Ошибка",
   };
 
   return labels[status] ?? status;
@@ -42,7 +42,7 @@ export function EventRuleDetailsPage() {
       setRule(detail);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ event rule");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить event rule");
     }
   }
 
@@ -56,7 +56,7 @@ export function EventRuleDetailsPage() {
       await load();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РґРµР№СЃС‚РІРёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось выполнить действие");
     }
   }
 
@@ -64,19 +64,19 @@ export function EventRuleDetailsPage() {
     if (!ruleId || !rule) {
       return;
     }
-    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ event rule "${rule.name}"?`)) {
+    if (!window.confirm(`Удалить event rule "${rule.name}"?`)) {
       return;
     }
     try {
       await api.deleteEventRule(ruleId);
       navigate("/event-rules");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ event rule");
+      setError(err instanceof Error ? err.message : "Не удалось удалить event rule");
     }
   }
 
   if (!rule) {
-    return <section className="stack">{error ? <div className="alert">{error}</div> : <p>Р—Р°РіСЂСѓР·РєР°...</p>}</section>;
+    return <section className="stack">{error ? <div className="alert">{error}</div> : <p>Загрузка...</p>}</section>;
   }
 
   return (
@@ -84,26 +84,26 @@ export function EventRuleDetailsPage() {
       <div className="toolbar">
         <div>
           <h2>{rule.name}</h2>
-          <p className="subtle">Event rule РІР»Р°РґРµРµС‚ РїР°СЂРѕР№ managed backup service РІ namespace `{rule.namespace}`.</p>
+          <p className="subtle">Event rule владеет парой managed backup service в namespace `{rule.namespace}`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button ghost" to={`/event-rules/${rule.id}/edit`}>
-            РР·РјРµРЅРёС‚СЊ
+            Изменить
           </Link>
           <button className="button primary" onClick={() => void runAction(() => api.runEventRule(String(rule.id)))}>
-            Р—Р°РїСѓСЃС‚РёС‚СЊ СЃРµР№С‡Р°СЃ
+            Запустить сейчас
           </button>
           {rule.enabled ? (
             <button className="button danger" onClick={() => void runAction(() => api.disableEventRule(String(rule.id)))}>
-              Р’С‹РєР»СЋС‡РёС‚СЊ
+              Выключить
             </button>
           ) : (
             <button className="button primary" onClick={() => void runAction(() => api.enableEventRule(String(rule.id)))}>
-              Р’РєР»СЋС‡РёС‚СЊ
+              Включить
             </button>
           )}
           <button className="button ghost" onClick={() => void handleDelete()}>
-            РЈРґР°Р»РёС‚СЊ
+            Удалить
           </button>
         </div>
       </div>
@@ -112,9 +112,9 @@ export function EventRuleDetailsPage() {
 
       <div className="details-grid">
         <article className="card">
-          <h3>РЎРѕСЃС‚РѕСЏРЅРёРµ</h3>
+          <h3>Состояние</h3>
           <dl>
-            <dt>Р’РєР»СЋС‡РµРЅРѕ</dt>
+            <dt>Включено</dt>
             <dd>{formatBoolean(rule.enabled)}</dd>
             <dt>Namespace</dt>
             <dd>{rule.namespace}</dd>
@@ -127,9 +127,9 @@ export function EventRuleDetailsPage() {
           </dl>
         </article>
         <article className="card">
-          <h3>РЎРѕР±С‹С‚РёСЏ watcher</h3>
+          <h3>События watcher</h3>
           <dl>
-            <dt>РџРѕСЃР»РµРґРЅРёР№ poll</dt>
+            <dt>Последний poll</dt>
             <dd>{formatDate(rule.lastPolledAt)}</dd>
             <dt>DB change</dt>
             <dd>{formatDate(rule.lastDbChangeAt)}</dd>
@@ -137,8 +137,8 @@ export function EventRuleDetailsPage() {
             <dd>{formatDate(rule.lastS3ChangeAt)}</dd>
             <dt>Combined run</dt>
             <dd>{formatDate(rule.lastTriggeredAt)}</dd>
-            <dt>РџРѕСЃР»РµРґРЅСЏСЏ РѕС€РёР±РєР°</dt>
-            <dd>{rule.lastErrorMessage ?? "РќРµС‚"}</dd>
+            <dt>Последняя ошибка</dt>
+            <dd>{rule.lastErrorMessage ?? "Нет"}</dd>
           </dl>
         </article>
       </div>
@@ -147,13 +147,13 @@ export function EventRuleDetailsPage() {
         <article className="card">
           <h3>DB backup config</h3>
           <dl>
-            <dt>РҐРѕСЃС‚ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
+            <dt>Хост базы данных</dt>
             <dd>{rule.db.databaseHost}</dd>
-            <dt>РРјСЏ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
+            <dt>Имя базы данных</dt>
             <dd>{rule.db.databaseName}</dd>
-            <dt>РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ</dt>
+            <dt>Пользователь</dt>
             <dd>{rule.db.databaseUsername}</dd>
-            <dt>РџСЂРµС„РёРєСЃ С„Р°Р№Р»Р°</dt>
+            <dt>Префикс файла</dt>
             <dd>{rule.db.dbBackupsFilenamePrefix}</dd>
             <dt>Destination endpoint</dt>
             <dd>{rule.db.destinationAwsEndpoint}</dd>
@@ -175,7 +175,7 @@ export function EventRuleDetailsPage() {
             <dt>Source bucket</dt>
             <dd>{rule.s3.sourceS3AwsBucketName}</dd>
             <dt>Source subfolder</dt>
-            <dd>{rule.s3.sourceS3AwsBucketSubfolderName || "Р’РµСЃСЊ bucket"}</dd>
+            <dd>{rule.s3.sourceS3AwsBucketSubfolderName || "Весь bucket"}</dd>
             <dt>Destination endpoint</dt>
             <dd>{rule.s3.destinationS3AwsEndpoint}</dd>
             <dt>Destination bucket</dt>

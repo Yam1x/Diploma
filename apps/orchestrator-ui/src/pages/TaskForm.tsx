@@ -160,7 +160,7 @@ export function TaskFormPage() {
   useEffect(() => {
     async function load() {
       if (!isEditMode && !selectedTaskType) {
-        setError("Р’С‹Р±СЂР°РЅРЅС‹Р№ С‚РёРї Р·Р°РґР°С‡Рё РїРѕРєР° РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ.");
+        setError("Выбранный тип задачи пока не поддерживается.");
         setValue(null);
         return;
       }
@@ -183,7 +183,7 @@ export function TaskFormPage() {
           setConfiguredSecrets({});
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕСЂРјСѓ");
+        setError(err instanceof Error ? err.message : "Не удалось загрузить форму");
       }
     }
 
@@ -215,7 +215,7 @@ export function TaskFormPage() {
           return;
         }
         setServiceDiscovery({ services: [] });
-        setServiceDiscoveryError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ service discovery");
+        setServiceDiscoveryError(err instanceof Error ? err.message : "Не удалось загрузить service discovery");
       })
       .finally(() => {
         if (!cancelled) {
@@ -229,7 +229,7 @@ export function TaskFormPage() {
   }, [value?.namespace]);
 
   async function handleCreateNamespace() {
-    const name = window.prompt("Р’РІРµРґРёС‚Рµ РёРјСЏ namespace");
+    const name = window.prompt("Введите имя namespace");
     const namespace = name?.trim();
     if (!namespace) {
       return;
@@ -241,7 +241,7 @@ export function TaskFormPage() {
       setValue((current) => (current ? { ...current, namespace: response.name } : current));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ namespace");
+      setError(err instanceof Error ? err.message : "Не удалось создать namespace");
     }
   }
 
@@ -276,7 +276,7 @@ export function TaskFormPage() {
         navigate(`/tasks/${task.id}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ Р·Р°РґР°С‡Сѓ");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить задачу");
     }
   }
 
@@ -288,15 +288,15 @@ export function TaskFormPage() {
     <section className="stack">
       <div className="toolbar">
         <div>
-          <h2>{taskId ? "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Р·Р°РґР°С‡Рё" : "РЎРѕР·РґР°РЅРёРµ Р·Р°РґР°С‡Рё"}</h2>
+          <h2>{taskId ? "Редактирование задачи" : "Создание задачи"}</h2>
           <p className="subtle">
             {activeTaskType
-              ? `РќР°СЃС‚СЂРѕР№С‚Рµ Р¶РµР»Р°РµРјРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ Рё РїР°СЂР°РјРµС‚СЂС‹ РґРµРїР»РѕСЏ РґР»СЏ СЃРµСЂРІРёСЃР° В«${activeTaskType.title}В».`
-              : "РќР°СЃС‚СЂРѕР№С‚Рµ Р¶РµР»Р°РµРјРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ Рё РїР°СЂР°РјРµС‚СЂС‹ РґРµРїР»РѕСЏ Р·Р°РґР°С‡Рё."}
+              ? `Настройте желаемое состояние и параметры деплоя для сервиса «${activeTaskType.title}».`
+              : "Настройте желаемое состояние и параметры деплоя задачи."}
           </p>
         </div>
         <Link className="button ghost" to={taskId ? `/tasks/${taskId}` : "/tasks/new"}>
-          РћС‚РјРµРЅР°
+          Отмена
         </Link>
       </div>
       {error ? <div className="alert">{error}</div> : null}
@@ -315,12 +315,12 @@ export function TaskFormPage() {
           />
           <div className="toolbar-actions">
             <button className="button primary" type="submit" disabled={!isEditMode && !selectedTaskType}>
-              РЎРѕС…СЂР°РЅРёС‚СЊ Р·Р°РґР°С‡Сѓ
+              Сохранить задачу
             </button>
           </div>
         </form>
       ) : error ? null : (
-        <p>Р—Р°РіСЂСѓР·РєР°...</p>
+        <p>Загрузка...</p>
       )}
     </section>
   );

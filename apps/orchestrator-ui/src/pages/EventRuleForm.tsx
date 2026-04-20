@@ -179,7 +179,7 @@ export function EventRuleFormPage() {
         }
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕСЂРјСѓ event rule");
+        setError(err instanceof Error ? err.message : "Не удалось загрузить форму event rule");
       }
     }
 
@@ -211,7 +211,7 @@ export function EventRuleFormPage() {
           return;
         }
         setServiceDiscovery({ services: [] });
-        setServiceDiscoveryError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ service discovery");
+        setServiceDiscoveryError(err instanceof Error ? err.message : "Не удалось загрузить service discovery");
       })
       .finally(() => {
         if (!cancelled) {
@@ -225,7 +225,7 @@ export function EventRuleFormPage() {
   }, [value.namespace]);
 
   async function handleCreateNamespace() {
-    const name = window.prompt("Р’РІРµРґРёС‚Рµ РёРјСЏ namespace");
+    const name = window.prompt("Введите имя namespace");
     const namespace = name?.trim();
     if (!namespace) {
       return;
@@ -237,7 +237,7 @@ export function EventRuleFormPage() {
       setValue((current) => ({ ...current, namespace: response.name }));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ namespace");
+      setError(err instanceof Error ? err.message : "Не удалось создать namespace");
     }
   }
 
@@ -285,28 +285,28 @@ export function EventRuleFormPage() {
         navigate(`/event-rules/${rule.id}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ event rule");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить event rule");
     }
   }
 
   const dbHostOptions = useMemo(() => buildDbHostOptions(serviceDiscovery), [serviceDiscovery]);
   const s3EndpointOptions = useMemo(() => buildS3EndpointOptions(serviceDiscovery), [serviceDiscovery]);
   const serviceDiscoveryPlaceholder = !value.namespace
-    ? "РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ namespace"
+    ? "Сначала выберите namespace"
     : serviceDiscoveryLoading
-      ? "Р—Р°РіСЂСѓР¶Р°РµРј СЃРµСЂРІРёСЃС‹..."
-      : "РџРѕРґСЃС‚Р°РІРёС‚СЊ РёР· Service Discovery";
+      ? "Загружаем сервисы..."
+      : "Подставить из Service Discovery";
   const serviceDiscoveryEnabled = Boolean(value.namespace) && !serviceDiscoveryLoading;
 
   return (
     <section className="stack">
       <div className="toolbar">
         <div>
-          <h2>{isEditMode ? "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ event rule" : "РЎРѕР·РґР°РЅРёРµ event rule"}</h2>
-          <p className="subtle">РџСЂР°РІРёР»Рѕ РїРѕР»РЅРѕСЃС‚СЊСЋ РІР»Р°РґРµРµС‚ event-based РєРѕРЅС„РёРіРѕРј DB + S3 РІ РѕР±С‰РµРј namespace.</p>
+          <h2>{isEditMode ? "Редактирование event rule" : "Создание event rule"}</h2>
+          <p className="subtle">Правило полностью владеет event-based конфигом DB + S3 в общем namespace.</p>
         </div>
         <Link className="button ghost" to={ruleId ? `/event-rules/${ruleId}` : "/event-rules"}>
-          РћС‚РјРµРЅР°
+          Отмена
         </Link>
       </div>
 
@@ -315,15 +315,15 @@ export function EventRuleFormPage() {
       <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
         <div className="card form-grid">
           <label>
-            <span>РќР°Р·РІР°РЅРёРµ РїСЂР°РІРёР»Р°</span>
+            <span>Название правила</span>
             <input value={value.name} onChange={(event) => setValue((current) => ({ ...current, name: event.target.value }))} required />
           </label>
           <label>
             <span>Namespace</span>
-            <small className="field-help">РћР±Р° managed backup service Р±СѓРґСѓС‚ Р·Р°РґРµРїР»РѕРµРЅС‹ РІ СЌС‚РѕС‚ namespace.</small>
+            <small className="field-help">Оба managed backup service будут задеплоены в этот namespace.</small>
             <div className="namespace-field">
               <select value={value.namespace} onChange={(event) => setValue((current) => ({ ...current, namespace: event.target.value }))}>
-                <option value="">Р’С‹Р±РµСЂРёС‚Рµ namespace</option>
+                <option value="">Выберите namespace</option>
                 {namespaces.map((namespace) => (
                   <option key={namespace} value={namespace}>
                     {namespace}
@@ -331,29 +331,29 @@ export function EventRuleFormPage() {
                 ))}
               </select>
               <button type="button" className="button ghost" onClick={() => void handleCreateNamespace()}>
-                РЎРѕР·РґР°С‚СЊ namespace
+                Создать namespace
               </button>
             </div>
             {serviceDiscoveryError ? <small className="field-help discovery-note">Service Discovery: {serviceDiscoveryError}</small> : null}
           </label>
           <label className="toggle">
             <input type="checkbox" checked={value.enabled} onChange={(event) => setValue((current) => ({ ...current, enabled: event.target.checked }))} />
-            <span>Р’РєР»СЋС‡РёС‚СЊ event rule</span>
+            <span>Включить event rule</span>
           </label>
         </div>
 
         <div className="card form-grid">
           <h3>DB backup</h3>
           <label>
-            <span>РРјСЏ DB backup</span>
+            <span>Имя DB backup</span>
             <input value={value.db.name} onChange={(event) => setDb("name", event.target.value)} required />
           </label>
           <label>
-            <span>РџСЂРµС„РёРєСЃ РёРјРµРЅРё С„Р°Р№Р»Р°</span>
+            <span>Префикс имени файла</span>
             <input value={value.db.dbBackupsFilenamePrefix} onChange={(event) => setDb("dbBackupsFilenamePrefix", event.target.value)} required />
           </label>
           <label>
-            <span>РҐРѕСЃС‚ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</span>
+            <span>Хост базы данных</span>
             <div className="discovery-field">
               <input value={value.db.databaseHost} onChange={(event) => setDb("databaseHost", event.target.value)} required />
               <DiscoverySelect
@@ -366,15 +366,15 @@ export function EventRuleFormPage() {
             </div>
           </label>
           <label>
-            <span>РРјСЏ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</span>
+            <span>Имя базы данных</span>
             <input value={value.db.databaseName} onChange={(event) => setDb("databaseName", event.target.value)} required />
           </label>
           <label>
-            <span>РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</span>
+            <span>Пользователь базы данных</span>
             <input value={value.db.databaseUsername} onChange={(event) => setDb("databaseUsername", event.target.value)} required />
           </label>
           <label>
-            <span>РџР°СЂРѕР»СЊ Р±Р°Р·С‹ РґР°РЅРЅС‹С… {configuredSecrets.dbPassword ? "(РЅР°СЃС‚СЂРѕРµРЅ)" : ""}</span>
+            <span>Пароль базы данных {configuredSecrets.dbPassword ? "(настроен)" : ""}</span>
             <input type="password" value={value.db.databasePassword ?? ""} onChange={(event) => setDb("databasePassword", event.target.value)} required={!isEditMode} />
           </label>
           <label>
@@ -399,7 +399,7 @@ export function EventRuleFormPage() {
             <input value={value.db.destinationAwsAccessKeyId} onChange={(event) => setDb("destinationAwsAccessKeyId", event.target.value)} required />
           </label>
           <label>
-            <span>S3 secret key {configuredSecrets.dbDestinationSecret ? "(РЅР°СЃС‚СЂРѕРµРЅ)" : ""}</span>
+            <span>S3 secret key {configuredSecrets.dbDestinationSecret ? "(настроен)" : ""}</span>
             <input
               type="password"
               value={value.db.destinationAwsSecretAccessKey ?? ""}
@@ -412,11 +412,11 @@ export function EventRuleFormPage() {
         <div className="card form-grid">
           <h3>S3 backup</h3>
           <label>
-            <span>РРјСЏ S3 backup</span>
+            <span>Имя S3 backup</span>
             <input value={value.s3.name} onChange={(event) => setS3("name", event.target.value)} required />
           </label>
           <label>
-            <span>РџСЂРµС„РёРєСЃ РёРјРµРЅРё Р°СЂС…РёРІР°</span>
+            <span>Префикс имени архива</span>
             <input value={value.s3.s3BackupsFilenamePrefix} onChange={(event) => setS3("s3BackupsFilenamePrefix", event.target.value)} required />
           </label>
           <label>
@@ -445,7 +445,7 @@ export function EventRuleFormPage() {
             <input value={value.s3.sourceS3AwsAccessKeyId} onChange={(event) => setS3("sourceS3AwsAccessKeyId", event.target.value)} required />
           </label>
           <label>
-            <span>Source S3 secret key {configuredSecrets.s3SourceSecret ? "(РЅР°СЃС‚СЂРѕРµРЅ)" : ""}</span>
+            <span>Source S3 secret key {configuredSecrets.s3SourceSecret ? "(настроен)" : ""}</span>
             <input
               type="password"
               value={value.s3.sourceS3AwsSecretAccessKey ?? ""}
@@ -475,7 +475,7 @@ export function EventRuleFormPage() {
             <input value={value.s3.destinationS3AwsAccessKeyId} onChange={(event) => setS3("destinationS3AwsAccessKeyId", event.target.value)} required />
           </label>
           <label>
-            <span>Destination S3 secret key {configuredSecrets.s3DestinationSecret ? "(РЅР°СЃС‚СЂРѕРµРЅ)" : ""}</span>
+            <span>Destination S3 secret key {configuredSecrets.s3DestinationSecret ? "(настроен)" : ""}</span>
             <input
               type="password"
               value={value.s3.destinationS3AwsSecretAccessKey ?? ""}
@@ -487,7 +487,7 @@ export function EventRuleFormPage() {
 
         <div className="toolbar-actions">
           <button className="button primary" type="submit">
-            РЎРѕС…СЂР°РЅРёС‚СЊ event rule
+            Сохранить event rule
           </button>
         </div>
       </form>

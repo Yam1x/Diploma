@@ -6,19 +6,19 @@ import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
-  return value ? "Р”Р°" : "РќРµС‚";
+  return value ? "Да" : "Нет";
 }
 
 function formatApplyStatus(status: string | null) {
   const labels: Record<string, string> = {
-    deployed: "РџСЂРёРјРµРЅРµРЅРѕ",
-    failed: "РћС€РёР±РєР°",
-    disabled: "РћС‚РєР»СЋС‡РµРЅРѕ",
-    missing: "РќРµ РЅР°Р№РґРµРЅРѕ",
+    deployed: "Применено",
+    failed: "Ошибка",
+    disabled: "Отключено",
+    missing: "Не найдено",
   };
 
   if (!status) {
-    return "РћР¶РёРґР°РЅРёРµ";
+    return "Ожидание";
   }
 
   return labels[status] ?? status;
@@ -29,29 +29,29 @@ function formatServiceType(serviceType: TaskDetail["serviceType"]) {
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString() : "РќРёРєРѕРіРґР°";
+  return value ? new Date(value).toLocaleString() : "Никогда";
 }
 
 function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
   if (triggerType === "manual") {
-    return "Р’СЂСѓС‡РЅСѓСЋ";
+    return "Вручную";
   }
   if (triggerType === "event") {
-    return "РџРѕ СЃРѕР±С‹С‚РёСЋ";
+    return "По событию";
   }
-  return "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
+  return "По расписанию";
 }
 
 function formatTriggerMode(triggerMode: TaskDetail["triggerMode"]) {
-  return triggerMode === "event_based" ? "РџРѕ СЃРѕР±С‹С‚РёСЋ" : "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
+  return triggerMode === "event_based" ? "По событию" : "По расписанию";
 }
 
 function formatJobStatus(status: JobRunSummary["status"]) {
   const labels: Record<JobRunSummary["status"], string> = {
-    running: "Р’С‹РїРѕР»РЅСЏРµС‚СЃСЏ",
-    succeeded: "РЈСЃРїРµС€РЅРѕ",
-    failed: "РћС€РёР±РєР°",
-    unknown: "РќРµРёР·РІРµСЃС‚РЅРѕ",
+    running: "Выполняется",
+    succeeded: "Успешно",
+    failed: "Ошибка",
+    unknown: "Неизвестно",
   };
 
   return labels[status];
@@ -61,13 +61,13 @@ function renderTaskParameters(task: TaskDetail) {
   if (task.serviceType === "db_backupper") {
     return (
       <article className="card">
-        <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
+        <h3>Параметры выполнения</h3>
         <dl>
-          <dt>РҐРѕСЃС‚ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
+          <dt>Хост базы данных</dt>
           <dd>{task.databaseHost}</dd>
-          <dt>РРјСЏ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
+          <dt>Имя базы данных</dt>
           <dd>{task.databaseName}</dd>
-          <dt>РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
+          <dt>Пользователь базы данных</dt>
           <dd>{task.databaseUsername}</dd>
           <dt>S3 endpoint</dt>
           <dd>{task.destinationAwsEndpoint}</dd>
@@ -81,14 +81,14 @@ function renderTaskParameters(task: TaskDetail) {
   if (task.serviceType === "s3_backupper") {
     return (
       <article className="card">
-        <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
+        <h3>Параметры выполнения</h3>
         <dl>
           <dt>Source S3 endpoint</dt>
           <dd>{task.sourceS3AwsEndpoint}</dd>
           <dt>Source S3 bucket</dt>
           <dd>{task.sourceS3AwsBucketName}</dd>
           <dt>Source S3 subfolder</dt>
-          <dd>{task.sourceS3AwsBucketSubfolderName || "Р’РµСЃСЊ bucket"}</dd>
+          <dd>{task.sourceS3AwsBucketSubfolderName || "Весь bucket"}</dd>
           <dt>Destination S3 endpoint</dt>
           <dd>{task.destinationS3AwsEndpoint}</dd>
           <dt>Destination S3 bucket</dt>
@@ -100,11 +100,11 @@ function renderTaskParameters(task: TaskDetail) {
 
   return (
     <article className="card">
-      <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
+      <h3>Параметры выполнения</h3>
       <dl>
-        <dt>Р РµРїРѕР·РёС‚РѕСЂРёР№ РѕРєСЂСѓР¶РµРЅРёСЏ</dt>
+        <dt>Репозиторий окружения</dt>
         <dd>{task.envRepository}</dd>
-        <dt>РџСѓС‚СЊ Рє Helmfile</dt>
+        <dt>Путь к Helmfile</dt>
         <dd>{task.pathToHelmfile}</dd>
       </dl>
     </article>
@@ -134,7 +134,7 @@ export function TaskDetailsPage() {
       setSelectedRun((current) => (current ? runsResponse.runs.find((run) => run.id === current.id) ?? null : null));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р·Р°РґР°С‡Сѓ");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить задачу");
     }
   }
 
@@ -149,7 +149,7 @@ export function TaskDetailsPage() {
       await refreshNotifications();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РґРµР№СЃС‚РІРёРµ");
+      setError(err instanceof Error ? err.message : "Не удалось выполнить действие");
     }
   }
 
@@ -157,7 +157,7 @@ export function TaskDetailsPage() {
     if (!task) {
       return;
     }
-    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ Р·Р°РґР°С‡Сѓ "${task.name}"?`)) {
+    if (!window.confirm(`Удалить задачу "${task.name}"?`)) {
       return;
     }
     try {
@@ -165,7 +165,7 @@ export function TaskDetailsPage() {
       setError(null);
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ Р·Р°РґР°С‡Сѓ");
+      setError(err instanceof Error ? err.message : "Не удалось удалить задачу");
     }
   }
 
@@ -183,14 +183,14 @@ export function TaskDetailsPage() {
     } catch (err) {
       setSelectedRun(runItem);
       setSelectedRunLogs("");
-      setLogsError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р»РѕРіРё Р·Р°РїСѓСЃРєР°");
+      setLogsError(err instanceof Error ? err.message : "Не удалось загрузить логи запуска");
     } finally {
       setLogsLoading(false);
     }
   }
 
   if (!task) {
-    return <section className="stack">{error ? <div className="alert">{error}</div> : <p>Р—Р°РіСЂСѓР·РєР°...</p>}</section>;
+    return <section className="stack">{error ? <div className="alert">{error}</div> : <p>Загрузка...</p>}</section>;
   }
 
   return (
@@ -198,29 +198,29 @@ export function TaskDetailsPage() {
       <div className="toolbar">
         <div>
           <h2>{task.name}</h2>
-          <p className="subtle">РўРµРєСѓС‰РёР№ СЂРµР»РёР·: `{task.releaseName}` РІ namespace `{task.namespace}`.</p>
+          <p className="subtle">Текущий релиз: `{task.releaseName}` в namespace `{task.namespace}`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button ghost" to={`/tasks/${task.id}/edit`}>
-            РР·РјРµРЅРёС‚СЊ
+            Изменить
           </Link>
           <button className="button ghost" onClick={() => void run(() => api.refreshTask(String(task.id)))}>
-            РћР±РЅРѕРІРёС‚СЊ
+            Обновить
           </button>
           <button className="button primary" onClick={() => void run(() => api.runTask(String(task.id)))} disabled={!task.enabled}>
-            Р—Р°РїСѓСЃС‚РёС‚СЊ СЃРµР№С‡Р°СЃ
+            Запустить сейчас
           </button>
           {task.enabled ? (
             <button className="button danger" onClick={() => void run(() => api.disableTask(String(task.id)))}>
-              Р’С‹РєР»СЋС‡РёС‚СЊ
+              Выключить
             </button>
           ) : (
             <button className="button primary" onClick={() => void run(() => api.enableTask(String(task.id)))}>
-              Р’РєР»СЋС‡РёС‚СЊ
+              Включить
             </button>
           )}
           <button className="button ghost" onClick={() => void handleDelete()}>
-            РЈРґР°Р»РёС‚СЊ
+            Удалить
           </button>
         </div>
       </div>
@@ -229,40 +229,40 @@ export function TaskDetailsPage() {
 
       <div className="details-grid">
         <article className="card">
-          <h3>Р–РµР»Р°РµРјРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ</h3>
+          <h3>Желаемое состояние</h3>
           <dl>
-            <dt>Р’РєР»СЋС‡РµРЅР°</dt>
+            <dt>Включена</dt>
             <dd>{formatBoolean(task.enabled)}</dd>
-            <dt>РўРёРї СЃРµСЂРІРёСЃР°</dt>
+            <dt>Тип сервиса</dt>
             <dd>{formatServiceType(task.serviceType)}</dd>
-            <dt>Р РµР¶РёРј Р·Р°РїСѓСЃРєР°</dt>
+            <dt>Режим запуска</dt>
             <dd>{formatTriggerMode(task.triggerMode)}</dd>
-            <dt>Р Р°СЃРїРёСЃР°РЅРёРµ</dt>
-            <dd>{task.schedule ?? "РќРµ РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ"}</dd>
+            <dt>Расписание</dt>
+            <dd>{task.schedule ?? "Не используется"}</dd>
             {task.serviceType === "db_backupper" ? (
               <>
-                <dt>РџСЂРµС„РёРєСЃ РёРјРµРЅРё С„Р°Р№Р»Р°</dt>
+                <dt>Префикс имени файла</dt>
                 <dd>{task.dbBackupsFilenamePrefix}</dd>
               </>
             ) : task.serviceType === "s3_backupper" ? (
               <>
-                <dt>РџСЂРµС„РёРєСЃ РёРјРµРЅРё Р°СЂС…РёРІР°</dt>
+                <dt>Префикс имени архива</dt>
                 <dd>{task.s3BackupsFilenamePrefix}</dd>
               </>
             ) : null}
           </dl>
         </article>
         <article className="card">
-          <h3>РЎРѕСЃС‚РѕСЏРЅРёРµ РґРµРїР»РѕСЏ</h3>
+          <h3>Состояние деплоя</h3>
           <dl>
-            <dt>Р—Р°РґРµРїР»РѕРµРЅР°</dt>
+            <dt>Задеплоена</dt>
             <dd>{formatBoolean(task.deployed)}</dd>
-            <dt>РЎС‚Р°С‚СѓСЃ РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРёРјРµРЅРµРЅРёСЏ</dt>
+            <dt>Статус последнего применения</dt>
             <dd>{formatApplyStatus(task.lastApplyStatus)}</dd>
-            <dt>РџРѕСЃР»РµРґРЅРµРµ РїСЂРёРјРµРЅРµРЅРёРµ</dt>
-            <dd>{task.lastAppliedAt ? new Date(task.lastAppliedAt).toLocaleString() : "РќРёРєРѕРіРґР°"}</dd>
-            <dt>РџРѕСЃР»РµРґРЅРµРµ СЃРѕРѕР±С‰РµРЅРёРµ</dt>
-            <dd>{task.lastApplyMessage ?? "РЎРѕРѕР±С‰РµРЅРёР№ РїРѕРєР° РЅРµС‚"}</dd>
+            <dt>Последнее применение</dt>
+            <dd>{task.lastAppliedAt ? new Date(task.lastAppliedAt).toLocaleString() : "Никогда"}</dd>
+            <dt>Последнее сообщение</dt>
+            <dd>{task.lastApplyMessage ?? "Сообщений пока нет"}</dd>
           </dl>
         </article>
         {renderTaskParameters(task)}
@@ -271,19 +271,19 @@ export function TaskDetailsPage() {
       <article className="card table-wrap">
         <div className="toolbar">
           <div>
-            <h3>РџРѕСЃР»РµРґРЅРёРµ Р·Р°РїСѓСЃРєРё</h3>
-            <p className="subtle">РЎРїРёСЃРѕРє РїРѕСЃР»РµРґРЅРёС… `Job` СЌС‚РѕР№ Р·Р°РґР°С‡Рё СЃ РґРѕСЃС‚СѓРїРѕРј Рє РёС… Р»РѕРіР°Рј.</p>
+            <h3>Последние запуски</h3>
+            <p className="subtle">Список последних `Job` этой задачи с доступом к их логам.</p>
           </div>
         </div>
         <table>
           <thead>
             <tr>
               <th>Job</th>
-              <th>Р—Р°РїСѓСЃРє</th>
-              <th>РЎС‚Р°С‚СѓСЃ</th>
-              <th>РЎС‚Р°СЂС‚</th>
-              <th>Р—Р°РІРµСЂС€РµРЅРёРµ</th>
-              <th>РџРѕСЃР»РµРґРЅРёР№ sync</th>
+              <th>Запуск</th>
+              <th>Статус</th>
+              <th>Старт</th>
+              <th>Завершение</th>
+              <th>Последний sync</th>
               <th />
             </tr>
           </thead>
@@ -298,7 +298,7 @@ export function TaskDetailsPage() {
                 <td>{formatDate(runItem.lastSeenAt)}</td>
                 <td className="row-actions">
                   <button className="button ghost" onClick={() => void handleLoadLogs(runItem)} disabled={logsLoading && selectedRun?.id === runItem.id}>
-                    {logsLoading && selectedRun?.id === runItem.id ? "Р—Р°РіСЂСѓР¶Р°РµРј..." : runItem.hasLogs ? "Р›РѕРіРё" : "РџРѕР»СѓС‡РёС‚СЊ Р»РѕРіРё"}
+                    {logsLoading && selectedRun?.id === runItem.id ? "Загружаем..." : runItem.hasLogs ? "Логи" : "Получить логи"}
                   </button>
                 </td>
               </tr>
@@ -306,7 +306,7 @@ export function TaskDetailsPage() {
             {jobRuns.length === 0 ? (
               <tr>
                 <td colSpan={7} className="empty-state">
-                  Р—Р°РїСѓСЃРєРё `Job` РґР»СЏ СЌС‚РѕР№ Р·Р°РґР°С‡Рё РїРѕРєР° РЅРµ РЅР°Р№РґРµРЅС‹.
+                  Запуски `Job` для этой задачи пока не найдены.
                 </td>
               </tr>
             ) : null}
@@ -318,14 +318,14 @@ export function TaskDetailsPage() {
         <article className="card">
           <div className="toolbar">
             <div>
-              <h3>Р›РѕРіРё Р·Р°РїСѓСЃРєР°</h3>
+              <h3>Логи запуска</h3>
               <p className="subtle">
-                `{selectedRun.name}` В· {formatJobStatus(selectedRun.status)} В· {formatDate(selectedRun.startedAt)}
+                `{selectedRun.name}` · {formatJobStatus(selectedRun.status)} · {formatDate(selectedRun.startedAt)}
               </p>
             </div>
           </div>
           {logsError ? <div className="alert">{logsError}</div> : null}
-          <pre className="log-output">{selectedRunLogs || (logsLoading ? "Р—Р°РіСЂСѓР¶Р°РµРј Р»РѕРіРё..." : "Р›РѕРіРё РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РїСѓСЃРєР° РїРѕРєР° РЅРµРґРѕСЃС‚СѓРїРЅС‹.")}</pre>
+          <pre className="log-output">{selectedRunLogs || (logsLoading ? "Загружаем логи..." : "Логи для этого запуска пока недоступны.")}</pre>
         </article>
       ) : null}
     </section>
