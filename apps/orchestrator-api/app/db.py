@@ -111,12 +111,37 @@ def _upgrade_task_schema() -> None:
                 CREATE TABLE IF NOT EXISTS backup_event_rules (
                     id SERIAL PRIMARY KEY,
                     name VARCHAR(120) NOT NULL UNIQUE,
+                    namespace VARCHAR(120) NOT NULL DEFAULT 'default',
+                    db_display_name VARCHAR(120) NOT NULL DEFAULT 'DB backup',
+                    s3_display_name VARCHAR(120) NOT NULL DEFAULT 'S3 backup',
                     enabled BOOLEAN NOT NULL DEFAULT FALSE,
-                    db_task_id INTEGER NOT NULL REFERENCES tasks(id),
-                    s3_task_id INTEGER NOT NULL REFERENCES tasks(id),
+                    db_task_id INTEGER NULL REFERENCES tasks(id),
+                    s3_task_id INTEGER NULL REFERENCES tasks(id),
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
+                """
+            )
+        )
+        connection.execute(text("ALTER TABLE backup_event_rules ADD COLUMN IF NOT EXISTS namespace VARCHAR(120) NOT NULL DEFAULT 'default'"))
+        connection.execute(text("ALTER TABLE backup_event_rules ADD COLUMN IF NOT EXISTS db_display_name VARCHAR(120) NOT NULL DEFAULT 'DB backup'"))
+        connection.execute(text("ALTER TABLE backup_event_rules ADD COLUMN IF NOT EXISTS s3_display_name VARCHAR(120) NOT NULL DEFAULT 'S3 backup'"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS managed_by_rule_id INTEGER NULL"))
+        connection.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'fk_tasks_managed_by_rule_id'
+                    ) THEN
+                        ALTER TABLE tasks
+                        ADD CONSTRAINT fk_tasks_managed_by_rule_id
+                        FOREIGN KEY (managed_by_rule_id) REFERENCES backup_event_rules(id);
+                    END IF;
+                END$$
                 """
             )
         )
@@ -144,6 +169,7 @@ def _upgrade_task_schema() -> None:
         )
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_db_task_id ON backup_event_rules(db_task_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_s3_task_id ON backup_event_rules(s3_task_id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_managed_by_rule_id ON tasks(managed_by_rule_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_task_job_runs_task_id ON task_job_runs(task_id)"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_text TEXT"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_collected_at TIMESTAMPTZ"))
@@ -170,3 +196,84 @@ def _upgrade_task_schema() -> None:
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_event_key ON notifications(event_key)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_task_id ON notifications(task_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_job_run_id ON notifications(job_run_id)"))
+        connection.execute(
+            text(
+                """
+                DELETE FROM backup_event_rule_states
+                WHERE rule_id IN (
+                    SELECT r.id
+                    FROM backup_event_rules AS r
+                    LEFT JOIN tasks AS db_task ON db_task.id = r.db_task_id
+                    LEFT JOIN tasks AS s3_task ON s3_task.id = r.s3_task_id
+                    WHERE COALESCE(db_task.managed_by_rule_id, s3_task.managed_by_rule_id) IS NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DELETE FROM backup_event_rules AS r
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM tasks AS db_task
+                    WHERE db_task.id = r.db_task_id
+                      AND db_task.managed_by_rule_id IS NULL
+                )
+                   OR EXISTS (
+                    SELECT 1
+                    FROM tasks AS s3_task
+                    WHERE s3_task.id = r.s3_task_id
+                      AND s3_task.managed_by_rule_id IS NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DELETE FROM task_event_watch_states
+                WHERE task_id IN (
+                    SELECT id
+                    FROM tasks
+                    WHERE managed_by_rule_id IS NULL
+                      AND trigger_mode = 'event_based'
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DELETE FROM task_job_runs
+                WHERE task_id IN (
+                    SELECT id
+                    FROM tasks
+                    WHERE managed_by_rule_id IS NULL
+                      AND trigger_mode = 'event_based'
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DELETE FROM notifications
+                WHERE task_id IN (
+                    SELECT id
+                    FROM tasks
+                    WHERE managed_by_rule_id IS NULL
+                      AND trigger_mode = 'event_based'
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DELETE FROM tasks
+                WHERE managed_by_rule_id IS NULL
+                  AND trigger_mode = 'event_based'
+                """
+            )
+        )

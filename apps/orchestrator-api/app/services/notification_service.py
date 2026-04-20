@@ -97,7 +97,7 @@ class NotificationService:
             title=f"Ошибка деплоя: {task.name}",
             message=message,
             task_id=task.id,
-            link_path=f"/tasks/{task.id}",
+            link_path=self._task_link(task),
         )
 
     def notify_task_missing(self, task: Task) -> None:
@@ -109,7 +109,7 @@ class NotificationService:
             title=f"Release не найден: {task.name}",
             message=message,
             task_id=task.id,
-            link_path=f"/tasks/{task.id}",
+            link_path=self._task_link(task),
         )
 
     def notify_task_attention_required(self, task: Task, reason: str) -> None:
@@ -120,7 +120,7 @@ class NotificationService:
             title=f"Требуется внимание: {task.name}",
             message=f"Задача включена, но требует проверки. Причина: {reason}.",
             task_id=task.id,
-            link_path=f"/tasks/{task.id}",
+            link_path=self._task_link(task),
         )
 
     def notify_manual_run_started(self, task: Task, run: TaskJobRun) -> None:
@@ -132,7 +132,7 @@ class NotificationService:
             message=f"Создан job {run.job_name}.",
             task_id=task.id,
             job_run_id=run.id,
-            link_path=f"/tasks/{task.id}",
+            link_path=self._task_link(task),
         )
 
     def notify_event_run_started(self, task: Task, run: TaskJobRun) -> None:
@@ -144,7 +144,7 @@ class NotificationService:
             message=f"Создан job {run.job_name}.",
             task_id=task.id,
             job_run_id=run.id,
-            link_path=f"/tasks/{task.id}",
+            link_path=self._task_link(task),
         )
 
     def notify_event_watcher_issue(self, task: Task, message: str) -> None:
@@ -155,7 +155,7 @@ class NotificationService:
             title=f"Проблема event watcher: {task.name}",
             message=message,
             task_id=task.id,
-            link_path=f"/tasks/{task.id}",
+            link_path=self._task_link(task),
         )
 
     def notify_backup_event_rule_run_started(
@@ -203,7 +203,7 @@ class NotificationService:
             message=message,
             task_id=task.id,
             job_run_id=run.id,
-            link_path=f"/tasks/{task.id}",
+            link_path=self._task_link(task),
         )
 
     @staticmethod
@@ -221,6 +221,12 @@ class NotificationService:
             readAt=notification.read_at,
             createdAt=notification.created_at,
         )
+
+    @staticmethod
+    def _task_link(task: Task) -> str:
+        if task.managed_by_rule_id is not None:
+            return f"/event-rules/{task.managed_by_rule_id}"
+        return f"/tasks/{task.id}"
 
     @staticmethod
     def _event_key(*parts: object) -> str:

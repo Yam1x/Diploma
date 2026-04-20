@@ -107,6 +107,7 @@ class EventWatcherService:
             .options(joinedload(Task.secret), joinedload(Task.event_watch_state))
             .filter(
                 Task.enabled.is_(True),
+                Task.managed_by_rule_id.is_(None),
                 Task.service_type.in_([ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER]),
                 Task.trigger_mode == TriggerMode.EVENT_BASED.value,
             )
@@ -213,7 +214,7 @@ class EventWatcherService:
         state.last_polled_at = now
         state.last_error_message = None
 
-        event_rule_service._validate_linked_tasks(rule.db_task, rule.s3_task)
+        event_rule_service._validate_linked_tasks(rule)
 
         counters = self._read_database_counters(rule.db_task)
         observed_state_hash = self._read_s3_state_hash(rule.s3_task)

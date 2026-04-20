@@ -47,6 +47,7 @@ class Task(Base):
     destination_s3_aws_bucket_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     env_repository: Mapped[str | None] = mapped_column(String(255), nullable=True)
     path_to_helmfile: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    managed_by_rule_id: Mapped[int | None] = mapped_column(ForeignKey("backup_event_rules.id"), nullable=True, index=True)
     release_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     last_apply_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
     last_apply_message: Mapped[str | None] = mapped_column(Text, nullable=True)

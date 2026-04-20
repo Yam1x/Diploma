@@ -14,9 +14,12 @@ class BackupEventRule(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    namespace: Mapped[str] = mapped_column(String(120), nullable=False)
+    db_display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    s3_display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    db_task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False, index=True)
-    s3_task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False, index=True)
+    db_task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True, index=True)
+    s3_task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

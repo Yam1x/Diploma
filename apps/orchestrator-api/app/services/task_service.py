@@ -66,11 +66,17 @@ class TaskService:
         self.settings = get_settings()
 
     def list_tasks(self) -> list[TaskSummary]:
-        tasks = self.db.query(Task).options(joinedload(Task.secret)).order_by(Task.updated_at.desc()).all()
+        tasks = (
+            self.db.query(Task)
+            .options(joinedload(Task.secret))
+            .filter(Task.managed_by_rule_id.is_(None))
+            .order_by(Task.updated_at.desc())
+            .all()
+        )
         return [self._to_summary(task) for task in tasks]
 
     def get_task(self, task_id: int) -> TaskDetail:
-        return self._to_detail(self._get_task_model(task_id))
+        return self._to_detail(self._get_public_task_model(task_id))
 
     def create_task(self, payload: TaskCreate) -> TaskDetail:
         service_type = ServiceType(payload.serviceType)
@@ -126,7 +132,7 @@ class TaskService:
         return self._to_detail(self._get_task_model(task.id))
 
     def update_task(self, task_id: int, payload: TaskUpdate) -> TaskDetail:
-        task = self._get_task_model(task_id)
+        task = self._get_public_task_model(task_id)
         if payload.serviceType != task.service_type.value:
             raise HTTPException(status_code=400, detail="Changing service type is not supported")
 
@@ -171,32 +177,17 @@ class TaskService:
         return self._to_detail(self._get_task_model(task.id))
 
     def enable_task(self, task_id: int) -> TaskDetail:
-        task = self._get_task_model(task_id)
-        self._validate_namespace(task.namespace)
-        task.enabled = True
-        self.db.commit()
-        self._apply_release(task)
-        return self._to_detail(self._get_task_model(task.id))
+        task = self._get_public_task_model(task_id)
+        self.enable_task_model(task)
+        return self._to_detail(self._get_public_task_model(task.id))
 
     def disable_task(self, task_id: int) -> TaskDetail:
-        task = self._get_task_model(task_id)
-        try:
-            message = self.helm.uninstall(task.release_name, task.namespace)
-            task.enabled = False
-            task.last_apply_status = "disabled"
-            task.last_apply_message = message or "Release removed"
-            task.last_applied_at = datetime.now(timezone.utc)
-            self.db.commit()
-        except HelmError as exc:
-            task.last_apply_status = "failed"
-            task.last_apply_message = str(exc)
-            task.last_applied_at = datetime.now(timezone.utc)
-            self.db.commit()
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        task = self._get_public_task_model(task_id)
+        self.disable_task_model(task)
         return self._to_detail(task)
 
     def run_task(self, task_id: int) -> TaskDetail:
-        task = self._get_task_model(task_id)
+        task = self._get_public_task_model(task_id)
         if not task.enabled or not task.release_name:
             raise HTTPException(status_code=400, detail="Task must be deployed before running it manually")
 
@@ -223,7 +214,7 @@ class TaskService:
         return self._to_detail(self._get_task_model(task.id))
 
     def refresh_task(self, task_id: int) -> TaskDetail:
-        task = self._get_task_model(task_id)
+        task = self._get_public_task_model(task_id)
         try:
             message = self.helm.status(task.release_name, task.namespace)
             task.last_apply_status = "deployed"
@@ -240,7 +231,7 @@ class TaskService:
         return self._to_detail(task)
 
     def delete_task(self, task_id: int) -> None:
-        task = self._get_task_model(task_id)
+        task = self._get_public_task_model(task_id)
         self._cleanup_release(task)
         self.db.delete(task)
         self.db.commit()
@@ -364,6 +355,27 @@ class TaskService:
             self.db.commit()
             self.notifications.notify_task_deploy_failed(task)
             self.notifications.notify_task_attention_required(task, "deploy_failed")
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    def enable_task_model(self, task: Task) -> None:
+        self._validate_namespace(task.namespace)
+        task.enabled = True
+        self.db.commit()
+        self._apply_release(task)
+
+    def disable_task_model(self, task: Task) -> None:
+        try:
+            message = self.helm.uninstall(task.release_name, task.namespace)
+            task.enabled = False
+            task.last_apply_status = "disabled"
+            task.last_apply_message = message or "Release removed"
+            task.last_applied_at = datetime.now(timezone.utc)
+            self.db.commit()
+        except HelmError as exc:
+            task.last_apply_status = "failed"
+            task.last_apply_message = str(exc)
+            task.last_applied_at = datetime.now(timezone.utc)
+            self.db.commit()
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     def _build_values(self, task: Task, config: ServiceDeploymentConfig) -> dict:
@@ -637,6 +649,12 @@ class TaskService:
             task.secret = TaskSecret(task=task)
         return task
 
+    def _get_public_task_model(self, task_id: int) -> Task:
+        task = self._get_task_model(task_id)
+        if task.managed_by_rule_id is not None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return task
+
     def _to_summary(self, task: Task) -> TaskSummary:
         common = {
             "id": task.id,
@@ -740,6 +758,8 @@ class TaskService:
     @staticmethod
     def _validate_trigger_mode(service_type: ServiceType, trigger_mode: str) -> TriggerMode:
         normalized = TriggerMode(trigger_mode)
+        if normalized == TriggerMode.EVENT_BASED and service_type in {ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER}:
+            raise HTTPException(status_code=400, detail="Event-based trigger mode is configured only through event rules")
         if normalized == TriggerMode.EVENT_BASED and not TaskService._supports_event_mode(service_type):
             raise HTTPException(status_code=400, detail="Event-based trigger mode is supported only for db_backupper and s3_backupper tasks")
         return normalized

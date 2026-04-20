@@ -68,8 +68,8 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       name: detail.name,
       namespace: detail.namespace,
       enabled: detail.enabled,
-      schedule: detail.triggerMode === "event_based" ? null : detail.schedule ?? DEFAULT_SCHEDULE,
-      triggerMode: detail.triggerMode,
+      schedule: detail.schedule ?? DEFAULT_SCHEDULE,
+      triggerMode: "scheduled",
       dbBackupsFilenamePrefix: detail.dbBackupsFilenamePrefix,
       databaseHost: detail.databaseHost,
       databaseName: detail.databaseName,
@@ -88,8 +88,8 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       name: detail.name,
       namespace: detail.namespace,
       enabled: detail.enabled,
-      schedule: detail.triggerMode === "event_based" ? null : detail.schedule ?? DEFAULT_SCHEDULE,
-      triggerMode: detail.triggerMode,
+      schedule: detail.schedule ?? DEFAULT_SCHEDULE,
+      triggerMode: "scheduled",
       s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
       sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
       sourceS3AwsAccessKeyId: detail.sourceS3AwsAccessKeyId,
@@ -109,7 +109,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
     namespace: detail.namespace,
     enabled: detail.enabled,
     schedule: detail.schedule ?? DEFAULT_SCHEDULE,
-    triggerMode: detail.triggerMode,
+    triggerMode: "scheduled",
     envRepository: detail.envRepository,
     pathToHelmfile: detail.pathToHelmfile,
   };
@@ -144,18 +144,6 @@ function buildS3EndpointOptions(discovery: ServiceDiscoveryResponse): DiscoveryO
   return discovery.services.flatMap((service) => service.endpoints);
 }
 
-function updateTriggerMode(value: TaskPayload, triggerMode: "scheduled" | "event_based"): TaskPayload {
-  if (value.serviceType !== "db_backupper" && value.serviceType !== "s3_backupper") {
-    return value;
-  }
-
-  return {
-    ...value,
-    triggerMode,
-    schedule: triggerMode === "event_based" ? null : value.schedule ?? DEFAULT_SCHEDULE,
-  };
-}
-
 export function TaskFormPage() {
   const navigate = useNavigate();
   const { taskId, taskType } = useParams();
@@ -172,7 +160,7 @@ export function TaskFormPage() {
   useEffect(() => {
     async function load() {
       if (!isEditMode && !selectedTaskType) {
-        setError("Выбранный тип задачи пока не поддерживается.");
+        setError("Р’С‹Р±СЂР°РЅРЅС‹Р№ С‚РёРї Р·Р°РґР°С‡Рё РїРѕРєР° РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ.");
         setValue(null);
         return;
       }
@@ -195,7 +183,7 @@ export function TaskFormPage() {
           setConfiguredSecrets({});
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Не удалось загрузить форму");
+        setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕСЂРјСѓ");
       }
     }
 
@@ -227,7 +215,7 @@ export function TaskFormPage() {
           return;
         }
         setServiceDiscovery({ services: [] });
-        setServiceDiscoveryError(err instanceof Error ? err.message : "Не удалось загрузить service discovery");
+        setServiceDiscoveryError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ service discovery");
       })
       .finally(() => {
         if (!cancelled) {
@@ -241,7 +229,7 @@ export function TaskFormPage() {
   }, [value?.namespace]);
 
   async function handleCreateNamespace() {
-    const name = window.prompt("Введите имя namespace");
+    const name = window.prompt("Р’РІРµРґРёС‚Рµ РёРјСЏ namespace");
     const namespace = name?.trim();
     if (!namespace) {
       return;
@@ -253,7 +241,7 @@ export function TaskFormPage() {
       setValue((current) => (current ? { ...current, namespace: response.name } : current));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать namespace");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ namespace");
     }
   }
 
@@ -288,7 +276,7 @@ export function TaskFormPage() {
         navigate(`/tasks/${task.id}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить задачу");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ Р·Р°РґР°С‡Сѓ");
     }
   }
 
@@ -300,48 +288,20 @@ export function TaskFormPage() {
     <section className="stack">
       <div className="toolbar">
         <div>
-          <h2>{taskId ? "Редактирование задачи" : "Создание задачи"}</h2>
+          <h2>{taskId ? "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Р·Р°РґР°С‡Рё" : "РЎРѕР·РґР°РЅРёРµ Р·Р°РґР°С‡Рё"}</h2>
           <p className="subtle">
             {activeTaskType
-              ? `Настройте желаемое состояние и параметры деплоя для сервиса «${activeTaskType.title}».`
-              : "Настройте желаемое состояние и параметры деплоя задачи."}
+              ? `РќР°СЃС‚СЂРѕР№С‚Рµ Р¶РµР»Р°РµРјРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ Рё РїР°СЂР°РјРµС‚СЂС‹ РґРµРїР»РѕСЏ РґР»СЏ СЃРµСЂРІРёСЃР° В«${activeTaskType.title}В».`
+              : "РќР°СЃС‚СЂРѕР№С‚Рµ Р¶РµР»Р°РµРјРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ Рё РїР°СЂР°РјРµС‚СЂС‹ РґРµРїР»РѕСЏ Р·Р°РґР°С‡Рё."}
           </p>
         </div>
         <Link className="button ghost" to={taskId ? `/tasks/${taskId}` : "/tasks/new"}>
-          Отмена
+          РћС‚РјРµРЅР°
         </Link>
       </div>
       {error ? <div className="alert">{error}</div> : null}
       {value ? (
         <form className="stack" onSubmit={(event) => void handleSubmit(event)}>
-          {value.serviceType === "db_backupper" || value.serviceType === "s3_backupper" ? (
-            <div className="card form-grid">
-              <label>
-                <span>Режим запуска</span>
-                <small className="field-help">
-                  {value.serviceType === "db_backupper"
-                    ? "Выберите обычное расписание или запуск по изменениям в PostgreSQL."
-                    : "Выберите обычное расписание или запуск по изменениям в source S3 bucket."}
-                </small>
-                <select value={value.triggerMode} onChange={(event) => setValue(updateTriggerMode(value, event.target.value as typeof value.triggerMode))}>
-                  <option value="scheduled">По расписанию</option>
-                  <option value="event_based">По событию</option>
-                </select>
-              </label>
-              {value.triggerMode === "event_based" ? (
-                <p className="subtle">
-                  {value.serviceType === "db_backupper"
-                    ? "Задача будет запускаться event watcher по изменениям в PostgreSQL. Расписание не используется."
-                    : "Задача будет запускаться event watcher по изменениям в source S3 bucket или указанном subfolder. Расписание не используется."}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-          {value.triggerMode === "event_based" && (value.serviceType === "db_backupper" || value.serviceType === "s3_backupper") ? (
-            <div className="card">
-              <p className="subtle">Event matching and combined orchestration are configured in the separate Event Rules section.</p>
-            </div>
-          ) : null}
           <TaskFormFields
             value={value}
             onChange={setValue}
@@ -355,12 +315,12 @@ export function TaskFormPage() {
           />
           <div className="toolbar-actions">
             <button className="button primary" type="submit" disabled={!isEditMode && !selectedTaskType}>
-              Сохранить задачу
+              РЎРѕС…СЂР°РЅРёС‚СЊ Р·Р°РґР°С‡Сѓ
             </button>
           </div>
         </form>
       ) : error ? null : (
-        <p>Загрузка...</p>
+        <p>Р—Р°РіСЂСѓР·РєР°...</p>
       )}
     </section>
   );

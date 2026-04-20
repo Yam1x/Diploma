@@ -146,7 +146,7 @@ export function TaskFormFields({
   };
 
   const cronPreview = getNormalizedSchedule(scheduleDraft) || "Не задано";
-  const showSchedule = !(value.triggerMode === "event_based" && (value.serviceType === "db_backupper" || value.serviceType === "s3_backupper"));
+  const showSchedule = true;
   const serviceDiscoveryPlaceholder = !value.namespace
     ? "Сначала выберите namespace"
     : serviceDiscoveryLoading

@@ -6,19 +6,19 @@ import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
 function formatBoolean(value: boolean) {
-  return value ? "Да" : "Нет";
+  return value ? "Р”Р°" : "РќРµС‚";
 }
 
 function formatApplyStatus(status: string | null) {
   const labels: Record<string, string> = {
-    deployed: "Применено",
-    failed: "Ошибка",
-    disabled: "Отключено",
-    missing: "Не найдено",
+    deployed: "РџСЂРёРјРµРЅРµРЅРѕ",
+    failed: "РћС€РёР±РєР°",
+    disabled: "РћС‚РєР»СЋС‡РµРЅРѕ",
+    missing: "РќРµ РЅР°Р№РґРµРЅРѕ",
   };
 
   if (!status) {
-    return "Ожидание";
+    return "РћР¶РёРґР°РЅРёРµ";
   }
 
   return labels[status] ?? status;
@@ -29,43 +29,29 @@ function formatServiceType(serviceType: TaskDetail["serviceType"]) {
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString() : "Никогда";
+  return value ? new Date(value).toLocaleString() : "РќРёРєРѕРіРґР°";
 }
 
 function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
   if (triggerType === "manual") {
-    return "Вручную";
+    return "Р’СЂСѓС‡РЅСѓСЋ";
   }
   if (triggerType === "event") {
-    return "По событию";
+    return "РџРѕ СЃРѕР±С‹С‚РёСЋ";
   }
-  return "По расписанию";
+  return "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
 }
 
 function formatTriggerMode(triggerMode: TaskDetail["triggerMode"]) {
-  return triggerMode === "event_based" ? "По событию" : "По расписанию";
-}
-
-function formatEventWatcherStatus(status: string) {
-  const labels: Record<string, string> = {
-    scheduled: "Плановый режим",
-    disabled: "Выключена",
-    waiting_for_baseline: "Инициализация baseline",
-    watching: "Отслеживает изменения",
-    pending: "Ожидает запуск",
-    cooldown: "Cooldown",
-    error: "Ошибка",
-  };
-
-  return labels[status] ?? status;
+  return triggerMode === "event_based" ? "РџРѕ СЃРѕР±С‹С‚РёСЋ" : "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
 }
 
 function formatJobStatus(status: JobRunSummary["status"]) {
   const labels: Record<JobRunSummary["status"], string> = {
-    running: "Выполняется",
-    succeeded: "Успешно",
-    failed: "Ошибка",
-    unknown: "Неизвестно",
+    running: "Р’С‹РїРѕР»РЅСЏРµС‚СЃСЏ",
+    succeeded: "РЈСЃРїРµС€РЅРѕ",
+    failed: "РћС€РёР±РєР°",
+    unknown: "РќРµРёР·РІРµСЃС‚РЅРѕ",
   };
 
   return labels[status];
@@ -75,13 +61,13 @@ function renderTaskParameters(task: TaskDetail) {
   if (task.serviceType === "db_backupper") {
     return (
       <article className="card">
-        <h3>Параметры выполнения</h3>
+        <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
         <dl>
-          <dt>Хост базы данных</dt>
+          <dt>РҐРѕСЃС‚ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
           <dd>{task.databaseHost}</dd>
-          <dt>Имя базы данных</dt>
+          <dt>РРјСЏ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
           <dd>{task.databaseName}</dd>
-          <dt>Пользователь базы данных</dt>
+          <dt>РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ Р±Р°Р·С‹ РґР°РЅРЅС‹С…</dt>
           <dd>{task.databaseUsername}</dd>
           <dt>S3 endpoint</dt>
           <dd>{task.destinationAwsEndpoint}</dd>
@@ -95,14 +81,14 @@ function renderTaskParameters(task: TaskDetail) {
   if (task.serviceType === "s3_backupper") {
     return (
       <article className="card">
-        <h3>Параметры выполнения</h3>
+        <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
         <dl>
           <dt>Source S3 endpoint</dt>
           <dd>{task.sourceS3AwsEndpoint}</dd>
           <dt>Source S3 bucket</dt>
           <dd>{task.sourceS3AwsBucketName}</dd>
           <dt>Source S3 subfolder</dt>
-          <dd>{task.sourceS3AwsBucketSubfolderName || "Весь bucket"}</dd>
+          <dd>{task.sourceS3AwsBucketSubfolderName || "Р’РµСЃСЊ bucket"}</dd>
           <dt>Destination S3 endpoint</dt>
           <dd>{task.destinationS3AwsEndpoint}</dd>
           <dt>Destination S3 bucket</dt>
@@ -114,11 +100,11 @@ function renderTaskParameters(task: TaskDetail) {
 
   return (
     <article className="card">
-      <h3>Параметры выполнения</h3>
+      <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
       <dl>
-        <dt>Репозиторий окружения</dt>
+        <dt>Р РµРїРѕР·РёС‚РѕСЂРёР№ РѕРєСЂСѓР¶РµРЅРёСЏ</dt>
         <dd>{task.envRepository}</dd>
-        <dt>Путь к Helmfile</dt>
+        <dt>РџСѓС‚СЊ Рє Helmfile</dt>
         <dd>{task.pathToHelmfile}</dd>
       </dl>
     </article>
@@ -148,7 +134,7 @@ export function TaskDetailsPage() {
       setSelectedRun((current) => (current ? runsResponse.runs.find((run) => run.id === current.id) ?? null : null));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить задачу");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р·Р°РґР°С‡Сѓ");
     }
   }
 
@@ -163,7 +149,7 @@ export function TaskDetailsPage() {
       await refreshNotifications();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось выполнить действие");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РґРµР№СЃС‚РІРёРµ");
     }
   }
 
@@ -171,7 +157,7 @@ export function TaskDetailsPage() {
     if (!task) {
       return;
     }
-    if (!window.confirm(`Удалить задачу "${task.name}"?`)) {
+    if (!window.confirm(`РЈРґР°Р»РёС‚СЊ Р·Р°РґР°С‡Сѓ "${task.name}"?`)) {
       return;
     }
     try {
@@ -179,7 +165,7 @@ export function TaskDetailsPage() {
       setError(null);
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить задачу");
+      setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ Р·Р°РґР°С‡Сѓ");
     }
   }
 
@@ -197,14 +183,14 @@ export function TaskDetailsPage() {
     } catch (err) {
       setSelectedRun(runItem);
       setSelectedRunLogs("");
-      setLogsError(err instanceof Error ? err.message : "Не удалось загрузить логи запуска");
+      setLogsError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р»РѕРіРё Р·Р°РїСѓСЃРєР°");
     } finally {
       setLogsLoading(false);
     }
   }
 
   if (!task) {
-    return <section className="stack">{error ? <div className="alert">{error}</div> : <p>Загрузка...</p>}</section>;
+    return <section className="stack">{error ? <div className="alert">{error}</div> : <p>Р—Р°РіСЂСѓР·РєР°...</p>}</section>;
   }
 
   return (
@@ -212,29 +198,29 @@ export function TaskDetailsPage() {
       <div className="toolbar">
         <div>
           <h2>{task.name}</h2>
-          <p className="subtle">Текущий релиз: `{task.releaseName}` в namespace `{task.namespace}`.</p>
+          <p className="subtle">РўРµРєСѓС‰РёР№ СЂРµР»РёР·: `{task.releaseName}` РІ namespace `{task.namespace}`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button ghost" to={`/tasks/${task.id}/edit`}>
-            Изменить
+            РР·РјРµРЅРёС‚СЊ
           </Link>
           <button className="button ghost" onClick={() => void run(() => api.refreshTask(String(task.id)))}>
-            Обновить
+            РћР±РЅРѕРІРёС‚СЊ
           </button>
           <button className="button primary" onClick={() => void run(() => api.runTask(String(task.id)))} disabled={!task.enabled}>
-            Запустить сейчас
+            Р—Р°РїСѓСЃС‚РёС‚СЊ СЃРµР№С‡Р°СЃ
           </button>
           {task.enabled ? (
             <button className="button danger" onClick={() => void run(() => api.disableTask(String(task.id)))}>
-              Выключить
+              Р’С‹РєР»СЋС‡РёС‚СЊ
             </button>
           ) : (
             <button className="button primary" onClick={() => void run(() => api.enableTask(String(task.id)))}>
-              Включить
+              Р’РєР»СЋС‡РёС‚СЊ
             </button>
           )}
           <button className="button ghost" onClick={() => void handleDelete()}>
-            Удалить
+            РЈРґР°Р»РёС‚СЊ
           </button>
         </div>
       </div>
@@ -243,56 +229,40 @@ export function TaskDetailsPage() {
 
       <div className="details-grid">
         <article className="card">
-          <h3>Желаемое состояние</h3>
+          <h3>Р–РµР»Р°РµРјРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ</h3>
           <dl>
-            <dt>Включена</dt>
+            <dt>Р’РєР»СЋС‡РµРЅР°</dt>
             <dd>{formatBoolean(task.enabled)}</dd>
-            <dt>Тип сервиса</dt>
+            <dt>РўРёРї СЃРµСЂРІРёСЃР°</dt>
             <dd>{formatServiceType(task.serviceType)}</dd>
-            <dt>Режим запуска</dt>
+            <dt>Р РµР¶РёРј Р·Р°РїСѓСЃРєР°</dt>
             <dd>{formatTriggerMode(task.triggerMode)}</dd>
-            <dt>Расписание</dt>
-            <dd>{task.schedule ?? "Не используется"}</dd>
+            <dt>Р Р°СЃРїРёСЃР°РЅРёРµ</dt>
+            <dd>{task.schedule ?? "РќРµ РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ"}</dd>
             {task.serviceType === "db_backupper" ? (
               <>
-                <dt>Префикс имени файла</dt>
+                <dt>РџСЂРµС„РёРєСЃ РёРјРµРЅРё С„Р°Р№Р»Р°</dt>
                 <dd>{task.dbBackupsFilenamePrefix}</dd>
-                <dt>Event watcher</dt>
-                <dd>{formatEventWatcherStatus(task.eventWatcherStatus)}</dd>
-                <dt>Последнее событие</dt>
-                <dd>{formatDate(task.lastEventDetectedAt)}</dd>
-                <dt>Последний event backup</dt>
-                <dd>{formatDate(task.lastEventTriggeredAt)}</dd>
-                <dt>Сообщение watcher</dt>
-                <dd>{task.lastEventMessage ?? "Нет сообщений"}</dd>
               </>
             ) : task.serviceType === "s3_backupper" ? (
               <>
-                <dt>Префикс имени архива</dt>
+                <dt>РџСЂРµС„РёРєСЃ РёРјРµРЅРё Р°СЂС…РёРІР°</dt>
                 <dd>{task.s3BackupsFilenamePrefix}</dd>
-                <dt>Event watcher</dt>
-                <dd>{formatEventWatcherStatus(task.eventWatcherStatus)}</dd>
-                <dt>Последнее событие</dt>
-                <dd>{formatDate(task.lastEventDetectedAt)}</dd>
-                <dt>Последний event backup</dt>
-                <dd>{formatDate(task.lastEventTriggeredAt)}</dd>
-                <dt>Сообщение watcher</dt>
-                <dd>{task.lastEventMessage ?? "Нет сообщений"}</dd>
               </>
             ) : null}
           </dl>
         </article>
         <article className="card">
-          <h3>Состояние деплоя</h3>
+          <h3>РЎРѕСЃС‚РѕСЏРЅРёРµ РґРµРїР»РѕСЏ</h3>
           <dl>
-            <dt>Задеплоена</dt>
+            <dt>Р—Р°РґРµРїР»РѕРµРЅР°</dt>
             <dd>{formatBoolean(task.deployed)}</dd>
-            <dt>Статус последнего применения</dt>
+            <dt>РЎС‚Р°С‚СѓСЃ РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРёРјРµРЅРµРЅРёСЏ</dt>
             <dd>{formatApplyStatus(task.lastApplyStatus)}</dd>
-            <dt>Последнее применение</dt>
-            <dd>{task.lastAppliedAt ? new Date(task.lastAppliedAt).toLocaleString() : "Никогда"}</dd>
-            <dt>Последнее сообщение</dt>
-            <dd>{task.lastApplyMessage ?? "Сообщений пока нет"}</dd>
+            <dt>РџРѕСЃР»РµРґРЅРµРµ РїСЂРёРјРµРЅРµРЅРёРµ</dt>
+            <dd>{task.lastAppliedAt ? new Date(task.lastAppliedAt).toLocaleString() : "РќРёРєРѕРіРґР°"}</dd>
+            <dt>РџРѕСЃР»РµРґРЅРµРµ СЃРѕРѕР±С‰РµРЅРёРµ</dt>
+            <dd>{task.lastApplyMessage ?? "РЎРѕРѕР±С‰РµРЅРёР№ РїРѕРєР° РЅРµС‚"}</dd>
           </dl>
         </article>
         {renderTaskParameters(task)}
@@ -301,19 +271,19 @@ export function TaskDetailsPage() {
       <article className="card table-wrap">
         <div className="toolbar">
           <div>
-            <h3>Последние запуски</h3>
-            <p className="subtle">Список последних `Job` этой задачи с доступом к их логам.</p>
+            <h3>РџРѕСЃР»РµРґРЅРёРµ Р·Р°РїСѓСЃРєРё</h3>
+            <p className="subtle">РЎРїРёСЃРѕРє РїРѕСЃР»РµРґРЅРёС… `Job` СЌС‚РѕР№ Р·Р°РґР°С‡Рё СЃ РґРѕСЃС‚СѓРїРѕРј Рє РёС… Р»РѕРіР°Рј.</p>
           </div>
         </div>
         <table>
           <thead>
             <tr>
               <th>Job</th>
-              <th>Запуск</th>
-              <th>Статус</th>
-              <th>Старт</th>
-              <th>Завершение</th>
-              <th>Последний sync</th>
+              <th>Р—Р°РїСѓСЃРє</th>
+              <th>РЎС‚Р°С‚СѓСЃ</th>
+              <th>РЎС‚Р°СЂС‚</th>
+              <th>Р—Р°РІРµСЂС€РµРЅРёРµ</th>
+              <th>РџРѕСЃР»РµРґРЅРёР№ sync</th>
               <th />
             </tr>
           </thead>
@@ -328,7 +298,7 @@ export function TaskDetailsPage() {
                 <td>{formatDate(runItem.lastSeenAt)}</td>
                 <td className="row-actions">
                   <button className="button ghost" onClick={() => void handleLoadLogs(runItem)} disabled={logsLoading && selectedRun?.id === runItem.id}>
-                    {logsLoading && selectedRun?.id === runItem.id ? "Загружаем..." : runItem.hasLogs ? "Логи" : "Получить логи"}
+                    {logsLoading && selectedRun?.id === runItem.id ? "Р—Р°РіСЂСѓР¶Р°РµРј..." : runItem.hasLogs ? "Р›РѕРіРё" : "РџРѕР»СѓС‡РёС‚СЊ Р»РѕРіРё"}
                   </button>
                 </td>
               </tr>
@@ -336,7 +306,7 @@ export function TaskDetailsPage() {
             {jobRuns.length === 0 ? (
               <tr>
                 <td colSpan={7} className="empty-state">
-                  Запуски `Job` для этой задачи пока не найдены.
+                  Р—Р°РїСѓСЃРєРё `Job` РґР»СЏ СЌС‚РѕР№ Р·Р°РґР°С‡Рё РїРѕРєР° РЅРµ РЅР°Р№РґРµРЅС‹.
                 </td>
               </tr>
             ) : null}
@@ -348,14 +318,14 @@ export function TaskDetailsPage() {
         <article className="card">
           <div className="toolbar">
             <div>
-              <h3>Логи запуска</h3>
+              <h3>Р›РѕРіРё Р·Р°РїСѓСЃРєР°</h3>
               <p className="subtle">
-                `{selectedRun.name}` · {formatJobStatus(selectedRun.status)} · {formatDate(selectedRun.startedAt)}
+                `{selectedRun.name}` В· {formatJobStatus(selectedRun.status)} В· {formatDate(selectedRun.startedAt)}
               </p>
             </div>
           </div>
           {logsError ? <div className="alert">{logsError}</div> : null}
-          <pre className="log-output">{selectedRunLogs || (logsLoading ? "Загружаем логи..." : "Логи для этого запуска пока недоступны.")}</pre>
+          <pre className="log-output">{selectedRunLogs || (logsLoading ? "Р—Р°РіСЂСѓР¶Р°РµРј Р»РѕРіРё..." : "Р›РѕРіРё РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РїСѓСЃРєР° РїРѕРєР° РЅРµРґРѕСЃС‚СѓРїРЅС‹.")}</pre>
         </article>
       ) : null}
     </section>

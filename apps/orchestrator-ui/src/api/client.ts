@@ -196,17 +196,45 @@ export type TaskDetail = DbTaskDetail | S3TaskDetail | EnvSynchronizerTaskDetail
 export type BackupEventRuleSummary = {
   id: number;
   name: string;
+  namespace: string;
   enabled: boolean;
-  dbTaskId: number;
-  dbTaskName: string;
-  s3TaskId: number;
-  s3TaskName: string;
+  dbName: string;
+  s3Name: string;
   eventWatcherStatus: EventRuleWatcherStatus | string;
   lastTriggeredAt: string | null;
   updatedAt: string;
 };
 
+export type BackupEventRuleDbDetail = {
+  name: string;
+  dbBackupsFilenamePrefix: string;
+  databaseHost: string;
+  databaseName: string;
+  databaseUsername: string;
+  destinationAwsEndpoint: string;
+  destinationAwsBucketName: string;
+  destinationAwsAccessKeyId: string;
+  hasDatabasePassword: boolean;
+  hasDestinationAwsSecretAccessKey: boolean;
+};
+
+export type BackupEventRuleS3Detail = {
+  name: string;
+  s3BackupsFilenamePrefix: string;
+  sourceS3AwsEndpoint: string;
+  sourceS3AwsAccessKeyId: string;
+  sourceS3AwsBucketName: string;
+  sourceS3AwsBucketSubfolderName: string;
+  destinationS3AwsEndpoint: string;
+  destinationS3AwsAccessKeyId: string;
+  destinationS3AwsBucketName: string;
+  hasSourceS3AwsSecretAccessKey: boolean;
+  hasDestinationS3AwsSecretAccessKey: boolean;
+};
+
 export type BackupEventRuleDetail = BackupEventRuleSummary & {
+  db: BackupEventRuleDbDetail;
+  s3: BackupEventRuleS3Detail;
   lastPolledAt: string | null;
   lastDbChangeAt: string | null;
   lastS3ChangeAt: string | null;
@@ -214,11 +242,39 @@ export type BackupEventRuleDetail = BackupEventRuleSummary & {
   lastErrorMessage: string | null;
 };
 
+export type BackupEventRuleDbPayload = {
+  name: string;
+  dbBackupsFilenamePrefix: string;
+  databaseHost: string;
+  databaseName: string;
+  databaseUsername: string;
+  databasePassword?: string;
+  destinationAwsEndpoint: string;
+  destinationAwsBucketName: string;
+  destinationAwsAccessKeyId: string;
+  destinationAwsSecretAccessKey?: string;
+};
+
+export type BackupEventRuleS3Payload = {
+  name: string;
+  s3BackupsFilenamePrefix: string;
+  sourceS3AwsEndpoint: string;
+  sourceS3AwsAccessKeyId: string;
+  sourceS3AwsBucketName: string;
+  sourceS3AwsBucketSubfolderName: string;
+  sourceS3AwsSecretAccessKey?: string;
+  destinationS3AwsEndpoint: string;
+  destinationS3AwsAccessKeyId: string;
+  destinationS3AwsBucketName: string;
+  destinationS3AwsSecretAccessKey?: string;
+};
+
 export type BackupEventRulePayload = {
   name: string;
+  namespace: string;
   enabled: boolean;
-  dbTaskId: number;
-  s3TaskId: number;
+  db: BackupEventRuleDbPayload;
+  s3: BackupEventRuleS3Payload;
 };
 
 export type BackupEventRuleUpdatePayload = Partial<BackupEventRulePayload>;

@@ -4,20 +4,20 @@ import { Link } from "react-router-dom";
 import { BackupEventRuleSummary, api } from "../api/client";
 
 function formatBoolean(value: boolean) {
-  return value ? "Да" : "Нет";
+  return value ? "Р”Р°" : "РќРµС‚";
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString() : "Никогда";
+  return value ? new Date(value).toLocaleString() : "РќРёРєРѕРіРґР°";
 }
 
 function formatEventWatcherStatus(status: string) {
   const labels: Record<string, string> = {
-    disabled: "Выключено",
-    waiting_for_baseline: "Инициализация baseline",
-    watching: "Отслеживает изменения",
+    disabled: "Р’С‹РєР»СЋС‡РµРЅРѕ",
+    waiting_for_baseline: "РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ baseline",
+    watching: "РћС‚СЃР»РµР¶РёРІР°РµС‚ РёР·РјРµРЅРµРЅРёСЏ",
     cooldown: "Cooldown",
-    error: "Ошибка",
+    error: "РћС€РёР±РєР°",
   };
 
   return labels[status] ?? status;
@@ -35,7 +35,7 @@ export function EventRulesListPage() {
         setError(null);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Не удалось загрузить event rules");
+        setError(err instanceof Error ? err.message : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ event rules");
       });
   }, []);
 
@@ -43,12 +43,12 @@ export function EventRulesListPage() {
     <section className="stack">
       <div className="toolbar">
         <div>
-          <h2>Combined Event Rules</h2>
-          <p className="subtle">Настраивайте общие event-based правила для пары `db_backupper` + `s3_backupper`.</p>
+          <h2>Event Rules</h2>
+          <p className="subtle">РќР°СЃС‚СЂР°РёРІР°Р№С‚Рµ РїРѕР»РЅС‹Р№ event-based РєРѕРЅС„РёРі РґР»СЏ РїР°СЂС‹ `db_backupper` + `s3_backupper`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button primary" to="/event-rules/new">
-            Новое правило
+            РќРѕРІРѕРµ РїСЂР°РІРёР»Рѕ
           </Link>
         </div>
       </div>
@@ -59,13 +59,14 @@ export function EventRulesListPage() {
         <table>
           <thead>
             <tr>
-              <th>Название</th>
-              <th>DB task</th>
-              <th>S3 task</th>
-              <th>Включено</th>
+              <th>РќР°Р·РІР°РЅРёРµ</th>
+              <th>Namespace</th>
+              <th>DB backup</th>
+              <th>S3 backup</th>
+              <th>Р’РєР»СЋС‡РµРЅРѕ</th>
               <th>Watcher</th>
-              <th>Последний combined run</th>
-              <th>Обновлено</th>
+              <th>РџРѕСЃР»РµРґРЅРёР№ combined run</th>
+              <th>РћР±РЅРѕРІР»РµРЅРѕ</th>
             </tr>
           </thead>
           <tbody>
@@ -74,8 +75,9 @@ export function EventRulesListPage() {
                 <td>
                   <Link to={`/event-rules/${rule.id}`}>{rule.name}</Link>
                 </td>
-                <td>{rule.dbTaskName}</td>
-                <td>{rule.s3TaskName}</td>
+                <td>{rule.namespace}</td>
+                <td>{rule.dbName}</td>
+                <td>{rule.s3Name}</td>
                 <td>{formatBoolean(rule.enabled)}</td>
                 <td>{formatEventWatcherStatus(rule.eventWatcherStatus)}</td>
                 <td>{formatDate(rule.lastTriggeredAt)}</td>
@@ -84,8 +86,8 @@ export function EventRulesListPage() {
             ))}
             {rules.length === 0 ? (
               <tr>
-                <td colSpan={7} className="empty-state">
-                  Event rules пока не созданы.
+                <td colSpan={8} className="empty-state">
+                  Event rules РїРѕРєР° РЅРµ СЃРѕР·РґР°РЅС‹.
                 </td>
               </tr>
             ) : null}

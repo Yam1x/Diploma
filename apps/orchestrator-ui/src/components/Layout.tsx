@@ -142,7 +142,7 @@ function LayoutContent({ children }: PropsWithChildren) {
                 Настройка сервисов
               </Link>
               <Link className={isEventRulesRoute(location.pathname) ? "sidebar-link active" : "sidebar-link"} to="/event-rules">
-                Combined Event Rules
+                Event Rules
               </Link>
               <Link className={location.pathname.startsWith("/tasks/new") ? "sidebar-link active" : "sidebar-link"} to="/tasks/new">
                 Новая задача
