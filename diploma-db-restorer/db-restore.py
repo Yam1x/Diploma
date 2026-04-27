@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -11,6 +12,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [db-restorer] %(message)s",
 )
 logger = logging.getLogger(__name__)
+UNSUPPORTED_SET_RE = re.compile(r"^\s*SET\s+([A-Za-z_][A-Za-z0-9_]*)\s*=")
 
 
 def main():
@@ -41,9 +43,12 @@ def main():
     env["PGPASSWORD"] = target_password
 
     reset_public_schema(target_host, target_db, target_user, env)
-    restore_backup(target_host, target_db, target_user, backup_file, env)
+    restore_file = sanitize_backup_for_target(target_host, target_db, target_user, backup_file, env)
+    restore_backup(target_host, target_db, target_user, restore_file, env)
 
     backup_file.unlink(missing_ok=True)
+    if restore_file != backup_file:
+        restore_file.unlink(missing_ok=True)
     logger.info("Database restore finished")
 
 
@@ -95,6 +100,53 @@ def reset_public_schema(host: str, db_name: str, username: str, env: dict[str, s
         check=True,
         env=env,
     )
+
+
+def fetch_supported_settings(host: str, db_name: str, username: str, env: dict[str, str]) -> set[str]:
+    result = subprocess.run(
+        [
+            "psql",
+            "-h",
+            host,
+            "-U",
+            username,
+            "-d",
+            db_name,
+            "-tAc",
+            "SELECT name FROM pg_settings",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
+def sanitize_backup_for_target(host: str, db_name: str, username: str, backup_file: Path, env: dict[str, str]) -> Path:
+    supported_settings = fetch_supported_settings(host, db_name, username, env)
+    sanitized_file = backup_file.with_suffix(".sanitized.sql")
+    removed_settings: set[str] = set()
+    changed = False
+
+    with backup_file.open("r", encoding="utf-8") as source, sanitized_file.open("w", encoding="utf-8") as target:
+        for line in source:
+            match = UNSUPPORTED_SET_RE.match(line)
+            if match and match.group(1) not in supported_settings:
+                removed_settings.add(match.group(1))
+                changed = True
+                continue
+            target.write(line)
+
+    if not changed:
+        sanitized_file.unlink(missing_ok=True)
+        return backup_file
+
+    logger.warning(
+        "Removed unsupported PostgreSQL settings from dump before restore: %s",
+        ", ".join(sorted(removed_settings)),
+    )
+    return sanitized_file
 
 
 def restore_backup(host: str, db_name: str, username: str, backup_file: Path, env: dict[str, str]) -> None:
