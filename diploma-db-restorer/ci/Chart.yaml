@@ -1,0 +1,9 @@
+apiVersion: v2
+name: diploma-db-restorer
+description: Chart that allows you to restore database backups
+
+type: application
+
+version: "0.0.1"
+
+appVersion: "0.0.1"

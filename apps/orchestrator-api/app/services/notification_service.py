@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.event_rule import BackupEventRule
 from app.models.notification import Notification
+from app.models.recovery_rule import RecoveryEventRule
 from app.models.task import Task, TaskJobRun
 from app.schemas.notification import NotificationItem, NotificationsResponse
 
@@ -186,6 +187,36 @@ class NotificationService:
             link_path=f"/event-rules/{rule.id}",
         )
 
+    def notify_recovery_event_rule_run_started(
+        self,
+        rule: RecoveryEventRule,
+        *,
+        trigger_type: str,
+        db_job_name: str | None,
+        s3_job_name: str | None,
+    ) -> None:
+        trigger_label = "вручную" if trigger_type == "manual" else "по событию"
+        parts = [part for part in [f"DB job {db_job_name}" if db_job_name else None, f"S3 job {s3_job_name}" if s3_job_name else None] if part]
+        message = ", ".join(parts) if parts else "jobs created"
+        self.create_notification(
+            event_key=self._event_key("recovery-event-rule", rule.id, "run-started", trigger_type, db_job_name, s3_job_name),
+            kind="recovery_event_rule_run_started",
+            severity="info",
+            title=f"Combined recovery запущен: {rule.name}",
+            message=f"{message} запущены {trigger_label}.",
+            link_path=f"/recovery-rules/{rule.id}",
+        )
+
+    def notify_recovery_event_rule_issue(self, rule: RecoveryEventRule, message: str) -> None:
+        self.create_notification(
+            event_key=self._event_key("recovery-event-rule", rule.id, "issue", message),
+            kind="recovery_event_rule_issue",
+            severity="warning",
+            title=f"Проблема recovery rule: {rule.name}",
+            message=message,
+            link_path=f"/recovery-rules/{rule.id}",
+        )
+
     def notify_job_run_status(self, task: Task, run: TaskJobRun) -> None:
         if run.status not in {"failed", "succeeded"}:
             return
@@ -226,6 +257,8 @@ class NotificationService:
     def _task_link(task: Task) -> str:
         if task.managed_by_rule_id is not None:
             return f"/event-rules/{task.managed_by_rule_id}"
+        if task.managed_by_recovery_rule_id is not None:
+            return f"/recovery-rules/{task.managed_by_recovery_rule_id}"
         return f"/tasks/{task.id}"
 
     @staticmethod

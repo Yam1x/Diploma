@@ -4,6 +4,13 @@ export type ServiceType = "db_backupper" | "s3_backupper" | "env_synchronizer";
 export type TriggerMode = "scheduled" | "event_based";
 
 export type EventRuleWatcherStatus = "disabled" | "waiting_for_baseline" | "watching" | "cooldown" | "error";
+export type RecoveryRuleWatcherStatus =
+  | "disabled"
+  | "waiting_for_baseline"
+  | "watching"
+  | "restoring"
+  | "cooldown"
+  | "error";
 
 export type ServiceDiscoveryPort = {
   name: string | null;
@@ -279,6 +286,93 @@ export type BackupEventRulePayload = {
 
 export type BackupEventRuleUpdatePayload = Partial<BackupEventRulePayload>;
 
+export type RecoveryEventRuleSummary = {
+  id: number;
+  name: string;
+  namespace: string;
+  enabled: boolean;
+  dbName: string;
+  s3Name: string;
+  eventWatcherStatus: RecoveryRuleWatcherStatus | string;
+  lastPolledAt: string | null;
+  lastDbEmptyAt: string | null;
+  lastS3EmptyAt: string | null;
+  lastDbTriggeredAt: string | null;
+  lastS3TriggeredAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorMessage: string | null;
+  updatedAt: string;
+};
+
+export type RecoveryEventRuleDbDetail = {
+  name: string;
+  dbBackupsFilenamePrefix: string;
+  sourceAwsEndpoint: string;
+  sourceAwsBucketName: string;
+  sourceAwsAccessKeyId: string;
+  targetDatabaseHost: string;
+  targetDatabaseName: string;
+  targetDatabaseUsername: string;
+  hasSourceAwsSecretAccessKey: boolean;
+  hasTargetDatabasePassword: boolean;
+};
+
+export type RecoveryEventRuleS3Detail = {
+  name: string;
+  s3BackupsFilenamePrefix: string;
+  sourceS3AwsEndpoint: string;
+  sourceS3AwsBucketName: string;
+  sourceS3AwsAccessKeyId: string;
+  targetS3AwsEndpoint: string;
+  targetS3AwsBucketName: string;
+  targetS3AwsBucketSubfolderName: string;
+  targetS3AwsAccessKeyId: string;
+  hasSourceS3AwsSecretAccessKey: boolean;
+  hasTargetS3AwsSecretAccessKey: boolean;
+};
+
+export type RecoveryEventRuleDetail = RecoveryEventRuleSummary & {
+  db: RecoveryEventRuleDbDetail;
+  s3: RecoveryEventRuleS3Detail;
+};
+
+export type RecoveryEventRuleDbPayload = {
+  name: string;
+  dbBackupsFilenamePrefix: string;
+  sourceAwsEndpoint: string;
+  sourceAwsBucketName: string;
+  sourceAwsAccessKeyId: string;
+  sourceAwsSecretAccessKey?: string;
+  targetDatabaseHost: string;
+  targetDatabaseName: string;
+  targetDatabaseUsername: string;
+  targetDatabasePassword?: string;
+};
+
+export type RecoveryEventRuleS3Payload = {
+  name: string;
+  s3BackupsFilenamePrefix: string;
+  sourceS3AwsEndpoint: string;
+  sourceS3AwsBucketName: string;
+  sourceS3AwsAccessKeyId: string;
+  sourceS3AwsSecretAccessKey?: string;
+  targetS3AwsEndpoint: string;
+  targetS3AwsBucketName: string;
+  targetS3AwsBucketSubfolderName: string;
+  targetS3AwsAccessKeyId: string;
+  targetS3AwsSecretAccessKey?: string;
+};
+
+export type RecoveryEventRulePayload = {
+  name: string;
+  namespace: string;
+  enabled: boolean;
+  db: RecoveryEventRuleDbPayload;
+  s3: RecoveryEventRuleS3Payload;
+};
+
+export type RecoveryEventRuleUpdatePayload = Partial<RecoveryEventRulePayload>;
+
 export type NamespacePayload = {
   name: string;
 };
@@ -366,6 +460,16 @@ export const api = {
   runEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/run`, { method: "POST" }),
   disableEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/disable`, { method: "POST" }),
   deleteEventRule: (ruleId: string) => request<void>(`/event-rules/${ruleId}`, { method: "DELETE" }),
+  listRecoveryRules: () => request<RecoveryEventRuleSummary[]>("/recovery-rules"),
+  getRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}`),
+  createRecoveryRule: (payload: RecoveryEventRulePayload) =>
+    request<RecoveryEventRuleDetail>("/recovery-rules", { method: "POST", body: JSON.stringify(payload) }),
+  updateRecoveryRule: (ruleId: string, payload: RecoveryEventRuleUpdatePayload) =>
+    request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  enableRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/enable`, { method: "POST" }),
+  runRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/run`, { method: "POST" }),
+  disableRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/disable`, { method: "POST" }),
+  deleteRecoveryRule: (ruleId: string) => request<void>(`/recovery-rules/${ruleId}`, { method: "DELETE" }),
   listTaskJobRuns: (taskId: string) => request<TaskJobRunsResponse>(`/tasks/${taskId}/job-runs`),
   getTaskJobRunLogs: (taskId: string, runId: number) => request<JobRunLogsResponse>(`/tasks/${taskId}/job-runs/${runId}/logs`),
   createTask: (payload: TaskPayload) => request<TaskDetail>("/tasks", { method: "POST", body: JSON.stringify(payload) }),

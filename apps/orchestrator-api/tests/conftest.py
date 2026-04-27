@@ -10,11 +10,13 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.main as main_module
-from app.api.deps import get_event_rule_service, get_minio_browser_service, get_task_service
+from app.api.deps import get_event_rule_service, get_minio_browser_service, get_recovery_rule_service, get_task_service
 from app.db import Base
 from app.models.event_rule import BackupEventRule, BackupEventRuleState  # noqa: F401
+from app.models.recovery_rule import RecoveryEventRule, RecoveryEventRuleState  # noqa: F401
 from app.services.task_service import TaskService
 from app.services.event_rule_service import EventRuleService
+from app.services.recovery_rule_service import RecoveryEventRuleService
 
 
 class FakeHelm:
@@ -175,8 +177,12 @@ def client(
     def override_get_event_rule_service() -> EventRuleService:
         return EventRuleService(db=db_session, task_service=TaskService(db=db_session, helm=fake_helm, kube=fake_kube))
 
+    def override_get_recovery_rule_service() -> RecoveryEventRuleService:
+        return RecoveryEventRuleService(db=db_session, task_service=TaskService(db=db_session, helm=fake_helm, kube=fake_kube))
+
     main_module.app.dependency_overrides[get_task_service] = override_get_task_service
     main_module.app.dependency_overrides[get_event_rule_service] = override_get_event_rule_service
+    main_module.app.dependency_overrides[get_recovery_rule_service] = override_get_recovery_rule_service
     main_module.app.dependency_overrides[get_minio_browser_service] = lambda: fake_minio_browser_service
     with TestClient(main_module.app) as test_client:
         yield test_client

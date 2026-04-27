@@ -26,6 +26,7 @@ def get_db():
 def init_db() -> None:
     from app.models.event_rule import BackupEventRule, BackupEventRuleState  # noqa: F401
     from app.models.notification import Notification  # noqa: F401
+    from app.models.recovery_rule import RecoveryEventRule, RecoveryEventRuleState  # noqa: F401
     from app.models.task import Task, TaskEventWatchState, TaskJobRun, TaskSecret  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
@@ -43,7 +44,7 @@ def _upgrade_task_schema() -> None:
                 SELECT t.typname
                 FROM pg_type AS t
                 JOIN pg_enum AS e ON e.enumtypid = t.oid
-                WHERE e.enumlabel IN ('db_backupper', 's3_backupper')
+                WHERE e.enumlabel IN ('db_backupper', 's3_backupper', 'db_restorer', 's3_restorer')
                 GROUP BY t.typname
                 ORDER BY COUNT(*) DESC, t.typname
                 LIMIT 1
@@ -53,9 +54,12 @@ def _upgrade_task_schema() -> None:
 
         if enum_type_name and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", enum_type_name):
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'env_synchronizer'"))
+            connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'db_restorer'"))
+            connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 's3_restorer'"))
 
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_repository VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS path_to_helmfile VARCHAR(255)"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS target_s3_aws_bucket_subfolder_name VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trigger_mode VARCHAR(20) NOT NULL DEFAULT 'scheduled'"))
         connection.execute(text("ALTER TABLE tasks ALTER COLUMN schedule DROP NOT NULL"))
         connection.execute(
@@ -127,6 +131,7 @@ def _upgrade_task_schema() -> None:
         connection.execute(text("ALTER TABLE backup_event_rules ADD COLUMN IF NOT EXISTS db_display_name VARCHAR(120) NOT NULL DEFAULT 'DB backup'"))
         connection.execute(text("ALTER TABLE backup_event_rules ADD COLUMN IF NOT EXISTS s3_display_name VARCHAR(120) NOT NULL DEFAULT 'S3 backup'"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS managed_by_rule_id INTEGER NULL"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS managed_by_recovery_rule_id INTEGER NULL"))
         connection.execute(
             text(
                 """
@@ -167,9 +172,70 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS recovery_event_rules (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(120) NOT NULL UNIQUE,
+                    namespace VARCHAR(120) NOT NULL DEFAULT 'default',
+                    db_display_name VARCHAR(120) NOT NULL DEFAULT 'DB restore',
+                    s3_display_name VARCHAR(120) NOT NULL DEFAULT 'S3 restore',
+                    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                    db_task_id INTEGER NULL REFERENCES tasks(id),
+                    s3_task_id INTEGER NULL REFERENCES tasks(id),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS recovery_event_rule_states (
+                    rule_id INTEGER PRIMARY KEY REFERENCES recovery_event_rules(id),
+                    last_db_is_empty BOOLEAN NOT NULL DEFAULT FALSE,
+                    last_s3_is_empty BOOLEAN NOT NULL DEFAULT FALSE,
+                    db_restore_pending BOOLEAN NOT NULL DEFAULT FALSE,
+                    s3_restore_pending BOOLEAN NOT NULL DEFAULT FALSE,
+                    last_polled_at TIMESTAMPTZ NULL,
+                    last_db_empty_at TIMESTAMPTZ NULL,
+                    last_s3_empty_at TIMESTAMPTZ NULL,
+                    last_db_triggered_at TIMESTAMPTZ NULL,
+                    last_s3_triggered_at TIMESTAMPTZ NULL,
+                    last_error_at TIMESTAMPTZ NULL,
+                    last_error_message TEXT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'fk_tasks_managed_by_recovery_rule_id'
+                    ) THEN
+                        ALTER TABLE tasks
+                        ADD CONSTRAINT fk_tasks_managed_by_recovery_rule_id
+                        FOREIGN KEY (managed_by_recovery_rule_id) REFERENCES recovery_event_rules(id);
+                    END IF;
+                END$$
+                """
+            )
+        )
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_db_task_id ON backup_event_rules(db_task_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_s3_task_id ON backup_event_rules(s3_task_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_managed_by_rule_id ON tasks(managed_by_rule_id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_recovery_event_rules_db_task_id ON recovery_event_rules(db_task_id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_recovery_event_rules_s3_task_id ON recovery_event_rules(s3_task_id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_managed_by_recovery_rule_id ON tasks(managed_by_recovery_rule_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_task_job_runs_task_id ON task_job_runs(task_id)"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_text TEXT"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_collected_at TIMESTAMPTZ"))
@@ -232,11 +298,45 @@ def _upgrade_task_schema() -> None:
         connection.execute(
             text(
                 """
+                DELETE FROM recovery_event_rule_states
+                WHERE rule_id IN (
+                    SELECT r.id
+                    FROM recovery_event_rules AS r
+                    LEFT JOIN tasks AS db_task ON db_task.id = r.db_task_id
+                    LEFT JOIN tasks AS s3_task ON s3_task.id = r.s3_task_id
+                    WHERE COALESCE(db_task.managed_by_recovery_rule_id, s3_task.managed_by_recovery_rule_id) IS NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                DELETE FROM recovery_event_rules AS r
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM tasks AS db_task
+                    WHERE db_task.id = r.db_task_id
+                      AND db_task.managed_by_recovery_rule_id IS NULL
+                )
+                   OR EXISTS (
+                    SELECT 1
+                    FROM tasks AS s3_task
+                    WHERE s3_task.id = r.s3_task_id
+                      AND s3_task.managed_by_recovery_rule_id IS NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
                 DELETE FROM task_event_watch_states
                 WHERE task_id IN (
                     SELECT id
                     FROM tasks
                     WHERE managed_by_rule_id IS NULL
+                      AND managed_by_recovery_rule_id IS NULL
                       AND trigger_mode = 'event_based'
                 )
                 """
@@ -250,6 +350,7 @@ def _upgrade_task_schema() -> None:
                     SELECT id
                     FROM tasks
                     WHERE managed_by_rule_id IS NULL
+                      AND managed_by_recovery_rule_id IS NULL
                       AND trigger_mode = 'event_based'
                 )
                 """
@@ -263,6 +364,7 @@ def _upgrade_task_schema() -> None:
                     SELECT id
                     FROM tasks
                     WHERE managed_by_rule_id IS NULL
+                      AND managed_by_recovery_rule_id IS NULL
                       AND trigger_mode = 'event_based'
                 )
                 """
@@ -273,6 +375,7 @@ def _upgrade_task_schema() -> None:
                 """
                 DELETE FROM tasks
                 WHERE managed_by_rule_id IS NULL
+                  AND managed_by_recovery_rule_id IS NULL
                   AND trigger_mode = 'event_based'
                 """
             )

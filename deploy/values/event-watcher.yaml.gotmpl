@@ -22,6 +22,16 @@ config:
       repositoryUrl: "https://github.com/Yam1x/Diploma.git"
       ref: "master"
       path: "diploma-db-backupper/ci"
+  dbRestorer:
+    image:
+      registry: "ghcr.io"
+      repository: "yam1x/diploma-db-restorer"
+      tag: "latest"
+      pullPolicy: "Always"
+    chart:
+      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      ref: "master"
+      path: "diploma-db-restorer/ci"
   s3Backupper:
     image:
       registry: "ghcr.io"
@@ -32,6 +42,16 @@ config:
       repositoryUrl: "https://github.com/Yam1x/Diploma.git"
       ref: "master"
       path: "diploma-s3-backupper/ci"
+  s3Restorer:
+    image:
+      registry: "ghcr.io"
+      repository: "yam1x/diploma-s3-restorer"
+      tag: "latest"
+      pullPolicy: "Always"
+    chart:
+      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      ref: "master"
+      path: "diploma-s3-restorer/ci"
   envSynchronizer:
     image:
       registry: "ghcr.io"
@@ -51,4 +71,4 @@ config:
   eventWatcher:
     enabled: true
     pollIntervalSeconds: 60
-    cooldownSeconds: 600
+    cooldownSeconds: 10

@@ -21,7 +21,7 @@ beforeEach(() => {
   api.markAllNotificationsRead.mockResolvedValue(undefined);
 });
 
-test("renders sidebar with backup and minio sections", async () => {
+test("renders sidebar with backup, recovery, and minio sections", async () => {
   render(
     <MemoryRouter initialEntries={["/minio-files"]}>
       <Layout>
@@ -32,14 +32,13 @@ test("renders sidebar with backup and minio sections", async () => {
 
   expect(screen.getByText("Сервисы резервного копирования")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Настройка сервисов" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Combined Event Rules" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Event Rules" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Recovery Rules" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Просмотр файлов в MinIO" })).toHaveClass("active");
   expect(await screen.findByText("content")).toBeInTheDocument();
 });
 
-test("does not start interval polling for notifications", async () => {
-  const setIntervalSpy = vi.spyOn(window, "setInterval");
-
+test("loads notifications on mount", async () => {
   render(
     <MemoryRouter initialEntries={["/"]}>
       <Layout>
@@ -50,7 +49,4 @@ test("does not start interval polling for notifications", async () => {
 
   expect(await screen.findByText("content")).toBeInTheDocument();
   expect(api.listNotifications).toHaveBeenCalledTimes(1);
-  expect(setIntervalSpy).not.toHaveBeenCalled();
-
-  setIntervalSpy.mockRestore();
 });

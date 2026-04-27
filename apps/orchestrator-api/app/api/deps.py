@@ -5,6 +5,7 @@ from app.db import get_db
 from app.services.event_rule_service import EventRuleService
 from app.services.minio_browser_service import MinioBrowserService
 from app.services.notification_service import NotificationService
+from app.services.recovery_rule_service import RecoveryEventRuleService
 from app.services.stats_service import StatsService
 from app.services.task_service import TaskService
 
@@ -15,6 +16,10 @@ def get_task_service(db: Session = Depends(get_db)) -> TaskService:
 
 def get_event_rule_service(db: Session = Depends(get_db)) -> EventRuleService:
     return EventRuleService(db=db)
+
+
+def get_recovery_rule_service(db: Session = Depends(get_db)) -> RecoveryEventRuleService:
+    return RecoveryEventRuleService(db=db)
 
 
 def get_minio_browser_service() -> MinioBrowserService:

@@ -12,6 +12,13 @@ data:
   ORCHESTRATOR_DB_BACKUPPER_CHART_REPOSITORY_URL: {{ .Values.config.dbBackupper.chart.repositoryUrl | quote }}
   ORCHESTRATOR_DB_BACKUPPER_CHART_REF: {{ .Values.config.dbBackupper.chart.ref | quote }}
   ORCHESTRATOR_DB_BACKUPPER_CHART_PATH: {{ .Values.config.dbBackupper.chart.path | quote }}
+  ORCHESTRATOR_DB_RESTORER_IMAGE_REGISTRY: {{ .Values.config.dbRestorer.image.registry | quote }}
+  ORCHESTRATOR_DB_RESTORER_IMAGE_REPOSITORY: {{ .Values.config.dbRestorer.image.repository | quote }}
+  ORCHESTRATOR_DB_RESTORER_IMAGE_TAG: {{ .Values.config.dbRestorer.image.tag | quote }}
+  ORCHESTRATOR_DB_RESTORER_IMAGE_PULL_POLICY: {{ .Values.config.dbRestorer.image.pullPolicy | quote }}
+  ORCHESTRATOR_DB_RESTORER_CHART_REPOSITORY_URL: {{ .Values.config.dbRestorer.chart.repositoryUrl | quote }}
+  ORCHESTRATOR_DB_RESTORER_CHART_REF: {{ .Values.config.dbRestorer.chart.ref | quote }}
+  ORCHESTRATOR_DB_RESTORER_CHART_PATH: {{ .Values.config.dbRestorer.chart.path | quote }}
   ORCHESTRATOR_S3_BACKUPPER_IMAGE_REGISTRY: {{ .Values.config.s3Backupper.image.registry | quote }}
   ORCHESTRATOR_S3_BACKUPPER_IMAGE_REPOSITORY: {{ .Values.config.s3Backupper.image.repository | quote }}
   ORCHESTRATOR_S3_BACKUPPER_IMAGE_TAG: {{ .Values.config.s3Backupper.image.tag | quote }}
@@ -19,6 +26,13 @@ data:
   ORCHESTRATOR_S3_BACKUPPER_CHART_REPOSITORY_URL: {{ .Values.config.s3Backupper.chart.repositoryUrl | quote }}
   ORCHESTRATOR_S3_BACKUPPER_CHART_REF: {{ .Values.config.s3Backupper.chart.ref | quote }}
   ORCHESTRATOR_S3_BACKUPPER_CHART_PATH: {{ .Values.config.s3Backupper.chart.path | quote }}
+  ORCHESTRATOR_S3_RESTORER_IMAGE_REGISTRY: {{ .Values.config.s3Restorer.image.registry | quote }}
+  ORCHESTRATOR_S3_RESTORER_IMAGE_REPOSITORY: {{ .Values.config.s3Restorer.image.repository | quote }}
+  ORCHESTRATOR_S3_RESTORER_IMAGE_TAG: {{ .Values.config.s3Restorer.image.tag | quote }}
+  ORCHESTRATOR_S3_RESTORER_IMAGE_PULL_POLICY: {{ .Values.config.s3Restorer.image.pullPolicy | quote }}
+  ORCHESTRATOR_S3_RESTORER_CHART_REPOSITORY_URL: {{ .Values.config.s3Restorer.chart.repositoryUrl | quote }}
+  ORCHESTRATOR_S3_RESTORER_CHART_REF: {{ .Values.config.s3Restorer.chart.ref | quote }}
+  ORCHESTRATOR_S3_RESTORER_CHART_PATH: {{ .Values.config.s3Restorer.chart.path | quote }}
   ORCHESTRATOR_ENV_SYNCHRONIZER_IMAGE_REGISTRY: {{ .Values.config.envSynchronizer.image.registry | quote }}
   ORCHESTRATOR_ENV_SYNCHRONIZER_IMAGE_REPOSITORY: {{ .Values.config.envSynchronizer.image.repository | quote }}
   ORCHESTRATOR_ENV_SYNCHRONIZER_IMAGE_TAG: {{ .Values.config.envSynchronizer.image.tag | quote }}

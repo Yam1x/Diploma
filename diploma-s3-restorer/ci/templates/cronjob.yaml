@@ -1,0 +1,61 @@
+{{- if eq .Values.triggerMode "scheduled" }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "{{ .Values.extraConfigMapEnvVars.BACKUPS_SCHEDULE }}"
+  successfulJobsHistoryLimit: 20
+  failedJobsHistoryLimit: 20
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: {{ .Release.Name }}
+              {{- if .Values.image.registry }}
+              image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+              {{- else }}
+              image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+              {{- end }}
+              resources:
+                limits:
+                  cpu: {{ .Values.resources.limits.cpu }}
+                  memory: {{ .Values.resources.limits.memory }}
+                requests:
+                  cpu: {{ .Values.resources.requests.cpu }}
+                  memory: {{ .Values.resources.requests.memory }}
+              env:
+                - name: S3_BACKUPS_FILENAME_PREFIX
+                  value: {{ .Values.extraConfigMapEnvVars.S3_BACKUPS_FILENAME_PREFIX }}
+                - name: SOURCE_S3_AWS_ENDPOINT
+                  value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_ENDPOINT }}
+                - name: SOURCE_S3_AWS_ACCESS_KEY_ID
+                  value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_ACCESS_KEY_ID }}
+                - name: SOURCE_S3_AWS_SECRET_ACCESS_KEY
+                  value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_SECRET_ACCESS_KEY }}
+                - name: SOURCE_S3_AWS_BUCKET_NAME
+                  value: {{ .Values.extraConfigMapEnvVars.SOURCE_S3_AWS_BUCKET_NAME }}
+                - name: TARGET_S3_AWS_ENDPOINT
+                  value: {{ .Values.extraConfigMapEnvVars.TARGET_S3_AWS_ENDPOINT }}
+                - name: TARGET_S3_AWS_ACCESS_KEY_ID
+                  value: {{ .Values.extraConfigMapEnvVars.TARGET_S3_AWS_ACCESS_KEY_ID }}
+                - name: TARGET_S3_AWS_SECRET_ACCESS_KEY
+                  value: {{ .Values.extraConfigMapEnvVars.TARGET_S3_AWS_SECRET_ACCESS_KEY }}
+                - name: TARGET_S3_AWS_BUCKET_NAME
+                  value: {{ .Values.extraConfigMapEnvVars.TARGET_S3_AWS_BUCKET_NAME }}
+                - name: TARGET_S3_AWS_BUCKET_SUBFOLDER_NAME
+                  value: {{ .Values.extraConfigMapEnvVars.TARGET_S3_AWS_BUCKET_SUBFOLDER_NAME }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+{{- else }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  triggerMode: {{ .Values.triggerMode | quote }}
+{{- end }}

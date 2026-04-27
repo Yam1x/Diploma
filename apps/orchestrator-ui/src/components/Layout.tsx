@@ -12,6 +12,10 @@ function isEventRulesRoute(pathname: string) {
   return pathname.startsWith("/event-rules");
 }
 
+function isRecoveryRulesRoute(pathname: string) {
+  return pathname.startsWith("/recovery-rules");
+}
+
 function formatNotificationDate(value: string) {
   return new Date(value).toLocaleString();
 }
@@ -143,6 +147,9 @@ function LayoutContent({ children }: PropsWithChildren) {
               </Link>
               <Link className={isEventRulesRoute(location.pathname) ? "sidebar-link active" : "sidebar-link"} to="/event-rules">
                 Event Rules
+              </Link>
+              <Link className={isRecoveryRulesRoute(location.pathname) ? "sidebar-link active" : "sidebar-link"} to="/recovery-rules">
+                Recovery Rules
               </Link>
               <Link className={location.pathname.startsWith("/tasks/new") ? "sidebar-link active" : "sidebar-link"} to="/tasks/new">
                 Новая задача

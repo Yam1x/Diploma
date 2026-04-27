@@ -1,0 +1,17 @@
+triggerMode: scheduled
+
+image:
+  registry: ghcr.io
+  repository: yam1x/diploma-s3-restorer
+  tag: latest
+  pullPolicy: Always
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 512Mi
+  requests:
+    cpu: 1m
+    memory: 256Mi
+
+extraConfigMapEnvVars:

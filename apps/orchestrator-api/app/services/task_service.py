@@ -5,12 +5,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import Settings, get_settings
 from app.core.helm import HelmClient, HelmError
 from app.core.kube import KubeClient, KubernetesError
 from app.core.security import SecretCipher
+from app.models.notification import Notification
 from app.models.task import ServiceType, Task, TaskEventWatchState, TaskJobRun, TaskSecret, TriggerMode
 from app.services.notification_service import NotificationService
 from app.schemas.task import (
@@ -69,7 +71,7 @@ class TaskService:
         tasks = (
             self.db.query(Task)
             .options(joinedload(Task.secret))
-            .filter(Task.managed_by_rule_id.is_(None))
+            .filter(Task.managed_by_rule_id.is_(None), Task.managed_by_recovery_rule_id.is_(None))
             .order_by(Task.updated_at.desc())
             .all()
         )
@@ -233,7 +235,7 @@ class TaskService:
     def delete_task(self, task_id: int) -> None:
         task = self._get_public_task_model(task_id)
         self._cleanup_release(task)
-        self.db.delete(task)
+        self._delete_task_model(task)
         self.db.commit()
 
     def list_namespaces(self) -> list[str]:
@@ -330,6 +332,21 @@ class TaskService:
         lowered = message.lower()
         return "not found" in lowered or "release: not found" in lowered
 
+    def _delete_task_model(self, task: Task) -> None:
+        run_ids = select(TaskJobRun.id).where(TaskJobRun.task_id == task.id)
+        (
+            self.db.query(Notification)
+            .filter(
+                or_(
+                    Notification.task_id == task.id,
+                    Notification.job_run_id.in_(run_ids),
+                )
+            )
+            .delete(synchronize_session=False)
+        )
+        self.db.delete(task)
+        self.db.flush()
+
     def _apply_release(self, task: Task) -> None:
         self._validate_required_secrets(task)
         config = self._get_deployment_config(task.service_type, self.settings)
@@ -393,8 +410,36 @@ class TaskService:
                 "extraConfigMapEnvVars": runtime["env"],
             }
 
+        if task.service_type == ServiceType.DB_RESTORER:
+            runtime = self._build_db_restore_runtime(task, config, include_schedule=task.trigger_mode != TriggerMode.EVENT_BASED.value)
+            return {
+                "image": {
+                    "registry": config.image_registry,
+                    "repository": config.image_repository,
+                    "tag": config.image_tag,
+                    "pullPolicy": config.image_pull_policy,
+                },
+                "resources": runtime["resources"],
+                "triggerMode": task.trigger_mode,
+                "extraConfigMapEnvVars": runtime["env"],
+            }
+
         if task.service_type == ServiceType.S3_BACKUPPER:
             runtime = self._build_s3_runtime(task, config, include_schedule=task.trigger_mode != TriggerMode.EVENT_BASED.value)
+            return {
+                "image": {
+                    "registry": config.image_registry,
+                    "repository": config.image_repository,
+                    "tag": config.image_tag,
+                    "pullPolicy": config.image_pull_policy,
+                },
+                "resources": runtime["resources"],
+                "triggerMode": task.trigger_mode,
+                "extraConfigMapEnvVars": runtime["env"],
+            }
+
+        if task.service_type == ServiceType.S3_RESTORER:
+            runtime = self._build_s3_restore_runtime(task, config, include_schedule=task.trigger_mode != TriggerMode.EVENT_BASED.value)
             return {
                 "image": {
                     "registry": config.image_registry,
@@ -481,6 +526,57 @@ class TaskService:
             "env": env,
         }
 
+    def _build_db_restore_runtime(self, task: Task, config: ServiceDeploymentConfig, include_schedule: bool) -> dict[str, Any]:
+        env = {
+            "DB_BACKUPS_FILENAME_PREFIX": task.db_backups_filename_prefix or "",
+            "SOURCE_DB_AWS_ENDPOINT": task.destination_aws_endpoint or "",
+            "SOURCE_DB_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id or "",
+            "SOURCE_DB_AWS_SECRET_ACCESS_KEY": task.secret.destination_aws_secret_access_key_encrypted or "",
+            "SOURCE_DB_AWS_BUCKET_NAME": task.destination_aws_bucket_name or "",
+            "TARGET_DATABASE_HOST": task.database_host or "",
+            "TARGET_DATABASE_USERNAME": task.database_username or "",
+            "TARGET_DATABASE_PASSWORD": task.secret.database_password_encrypted or "",
+            "TARGET_DATABASE_NAME": task.database_name or "",
+        }
+        if include_schedule and task.schedule:
+            env = {"BACKUPS_SCHEDULE": task.schedule, **env}
+
+        return {
+            "image": self._resolve_image(config),
+            "imagePullPolicy": config.image_pull_policy,
+            "resources": {
+                "limits": {"cpu": "200m", "memory": "512Mi"},
+                "requests": {"cpu": "1m", "memory": "256Mi"},
+            },
+            "env": env,
+        }
+
+    def _build_s3_restore_runtime(self, task: Task, config: ServiceDeploymentConfig, include_schedule: bool) -> dict[str, Any]:
+        env = {
+            "S3_BACKUPS_FILENAME_PREFIX": task.s3_backups_filename_prefix or "",
+            "SOURCE_S3_AWS_ENDPOINT": task.source_s3_aws_endpoint or "",
+            "SOURCE_S3_AWS_ACCESS_KEY_ID": task.source_s3_aws_access_key_id or "",
+            "SOURCE_S3_AWS_SECRET_ACCESS_KEY": task.secret.source_s3_aws_secret_access_key_encrypted or "",
+            "SOURCE_S3_AWS_BUCKET_NAME": task.source_s3_aws_bucket_name or "",
+            "TARGET_S3_AWS_ENDPOINT": task.destination_s3_aws_endpoint or "",
+            "TARGET_S3_AWS_ACCESS_KEY_ID": task.destination_s3_aws_access_key_id or "",
+            "TARGET_S3_AWS_SECRET_ACCESS_KEY": task.secret.destination_s3_aws_secret_access_key_encrypted or "",
+            "TARGET_S3_AWS_BUCKET_NAME": task.destination_s3_aws_bucket_name or "",
+            "TARGET_S3_AWS_BUCKET_SUBFOLDER_NAME": task.target_s3_aws_bucket_subfolder_name or "",
+        }
+        if include_schedule and task.schedule:
+            env = {"BACKUPS_SCHEDULE": task.schedule, **env}
+
+        return {
+            "image": self._resolve_image(config),
+            "imagePullPolicy": config.image_pull_policy,
+            "resources": {
+                "limits": {"cpu": "200m", "memory": "512Mi"},
+                "requests": {"cpu": "1m", "memory": "256Mi"},
+            },
+            "env": env,
+        }
+
     def _build_db_job_spec(self, task: Task, config: ServiceDeploymentConfig) -> dict[str, Any]:
         runtime = self._build_db_runtime(task, config, include_schedule=False)
         return {
@@ -494,6 +590,25 @@ class TaskService:
                             "imagePullPolicy": runtime["imagePullPolicy"],
                             "resources": runtime["resources"],
                             "env": self._build_db_job_env(runtime["env"]),
+                        }
+                    ],
+                }
+            }
+        }
+
+    def _build_db_restore_job_spec(self, task: Task, config: ServiceDeploymentConfig) -> dict[str, Any]:
+        runtime = self._build_db_restore_runtime(task, config, include_schedule=False)
+        return {
+            "template": {
+                "spec": {
+                    "restartPolicy": "OnFailure",
+                    "containers": [
+                        {
+                            "name": task.release_name,
+                            "image": runtime["image"],
+                            "imagePullPolicy": runtime["imagePullPolicy"],
+                            "resources": runtime["resources"],
+                            "env": self._build_db_restore_job_env(runtime["env"]),
                         }
                     ],
                 }
@@ -519,12 +634,35 @@ class TaskService:
             }
         }
 
+    def _build_s3_restore_job_spec(self, task: Task, config: ServiceDeploymentConfig) -> dict[str, Any]:
+        runtime = self._build_s3_restore_runtime(task, config, include_schedule=False)
+        return {
+            "template": {
+                "spec": {
+                    "restartPolicy": "OnFailure",
+                    "containers": [
+                        {
+                            "name": task.release_name,
+                            "image": runtime["image"],
+                            "imagePullPolicy": runtime["imagePullPolicy"],
+                            "resources": runtime["resources"],
+                            "env": self._build_container_env(runtime["env"]),
+                        }
+                    ],
+                }
+            }
+        }
+
     def _build_ad_hoc_job_spec(self, task: Task) -> dict[str, Any]:
         config = self._get_deployment_config(task.service_type, self.settings)
         if task.service_type == ServiceType.DB_BACKUPPER:
             return self._build_db_job_spec(task, config)
+        if task.service_type == ServiceType.DB_RESTORER:
+            return self._build_db_restore_job_spec(task, config)
         if task.service_type == ServiceType.S3_BACKUPPER:
             return self._build_s3_job_spec(task, config)
+        if task.service_type == ServiceType.S3_RESTORER:
+            return self._build_s3_restore_job_spec(task, config)
         raise ValueError("Ad-hoc jobs are not supported for this task type")
 
     @staticmethod
@@ -544,6 +682,13 @@ class TaskService:
             job_env["PGPASSWORD"] = password
         return self._build_container_env(job_env)
 
+    def _build_db_restore_job_env(self, env_vars: dict[str, str]) -> list[dict[str, str]]:
+        job_env = dict(env_vars)
+        password = job_env.get("TARGET_DATABASE_PASSWORD")
+        if password is not None:
+            job_env["PGPASSWORD"] = password
+        return self._build_container_env(job_env)
+
     def _validate_required_secrets(self, task: Task) -> None:
         if task.service_type == ServiceType.ENV_SYNCHRONIZER:
             return
@@ -553,6 +698,20 @@ class TaskService:
                 raise HTTPException(status_code=400, detail="Database password is not configured")
             if not task.secret.destination_aws_secret_access_key_encrypted:
                 raise HTTPException(status_code=400, detail="Destination AWS secret access key is not configured")
+            return
+
+        if task.service_type == ServiceType.DB_RESTORER:
+            if not task.secret.database_password_encrypted:
+                raise HTTPException(status_code=400, detail="Target database password is not configured")
+            if not task.secret.destination_aws_secret_access_key_encrypted:
+                raise HTTPException(status_code=400, detail="Source AWS secret access key is not configured")
+            return
+
+        if task.service_type == ServiceType.S3_RESTORER:
+            if not task.secret.source_s3_aws_secret_access_key_encrypted:
+                raise HTTPException(status_code=400, detail="Source S3 AWS secret access key is not configured")
+            if not task.secret.destination_s3_aws_secret_access_key_encrypted:
+                raise HTTPException(status_code=400, detail="Target S3 AWS secret access key is not configured")
             return
 
         if not task.secret.source_s3_aws_secret_access_key_encrypted:
@@ -606,14 +765,18 @@ class TaskService:
 
     def create_event_job_run(self, task: Task) -> TaskJobRun:
         if task.trigger_mode != TriggerMode.EVENT_BASED.value or not self._supports_event_mode(task.service_type):
-            raise ValueError("Event-based job runs are supported only for db_backupper and s3_backupper tasks in event mode")
+            raise ValueError(
+                "Event-based job runs are supported only for db_backupper, s3_backupper, db_restorer, and s3_restorer tasks in event mode"
+            )
         return self.create_triggered_job_run(task, trigger_type="event")
 
     def create_triggered_job_run(self, task: Task, trigger_type: str) -> TaskJobRun:
         if trigger_type not in {"manual", "event"}:
             raise ValueError("Unsupported trigger type")
         if task.trigger_mode != TriggerMode.EVENT_BASED.value or not self._supports_event_mode(task.service_type):
-            raise ValueError("Event-mode ad-hoc runs are supported only for db_backupper and s3_backupper tasks in event mode")
+            raise ValueError(
+                "Event-mode ad-hoc runs are supported only for db_backupper, s3_backupper, db_restorer, and s3_restorer tasks in event mode"
+            )
         if not task.enabled or not task.release_name:
             raise ValueError("Task must be enabled and deployed before ad-hoc runs can start")
 
@@ -651,7 +814,7 @@ class TaskService:
 
     def _get_public_task_model(self, task_id: int) -> Task:
         task = self._get_task_model(task_id)
-        if task.managed_by_rule_id is not None:
+        if task.managed_by_rule_id is not None or task.managed_by_recovery_rule_id is not None:
             raise HTTPException(status_code=404, detail="Task not found")
         return task
 
@@ -674,7 +837,9 @@ class TaskService:
             return DbTaskSummary(serviceType=task.service_type.value, **common)
         if task.service_type == ServiceType.S3_BACKUPPER:
             return S3TaskSummary(serviceType=task.service_type.value, **common)
-        return EnvSynchronizerTaskSummary(serviceType=task.service_type.value, **common)
+        if task.service_type == ServiceType.ENV_SYNCHRONIZER:
+            return EnvSynchronizerTaskSummary(serviceType=task.service_type.value, **common)
+        raise HTTPException(status_code=500, detail="Unsupported public task type")
 
     def _to_detail(self, task: Task) -> TaskDetail:
         summary = self._to_summary(task)
@@ -717,11 +882,14 @@ class TaskService:
                 lastEventMessage=state.last_error_message if state else None,
             )
 
-        return EnvSynchronizerTaskDetail(
-            **summary.model_dump(),
-            envRepository=task.env_repository or "",
-            pathToHelmfile=task.path_to_helmfile or "",
-        )
+        if task.service_type == ServiceType.ENV_SYNCHRONIZER:
+            return EnvSynchronizerTaskDetail(
+                **summary.model_dump(),
+                envRepository=task.env_repository or "",
+                pathToHelmfile=task.path_to_helmfile or "",
+            )
+
+        raise HTTPException(status_code=500, detail="Unsupported public task type")
 
     def _resolve_event_watcher_status(self, task: Task, state: TaskEventWatchState | None) -> str:
         if task.trigger_mode != TriggerMode.EVENT_BASED.value:
@@ -761,12 +929,20 @@ class TaskService:
         if normalized == TriggerMode.EVENT_BASED and service_type in {ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER}:
             raise HTTPException(status_code=400, detail="Event-based trigger mode is configured only through event rules")
         if normalized == TriggerMode.EVENT_BASED and not TaskService._supports_event_mode(service_type):
-            raise HTTPException(status_code=400, detail="Event-based trigger mode is supported only for db_backupper and s3_backupper tasks")
+            raise HTTPException(
+                status_code=400,
+                detail="Event-based trigger mode is supported only for db_backupper, s3_backupper, db_restorer, and s3_restorer tasks",
+            )
         return normalized
 
     @staticmethod
     def _supports_event_mode(service_type: ServiceType) -> bool:
-        return service_type in {ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER}
+        return service_type in {
+            ServiceType.DB_BACKUPPER,
+            ServiceType.S3_BACKUPPER,
+            ServiceType.DB_RESTORER,
+            ServiceType.S3_RESTORER,
+        }
 
     @staticmethod
     def _normalize_datetime(value: datetime | None) -> datetime | None:
@@ -855,6 +1031,18 @@ class TaskService:
                 release_prefix="db-backupper",
             )
 
+        if service_type == ServiceType.DB_RESTORER:
+            return ServiceDeploymentConfig(
+                image_registry=settings.db_restorer_image_registry,
+                image_repository=settings.db_restorer_image_repository,
+                image_tag=settings.db_restorer_image_tag,
+                image_pull_policy=settings.db_restorer_image_pull_policy,
+                chart_repository_url=settings.db_restorer_chart_repository_url,
+                chart_ref=settings.db_restorer_chart_ref,
+                chart_path=settings.db_restorer_chart_path,
+                release_prefix="db-restorer",
+            )
+
         if service_type == ServiceType.S3_BACKUPPER:
             return ServiceDeploymentConfig(
                 image_registry=settings.s3_backupper_image_registry,
@@ -865,6 +1053,18 @@ class TaskService:
                 chart_ref=settings.s3_backupper_chart_ref,
                 chart_path=settings.s3_backupper_chart_path,
                 release_prefix="s3-backupper",
+            )
+
+        if service_type == ServiceType.S3_RESTORER:
+            return ServiceDeploymentConfig(
+                image_registry=settings.s3_restorer_image_registry,
+                image_repository=settings.s3_restorer_image_repository,
+                image_tag=settings.s3_restorer_image_tag,
+                image_pull_policy=settings.s3_restorer_image_pull_policy,
+                chart_repository_url=settings.s3_restorer_chart_repository_url,
+                chart_ref=settings.s3_restorer_chart_ref,
+                chart_path=settings.s3_restorer_chart_path,
+                release_prefix="s3-restorer",
             )
 
         return ServiceDeploymentConfig(

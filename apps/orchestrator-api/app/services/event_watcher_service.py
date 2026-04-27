@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 import boto3
 import psycopg
+from psycopg import sql
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException
@@ -18,9 +19,11 @@ from app.core.config import Settings, get_settings
 from app.core.kube import KubeClient, KubernetesError
 from app.db import SessionLocal
 from app.models.event_rule import BackupEventRule, BackupEventRuleState
+from app.models.recovery_rule import RecoveryEventRule, RecoveryEventRuleState
 from app.models.task import ServiceType, Task, TaskEventWatchState, TriggerMode
 from app.services.event_rule_service import EventRuleService
 from app.services.notification_service import NotificationService
+from app.services.recovery_rule_service import RecoveryEventRuleService
 from app.services.task_service import TaskService
 
 
@@ -68,8 +71,10 @@ class EventWatcherService:
             notifications = NotificationService(db)
             task_service = TaskService(db=db, kube=self.kube, notifications=notifications)
             event_rule_service = EventRuleService(db=db, notifications=notifications, task_service=task_service)
+            recovery_rule_service = RecoveryEventRuleService(db=db, notifications=notifications, task_service=task_service)
             tasks = self._load_tasks(db)
             rules = self._load_rules(db)
+            recovery_rules = self._load_recovery_rules(db)
             jobs_by_namespace: dict[str, list[dict]] = {}
 
             for task in tasks:
@@ -92,6 +97,14 @@ class EventWatcherService:
                 except Exception as exc:
                     event_rule_service.record_rule_error(rule, str(exc))
 
+            for rule in recovery_rules:
+                try:
+                    self._process_recovery_rule(db, rule, jobs_by_namespace, recovery_rule_service)
+                except KubernetesError as exc:
+                    recovery_rule_service.record_rule_error(rule, f"Kubernetes error: {exc}")
+                except Exception as exc:
+                    recovery_rule_service.record_rule_error(rule, str(exc))
+
             db.commit()
 
     def _load_tasks(self, db: Session) -> list[Task]:
@@ -108,6 +121,7 @@ class EventWatcherService:
             .filter(
                 Task.enabled.is_(True),
                 Task.managed_by_rule_id.is_(None),
+                Task.managed_by_recovery_rule_id.is_(None),
                 Task.service_type.in_([ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER]),
                 Task.trigger_mode == TriggerMode.EVENT_BASED.value,
             )
@@ -130,6 +144,19 @@ class EventWatcherService:
             )
             .filter(BackupEventRule.enabled.is_(True))
             .order_by(BackupEventRule.id.asc())
+            .all()
+        )
+
+    def _load_recovery_rules(self, db: Session) -> list[RecoveryEventRule]:
+        return (
+            db.query(RecoveryEventRule)
+            .options(
+                joinedload(RecoveryEventRule.db_task).joinedload(Task.secret),
+                joinedload(RecoveryEventRule.s3_task).joinedload(Task.secret),
+                joinedload(RecoveryEventRule.state),
+            )
+            .filter(RecoveryEventRule.enabled.is_(True))
+            .order_by(RecoveryEventRule.id.asc())
             .all()
         )
 
@@ -259,6 +286,84 @@ class EventWatcherService:
         except HTTPException:
             return
 
+    def _process_recovery_rule(
+        self,
+        db: Session,
+        rule: RecoveryEventRule,
+        jobs_by_namespace: dict[str, list[dict]],
+        recovery_rule_service: RecoveryEventRuleService,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        state = self._ensure_recovery_rule_state(db, rule)
+        is_first_poll = state.last_polled_at is None
+        state.last_polled_at = now
+        state.last_error_message = None
+
+        recovery_rule_service._validate_linked_tasks(rule)
+
+        db_is_empty = self._read_target_database_is_empty(rule.db_task)
+        s3_is_empty = self._read_target_s3_is_empty(rule.s3_task)
+
+        if is_first_poll:
+            state.last_db_is_empty = db_is_empty
+            state.last_s3_is_empty = s3_is_empty
+            state.db_restore_pending = False
+            state.s3_restore_pending = False
+            if db_is_empty:
+                state.last_db_empty_at = now
+            if s3_is_empty:
+                state.last_s3_empty_at = now
+            return
+
+        if db_is_empty:
+            if not state.last_db_is_empty:
+                state.last_db_empty_at = now
+            state.db_restore_pending = True
+        else:
+            state.db_restore_pending = False
+
+        if s3_is_empty:
+            if not state.last_s3_is_empty:
+                state.last_s3_empty_at = now
+            state.s3_restore_pending = True
+        else:
+            state.s3_restore_pending = False
+
+        state.last_db_is_empty = db_is_empty
+        state.last_s3_is_empty = s3_is_empty
+
+        db_jobs = jobs_by_namespace.get(rule.db_task.namespace)
+        if db_jobs is None:
+            db_jobs = self.kube.list_jobs(rule.db_task.namespace)
+            jobs_by_namespace[rule.db_task.namespace] = db_jobs
+
+        s3_jobs = jobs_by_namespace.get(rule.s3_task.namespace)
+        if s3_jobs is None:
+            s3_jobs = self.kube.list_jobs(rule.s3_task.namespace)
+            jobs_by_namespace[rule.s3_task.namespace] = s3_jobs
+
+        if (
+            state.db_restore_pending
+            and not self._has_active_job(rule.db_task.release_name, db_jobs)
+            and self._recovery_component_cooldown_elapsed(state.last_db_triggered_at, now)
+        ):
+            try:
+                recovery_rule_service._start_rule_jobs(rule, trigger_type="event", run_db=True, run_s3=False)
+                state.db_restore_pending = False
+            except HTTPException:
+                return
+
+        if (
+            state.s3_restore_pending
+            and not self._has_active_job(rule.s3_task.release_name, s3_jobs)
+            and self._recovery_component_cooldown_elapsed(state.last_s3_triggered_at, now)
+        ):
+            try:
+                recovery_rule_service._start_rule_jobs(rule, trigger_type="event", run_db=False, run_s3=True)
+                state.s3_restore_pending = False
+            except HTTPException:
+                return
+
     @staticmethod
     def _ensure_state(db: Session, task: Task) -> TaskEventWatchState:
         state = task.event_watch_state
@@ -277,6 +382,17 @@ class EventWatcherService:
             return state
 
         state = BackupEventRuleState(rule=rule)
+        db.add(state)
+        db.flush()
+        return state
+
+    @staticmethod
+    def _ensure_recovery_rule_state(db: Session, rule: RecoveryEventRule) -> RecoveryEventRuleState:
+        state = rule.state
+        if state is not None:
+            return state
+
+        state = RecoveryEventRuleState(rule=rule)
         db.add(state)
         db.flush()
         return state
@@ -345,6 +461,12 @@ class EventWatcherService:
             return True
 
         return (now - last_triggered_at).total_seconds() >= self.settings.event_watcher_cooldown_seconds
+
+    def _recovery_component_cooldown_elapsed(self, last_triggered_at: datetime | None, now: datetime) -> bool:
+        normalized = self._normalize_datetime(last_triggered_at)
+        if normalized is None:
+            return True
+        return (now - normalized).total_seconds() >= self.settings.event_watcher_cooldown_seconds
 
     @staticmethod
     def _has_active_job(release_name: str, jobs: list[dict]) -> bool:
@@ -459,6 +581,69 @@ class EventWatcherService:
         )
         payload = json.dumps(object_snapshots, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _read_target_database_is_empty(task: Task) -> bool:
+        password = task.secret.database_password_encrypted if task.secret else None
+        if not task.database_host or not task.database_name or not task.database_username or not password:
+            raise RuntimeError("Target database connection settings are incomplete")
+
+        with psycopg.connect(
+            host=task.database_host,
+            dbname=task.database_name,
+            user=task.database_username,
+            password=password,
+            connect_timeout=10,
+        ) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT table_schema, table_name
+                    FROM information_schema.tables
+                    WHERE table_type = 'BASE TABLE'
+                      AND table_schema NOT IN ('pg_catalog', 'information_schema')
+                    ORDER BY table_schema, table_name
+                    """
+                )
+                tables = cursor.fetchall()
+
+                for table_schema, table_name in tables:
+                    query = sql.SQL("SELECT EXISTS (SELECT 1 FROM {}.{} LIMIT 1)").format(
+                        sql.Identifier(table_schema),
+                        sql.Identifier(table_name),
+                    )
+                    cursor.execute(query)
+                    row = cursor.fetchone()
+                    if row and bool(row[0]):
+                        return False
+
+        return True
+
+    def _read_target_s3_is_empty(self, task: Task) -> bool:
+        target_secret = task.secret.destination_s3_aws_secret_access_key_encrypted if task.secret else None
+        if not task.destination_s3_aws_endpoint or not task.destination_s3_aws_access_key_id or not target_secret or not task.destination_s3_aws_bucket_name:
+            raise RuntimeError("Target S3 connection settings are incomplete")
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=task.destination_s3_aws_endpoint,
+            aws_access_key_id=task.destination_s3_aws_access_key_id,
+            aws_secret_access_key=target_secret,
+            region_name=self.settings.minio_region,
+            config=Config(signature_version="s3v4"),
+        )
+        prefix = (task.target_s3_aws_bucket_subfolder_name or "").strip()
+
+        try:
+            response = client.list_objects_v2(
+                Bucket=task.destination_s3_aws_bucket_name,
+                Prefix=prefix,
+                MaxKeys=1,
+            )
+        except (BotoCoreError, ClientError) as exc:
+            raise RuntimeError(f"Failed to read target S3 bucket state: {exc}") from exc
+
+        return not bool(response.get("Contents"))
 
     @staticmethod
     def _normalize_datetime(value: datetime | None) -> datetime | None:

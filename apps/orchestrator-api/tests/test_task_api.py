@@ -134,27 +134,23 @@ def test_s3_task_api_lifecycle(client, fake_helm) -> None:
     assert delete_response.status_code == 204
 
 
-def test_db_task_api_accepts_event_based_trigger_mode(client, fake_helm) -> None:
+def test_db_task_api_rejects_event_based_trigger_mode(client, fake_helm) -> None:
     payload = build_db_payload(enabled=True)
     payload["triggerMode"] = "event_based"
 
     response = client.post("/api/tasks", json=payload)
 
-    assert response.status_code == 201
-    created = response.json()
-    assert created["triggerMode"] == "event_based"
-    assert created["eventWatcherStatus"] == "waiting_for_baseline"
-    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["DATABASE_NAME"] == "app"
+    assert response.status_code == 400
+    assert "configured only through event rules" in response.json()["detail"]
+    assert fake_helm.upgrade_calls == []
 
 
-def test_s3_task_api_accepts_event_based_trigger_mode(client, fake_helm) -> None:
+def test_s3_task_api_rejects_event_based_trigger_mode(client, fake_helm) -> None:
     payload = build_s3_payload()
     payload["triggerMode"] = "event_based"
 
     response = client.post("/api/tasks", json=payload)
 
-    assert response.status_code == 201
-    created = response.json()
-    assert created["triggerMode"] == "event_based"
-    assert created["eventWatcherStatus"] == "waiting_for_baseline"
-    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["SOURCE_S3_AWS_BUCKET_NAME"] == "source-bucket"
+    assert response.status_code == 400
+    assert "configured only through event rules" in response.json()["detail"]
+    assert fake_helm.upgrade_calls == []

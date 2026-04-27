@@ -12,6 +12,8 @@ from app.db import Base
 class ServiceType(str, enum.Enum):
     DB_BACKUPPER = "db_backupper"
     S3_BACKUPPER = "s3_backupper"
+    DB_RESTORER = "db_restorer"
+    S3_RESTORER = "s3_restorer"
     ENV_SYNCHRONIZER = "env_synchronizer"
 
 
@@ -45,9 +47,11 @@ class Task(Base):
     destination_s3_aws_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destination_s3_aws_access_key_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destination_s3_aws_bucket_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    target_s3_aws_bucket_subfolder_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     env_repository: Mapped[str | None] = mapped_column(String(255), nullable=True)
     path_to_helmfile: Mapped[str | None] = mapped_column(String(255), nullable=True)
     managed_by_rule_id: Mapped[int | None] = mapped_column(ForeignKey("backup_event_rules.id"), nullable=True, index=True)
+    managed_by_recovery_rule_id: Mapped[int | None] = mapped_column(ForeignKey("recovery_event_rules.id"), nullable=True, index=True)
     release_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     last_apply_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
     last_apply_message: Mapped[str | None] = mapped_column(Text, nullable=True)

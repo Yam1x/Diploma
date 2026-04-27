@@ -1,0 +1,9 @@
+apiVersion: v2
+name: diploma-s3-restorer
+description: Chart that allows you to restore s3 backups
+
+type: application
+
+version: "0.0.1"
+
+appVersion: "0.0.1"
