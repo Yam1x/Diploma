@@ -29,10 +29,18 @@ jobs:
             image: diploma-db-backupper
             context: diploma-db-backupper
             dockerfile: diploma-db-backupper/Dockerfile
+          - name: db-restorer
+            image: diploma-db-restorer
+            context: diploma-db-restorer
+            dockerfile: diploma-db-restorer/Dockerfile
           - name: s3-backupper
             image: diploma-s3-backupper
             context: diploma-s3-backupper
             dockerfile: diploma-s3-backupper/Dockerfile
+          - name: s3-restorer
+            image: diploma-s3-restorer
+            context: diploma-s3-restorer
+            dockerfile: diploma-s3-restorer/Dockerfile
           - name: env-synchronizer
             image: diploma-env-synchronizer
             context: diploma-env-synchronizer
