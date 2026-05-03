@@ -117,6 +117,39 @@ def test_recovery_rule_first_poll_only_initializes_baseline(db_session, fake_kub
     state = db_session.query(RecoveryEventRuleState).filter(RecoveryEventRuleState.rule_id == rule.id).one()
     assert state.last_db_is_empty is True
     assert state.last_s3_is_empty is False
+    assert state.last_db_had_data is False
+    assert state.last_s3_had_data is True
+    assert state.last_db_triggered_at is None
+    assert state.last_s3_triggered_at is None
+    assert fake_kube.created_jobs == []
+
+
+def test_recovery_rule_always_empty_does_not_trigger_restore(db_session, fake_kube, monkeypatch) -> None:
+    db_task = build_db_restore_task()
+    s3_task = build_s3_restore_task()
+    rule = build_recovery_rule(db_task, s3_task)
+    db_session.add_all([db_task, s3_task, rule])
+    db_session.commit()
+    attach_managed_task_links(rule)
+    db_session.commit()
+
+    service = EventWatcherService(
+        session_factory=SessionFactory(db_session),
+        kube=fake_kube,
+        settings=Settings(event_watcher_enabled=True, event_watcher_cooldown_seconds=600),
+    )
+    monkeypatch.setattr(EventWatcherService, "_read_target_database_is_empty", staticmethod(lambda task: True))
+    monkeypatch.setattr(EventWatcherService, "_read_target_s3_is_empty", lambda self, task: True)
+
+    service.poll_once()
+    fake_kube.jobs["default"] = []
+    service.poll_once()
+    fake_kube.jobs["default"] = []
+    service.poll_once()
+
+    state = db_session.query(RecoveryEventRuleState).filter(RecoveryEventRuleState.rule_id == rule.id).one()
+    assert state.last_db_had_data is False
+    assert state.last_s3_had_data is False
     assert state.last_db_triggered_at is None
     assert state.last_s3_triggered_at is None
     assert fake_kube.created_jobs == []
@@ -150,6 +183,40 @@ def test_recovery_rule_db_empty_triggers_only_db_restore(db_session, fake_kube, 
     assert ("default", "s3-restorer-2", "event") not in fake_kube.created_jobs
     assert state.last_db_triggered_at is not None
     assert state.last_s3_triggered_at is None
+
+
+def test_recovery_rule_empty_after_seen_data_triggers_restore(db_session, fake_kube, monkeypatch) -> None:
+    db_task = build_db_restore_task()
+    s3_task = build_s3_restore_task()
+    rule = build_recovery_rule(db_task, s3_task)
+    db_session.add_all([db_task, s3_task, rule])
+    db_session.commit()
+    attach_managed_task_links(rule)
+    db_session.commit()
+
+    db_values = iter([True, False, True])
+    s3_values = iter([True, False, True])
+    service = EventWatcherService(
+        session_factory=SessionFactory(db_session),
+        kube=fake_kube,
+        settings=Settings(event_watcher_enabled=True, event_watcher_cooldown_seconds=600),
+    )
+    monkeypatch.setattr(EventWatcherService, "_read_target_database_is_empty", staticmethod(lambda task: next(db_values)))
+    monkeypatch.setattr(EventWatcherService, "_read_target_s3_is_empty", lambda self, task: next(s3_values))
+
+    service.poll_once()
+    fake_kube.jobs["default"] = []
+    service.poll_once()
+    fake_kube.jobs["default"] = []
+    service.poll_once()
+
+    state = db_session.query(RecoveryEventRuleState).filter(RecoveryEventRuleState.rule_id == rule.id).one()
+    assert ("default", "db-restorer-1", "event") in fake_kube.created_jobs
+    assert ("default", "s3-restorer-2", "event") in fake_kube.created_jobs
+    assert state.last_db_had_data is True
+    assert state.last_s3_had_data is True
+    assert state.last_db_triggered_at is not None
+    assert state.last_s3_triggered_at is not None
 
 
 def test_recovery_rule_active_db_job_does_not_block_s3_restore(db_session, fake_kube, monkeypatch) -> None:
@@ -192,7 +259,7 @@ def test_recovery_rule_retries_after_cooldown_while_still_empty(db_session, fake
     db_session.commit()
 
     db_values = iter([False, True, True])
-    s3_values = iter([False, False, False])
+    s3_values = iter([True, True, True])
     service = EventWatcherService(
         session_factory=SessionFactory(db_session),
         kube=fake_kube,

@@ -40,6 +40,13 @@ data:
   ORCHESTRATOR_ENV_BACKUPPER_CHART_REPOSITORY_URL: {{ .Values.config.envBackupper.chart.repositoryUrl | quote }}
   ORCHESTRATOR_ENV_BACKUPPER_CHART_REF: {{ .Values.config.envBackupper.chart.ref | quote }}
   ORCHESTRATOR_ENV_BACKUPPER_CHART_PATH: {{ .Values.config.envBackupper.chart.path | quote }}
+  ORCHESTRATOR_ENV_RESTORER_IMAGE_REGISTRY: {{ .Values.config.envRestorer.image.registry | quote }}
+  ORCHESTRATOR_ENV_RESTORER_IMAGE_REPOSITORY: {{ .Values.config.envRestorer.image.repository | quote }}
+  ORCHESTRATOR_ENV_RESTORER_IMAGE_TAG: {{ .Values.config.envRestorer.image.tag | quote }}
+  ORCHESTRATOR_ENV_RESTORER_IMAGE_PULL_POLICY: {{ .Values.config.envRestorer.image.pullPolicy | quote }}
+  ORCHESTRATOR_ENV_RESTORER_CHART_REPOSITORY_URL: {{ .Values.config.envRestorer.chart.repositoryUrl | quote }}
+  ORCHESTRATOR_ENV_RESTORER_CHART_REF: {{ .Values.config.envRestorer.chart.ref | quote }}
+  ORCHESTRATOR_ENV_RESTORER_CHART_PATH: {{ .Values.config.envRestorer.chart.path | quote }}
   ORCHESTRATOR_ENV_SYNCHRONIZER_IMAGE_REGISTRY: {{ .Values.config.envSynchronizer.image.registry | quote }}
   ORCHESTRATOR_ENV_SYNCHRONIZER_IMAGE_REPOSITORY: {{ .Values.config.envSynchronizer.image.repository | quote }}
   ORCHESTRATOR_ENV_SYNCHRONIZER_IMAGE_TAG: {{ .Values.config.envSynchronizer.image.tag | quote }}

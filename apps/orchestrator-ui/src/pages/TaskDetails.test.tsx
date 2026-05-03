@@ -64,6 +64,41 @@ test("renders s3-specific task details", async () => {
   expect(screen.getByText("destination-bucket")).toBeInTheDocument();
 });
 
+test("renders env restore task details", async () => {
+  api.getTask.mockResolvedValue({
+    id: 5,
+    name: "Namespace restore",
+    namespace: "default",
+    enabled: true,
+    serviceType: "env_restorer",
+    schedule: "0 3 * * *",
+    triggerMode: "scheduled",
+    deployed: true,
+    releaseName: "env-restorer-5",
+    lastApplyStatus: "deployed",
+    lastApplyMessage: "ok",
+    lastAppliedAt: null,
+    updatedAt: new Date().toISOString(),
+    envBackupsFilenamePrefix: "namespace-default",
+    destinationAwsEndpoint: "https://minio.local",
+    destinationAwsBucketName: "backups",
+    destinationAwsAccessKeyId: "minio",
+    hasDestinationAwsSecretAccessKey: true,
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/5"]}>
+      <Routes>
+        <Route path="/tasks/:taskId" element={<TaskDetailsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Namespace restore")).toBeInTheDocument();
+  expect(screen.getByText("Source S3 bucket")).toBeInTheDocument();
+  expect(screen.getByText("backups")).toBeInTheDocument();
+});
+
 test("renders event-based db watcher details", async () => {
   api.getTask.mockResolvedValue({
     id: 4,

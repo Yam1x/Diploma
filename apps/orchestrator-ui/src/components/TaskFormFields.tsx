@@ -410,7 +410,7 @@ export function TaskFormFields({
             <input type="password" value={value.destinationS3AwsSecretAccessKey ?? ""} onChange={update("destinationS3AwsSecretAccessKey")} />
           </label>
         </>
-      ) : value.serviceType === "env_backupper" ? (
+      ) : value.serviceType === "env_backupper" || value.serviceType === "env_restorer" ? (
         <>
           <label>
             <span>Префикс имени архива</span>
@@ -418,12 +418,12 @@ export function TaskFormFields({
             <input value={value.envBackupsFilenamePrefix} onChange={update("envBackupsFilenamePrefix")} required />
           </label>
           <label>
-            <span>S3 endpoint</span>
+            <span>{value.serviceType === "env_backupper" ? "S3 endpoint" : "Source S3 endpoint"}</span>
             <small className="field-help">Адрес S3/MinIO, куда будет загружаться архив состояния namespace.</small>
             <div className="discovery-field">
               <input value={value.destinationAwsEndpoint} onChange={update("destinationAwsEndpoint")} required />
               <DiscoverySelect
-                ariaLabel="Service Discovery: S3 endpoint для env backupper"
+                ariaLabel={value.serviceType === "env_backupper" ? "Service Discovery: S3 endpoint для env backupper" : "Service Discovery: source S3 endpoint for env restorer"}
                 placeholder={serviceDiscoveryPlaceholder}
                 options={s3EndpointOptions}
                 disabled={!serviceDiscoveryEnabled || s3EndpointOptions.length === 0}
@@ -432,17 +432,17 @@ export function TaskFormFields({
             </div>
           </label>
           <label>
-            <span>S3 bucket</span>
+            <span>{value.serviceType === "env_backupper" ? "S3 bucket" : "Source S3 bucket"}</span>
             <small className="field-help">Bucket, в который будут складываться архивы со snapshot выбранного namespace.</small>
             <input value={value.destinationAwsBucketName} onChange={update("destinationAwsBucketName")} required />
           </label>
           <label>
-            <span>S3 access key</span>
+            <span>{value.serviceType === "env_backupper" ? "S3 access key" : "Source S3 access key"}</span>
             <small className="field-help">Публичный ключ доступа к S3/MinIO для загрузки backup-архива.</small>
             <input value={value.destinationAwsAccessKeyId} onChange={update("destinationAwsAccessKeyId")} required />
           </label>
           <label>
-            <span>S3 secret key {configuredSecrets?.destinationAwsSecretAccessKey ? "(настроен)" : ""}</span>
+            <span>{value.serviceType === "env_backupper" ? "S3 secret key" : "Source S3 secret key"} {configuredSecrets?.destinationAwsSecretAccessKey ? "(настроен)" : ""}</span>
             <small className="field-help">Оставьте поле пустым, чтобы не менять сохранённое значение.</small>
             <input type="password" value={value.destinationAwsSecretAccessKey ?? ""} onChange={update("destinationAwsSecretAccessKey")} />
           </label>

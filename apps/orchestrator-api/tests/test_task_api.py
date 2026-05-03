@@ -58,6 +58,22 @@ def build_env_backupper_payload(enabled: bool = False) -> dict:
     }
 
 
+def build_env_restorer_payload(enabled: bool = False) -> dict:
+    return {
+        "serviceType": "env_restorer",
+        "name": "Namespace restore",
+        "namespace": "default",
+        "enabled": enabled,
+        "schedule": "0 3 * * *",
+        "triggerMode": "scheduled",
+        "envBackupsFilenamePrefix": "namespace-default",
+        "destinationAwsEndpoint": "https://minio.local",
+        "destinationAwsBucketName": "backups",
+        "destinationAwsAccessKeyId": "minio",
+        "destinationAwsSecretAccessKey": "minio-secret",
+    }
+
+
 def test_service_discovery_api(client) -> None:
     response = client.get("/api/namespaces/default/service-discovery")
 
@@ -196,3 +212,37 @@ def test_env_backupper_api_lifecycle(client, fake_helm) -> None:
     )
     assert update_response.status_code == 200
     assert update_response.json()["envBackupsFilenamePrefix"] == "namespace-archive"
+
+
+def test_env_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
+    create_response = client.post("/api/tasks", json=build_env_restorer_payload(enabled=True))
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["serviceType"] == "env_restorer"
+    assert created["releaseName"] == "env-restorer-1"
+    assert fake_helm.upgrade_calls[0]["chart_path"] == "diploma-env-restorer/ci"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["SOURCE_ENV_AWS_BUCKET_NAME"] == "backups"
+
+    run_response = client.post("/api/tasks/1/run")
+    assert run_response.status_code == 200
+    assert fake_kube.created_jobs == [("default", "env-restorer-1", "manual")]
+
+    detail_response = client.get("/api/tasks/1")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["envBackupsFilenamePrefix"] == "namespace-default"
+    assert detail_response.json()["hasDestinationAwsSecretAccessKey"] is True
+
+    update_response = client.patch(
+        "/api/tasks/1",
+        json={
+            "serviceType": "env_restorer",
+            "envBackupsFilenamePrefix": "namespace-archive",
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["envBackupsFilenamePrefix"] == "namespace-archive"
+
+    disable_response = client.post("/api/tasks/1/disable")
+    assert disable_response.status_code == 200
+    assert disable_response.json()["lastApplyStatus"] == "disabled"

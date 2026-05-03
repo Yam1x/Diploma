@@ -72,6 +72,27 @@ def test_env_backupper_create_schema_accepts_payload() -> None:
     assert result.envBackupsFilenamePrefix == "namespace-default"
 
 
+def test_env_restorer_create_schema_accepts_payload() -> None:
+    payload = {
+        "serviceType": "env_restorer",
+        "name": "Namespace restore",
+        "namespace": "default",
+        "enabled": True,
+        "schedule": "0 3 * * *",
+        "triggerMode": "scheduled",
+        "envBackupsFilenamePrefix": "namespace-default",
+        "destinationAwsEndpoint": "https://minio.local",
+        "destinationAwsBucketName": "backups",
+        "destinationAwsAccessKeyId": "minio",
+        "destinationAwsSecretAccessKey": "minio-secret",
+    }
+
+    result = CREATE_ADAPTER.validate_python(payload)
+
+    assert result.serviceType == "env_restorer"
+    assert result.envBackupsFilenamePrefix == "namespace-default"
+
+
 def test_create_schema_rejects_fields_for_wrong_service() -> None:
     payload = {
         "serviceType": "s3_backupper",

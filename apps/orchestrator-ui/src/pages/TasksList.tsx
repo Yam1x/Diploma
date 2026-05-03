@@ -170,7 +170,7 @@ export function TasksListPage() {
       <div className="toolbar">
         <div>
           <h2>Настройка задач оркестрации</h2>
-          <p className="subtle">Управляйте задачами `db_backupper`, `s3_backupper`, `env_synchronizer`, namespace и их деплоем из одного раздела.</p>
+          <p className="subtle">Управляйте задачами `db_backupper`, `s3_backupper`, `env_backupper`, `env_restorer`, `env_synchronizer`, namespace и их деплоем из одного раздела.</p>
         </div>
         <div className="toolbar-actions">
           <select value={selectedNamespace} onChange={(event) => setSelectedNamespace(event.target.value)}>

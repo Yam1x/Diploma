@@ -84,6 +84,24 @@ def test_recovery_rule_manual_run_starts_both_jobs(client, fake_kube) -> None:
     assert ("default", "s3-restorer-2", "manual") in fake_kube.created_jobs
 
 
+def test_recovery_rule_manual_db_run_starts_only_db_job(client, fake_kube) -> None:
+    assert client.post("/api/recovery-rules", json=build_recovery_rule_payload()).status_code == 201
+
+    response = client.post("/api/recovery-rules/1/run/db")
+
+    assert response.status_code == 200
+    assert fake_kube.created_jobs == [("default", "db-restorer-1", "manual")]
+
+
+def test_recovery_rule_manual_s3_run_starts_only_s3_job(client, fake_kube) -> None:
+    assert client.post("/api/recovery-rules", json=build_recovery_rule_payload()).status_code == 201
+
+    response = client.post("/api/recovery-rules/1/run/s3")
+
+    assert response.status_code == 200
+    assert fake_kube.created_jobs == [("default", "s3-restorer-2", "manual")]
+
+
 def test_recovery_rule_managed_tasks_are_hidden_from_public_tasks(client) -> None:
     assert client.post("/api/recovery-rules", json=build_recovery_rule_payload()).status_code == 201
 

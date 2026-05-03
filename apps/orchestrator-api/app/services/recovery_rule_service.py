@@ -123,11 +123,13 @@ class RecoveryEventRuleService:
         return self._to_detail(self._get_rule_model(rule.id))
 
     def run_rule(self, rule_id: int) -> RecoveryEventRuleDetail:
-        rule = self._get_rule_model(rule_id)
-        self._validate_linked_tasks(rule)
-        self._start_rule_jobs(rule, trigger_type="manual", run_db=True, run_s3=True)
-        self.db.commit()
-        return self._to_detail(self._get_rule_model(rule.id))
+        return self._run_rule(rule_id, run_db=True, run_s3=True)
+
+    def run_rule_db(self, rule_id: int) -> RecoveryEventRuleDetail:
+        return self._run_rule(rule_id, run_db=True, run_s3=False)
+
+    def run_rule_s3(self, rule_id: int) -> RecoveryEventRuleDetail:
+        return self._run_rule(rule_id, run_db=False, run_s3=True)
 
     def delete_rule(self, rule_id: int) -> None:
         rule = self._get_rule_model(rule_id)
@@ -221,6 +223,7 @@ class RecoveryEventRuleService:
 
         db_run = None
         s3_run = None
+        operation_name = self._describe_run_operation(run_db=run_db, run_s3=run_s3)
         try:
             if run_db:
                 db_run = self.task_service.create_triggered_job_run(rule.db_task, trigger_type=trigger_type)
@@ -234,9 +237,9 @@ class RecoveryEventRuleService:
                 parts.append(f"S3 job {s3_run.job_name} created")
             prefix = ", ".join(parts)
             if prefix:
-                message = f"Combined recovery partially started: {prefix}, but another launch failed: {exc}"
+                message = f"{operation_name} partially started: {prefix}, but another launch failed: {exc}"
             else:
-                message = f"Failed to start combined recovery: {exc}"
+                message = f"Failed to start {operation_name}: {exc}"
             self.record_rule_error(rule, message)
             self.db.commit()
             raise HTTPException(status_code=502, detail=message) from exc
@@ -247,6 +250,13 @@ class RecoveryEventRuleService:
             db_job_name=db_run.job_name if db_run else None,
             s3_job_name=s3_run.job_name if s3_run else None,
         )
+
+    def _run_rule(self, rule_id: int, *, run_db: bool, run_s3: bool) -> RecoveryEventRuleDetail:
+        rule = self._get_rule_model(rule_id)
+        self._validate_linked_tasks(rule)
+        self._start_rule_jobs(rule, trigger_type="manual", run_db=run_db, run_s3=run_s3)
+        self.db.commit()
+        return self._to_detail(self._get_rule_model(rule.id))
 
     def _create_managed_task(
         self,
@@ -488,6 +498,14 @@ class RecoveryEventRuleService:
     def _build_managed_task_name(rule_id: int, service_type: ServiceType) -> str:
         suffix = "db" if service_type == ServiceType.DB_RESTORER else "s3"
         return f"recovery-rule-{rule_id}-{suffix}"
+
+    @staticmethod
+    def _describe_run_operation(*, run_db: bool, run_s3: bool) -> str:
+        if run_db and run_s3:
+            return "Combined recovery"
+        if run_db:
+            return "DB recovery"
+        return "S3 recovery"
 
     @staticmethod
     def _normalize_datetime(value: datetime | None) -> datetime | None:

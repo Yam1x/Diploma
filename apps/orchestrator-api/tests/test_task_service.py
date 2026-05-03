@@ -73,10 +73,29 @@ def build_env_backupper_task() -> Task:
     return task
 
 
+def build_env_restorer_task() -> Task:
+    task = Task(
+        name="Namespace restore",
+        namespace="default",
+        service_type=ServiceType.ENV_RESTORER,
+        enabled=True,
+        schedule="0 3 * * *",
+        trigger_mode=TriggerMode.SCHEDULED.value,
+        release_name="env-restorer-10",
+        env_backups_filename_prefix="namespace-default",
+        destination_aws_endpoint="https://minio.local",
+        destination_aws_bucket_name="backups",
+        destination_aws_access_key_id="minio",
+    )
+    task.secret = TaskSecret(destination_aws_secret_access_key_encrypted="minio-secret")
+    return task
+
+
 def test_release_names_use_service_specific_prefix(service) -> None:
     assert service._build_release_name(12, ServiceType.DB_BACKUPPER) == "db-backupper-12"
     assert service._build_release_name(12, ServiceType.S3_BACKUPPER) == "s3-backupper-12"
     assert service._build_release_name(12, ServiceType.ENV_BACKUPPER) == "env-backupper-12"
+    assert service._build_release_name(12, ServiceType.ENV_RESTORER) == "env-restorer-12"
 
 
 def test_build_values_for_s3_task(service) -> None:
@@ -116,6 +135,17 @@ def test_build_values_for_env_backupper_task(service) -> None:
     assert values["image"]["repository"] == service.settings.env_backupper_image_repository
     assert values["extraConfigMapEnvVars"]["TARGET_NAMESPACE"] == "default"
     assert values["extraConfigMapEnvVars"]["ENV_BACKUPS_FILENAME_PREFIX"] == "namespace-default"
+
+
+def test_build_values_for_env_restorer_task(service) -> None:
+    task = build_env_restorer_task()
+    config = service._get_deployment_config(ServiceType.ENV_RESTORER, service.settings)
+
+    values = service._build_values(task, config)
+
+    assert values["image"]["repository"] == service.settings.env_restorer_image_repository
+    assert values["extraConfigMapEnvVars"]["TARGET_NAMESPACE"] == "default"
+    assert values["extraConfigMapEnvVars"]["SOURCE_ENV_AWS_BUCKET_NAME"] == "backups"
 
 
 def test_validate_required_s3_secrets_requires_both_keys(service) -> None:

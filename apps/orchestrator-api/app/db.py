@@ -44,7 +44,7 @@ def _upgrade_task_schema() -> None:
                 SELECT t.typname
                 FROM pg_type AS t
                 JOIN pg_enum AS e ON e.enumtypid = t.oid
-                WHERE e.enumlabel IN ('db_backupper', 's3_backupper', 'db_restorer', 's3_restorer', 'env_backupper')
+                WHERE e.enumlabel IN ('db_backupper', 's3_backupper', 'db_restorer', 's3_restorer', 'env_backupper', 'env_restorer')
                 GROUP BY t.typname
                 ORDER BY COUNT(*) DESC, t.typname
                 LIMIT 1
@@ -57,6 +57,7 @@ def _upgrade_task_schema() -> None:
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'db_restorer'"))
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 's3_restorer'"))
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'env_backupper'"))
+            connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'env_restorer'"))
 
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_repository VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS path_to_helmfile VARCHAR(255)"))

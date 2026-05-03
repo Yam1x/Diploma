@@ -34,6 +34,14 @@ export const taskTypes: TaskTypeDefinition[] = [
     metadata: "Подходит для плановых и ручных backup-ов инфраструктурного состояния namespace: сервисов, workload-ов, ConfigMap и Secret.",
   },
   {
+    routeType: "env-restorer",
+    serviceType: "env_restorer",
+    title: "Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ РѕРєСЂСѓР¶РµРЅРёСЏ",
+    description:
+      "РЎРѕР·РґР°С‘С‚ Рё РґРµРїР»РѕРёС‚ scheduled-Р·Р°РґР°С‡Сѓ `env_restorer`, РєРѕС‚РѕСЂР°СЏ РїСЂРё СЂСѓС‡РЅРѕРј Р·Р°РїСѓСЃРєРµ Р±РµСЂС‘С‚ РїРѕСЃР»РµРґРЅРёР№ snapshot-Р°СЂС…РёРІ namespace РёР· S3/MinIO Рё РїСЂРёРјРµРЅСЏРµС‚ РµРіРѕ РѕР±СЂР°С‚РЅРѕ РІ Kubernetes.",
+    metadata: "РџРѕРґС…РѕРґРёС‚ РґР»СЏ СЂСѓС‡РЅРѕРіРѕ apply-only restore СЂРµСЃСѓСЂСЃРѕРІ namespace РёР· РїРѕСЃР»РµРґРЅРµРіРѕ backup-Р°СЂС…РёРІР° РїРѕ prefix.",
+  },
+  {
     routeType: "env-synchronizer",
     serviceType: "env_synchronizer",
     title: "Синхронизация окружения",

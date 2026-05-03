@@ -52,6 +52,15 @@ class EnvBackupperTaskCreate(TaskRequestBase):
     destinationAwsSecretAccessKey: str = Field(min_length=1)
 
 
+class EnvRestorerTaskCreate(TaskRequestBase):
+    serviceType: Literal["env_restorer"]
+    envBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
+    destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
+    destinationAwsBucketName: str = Field(min_length=1, max_length=120)
+    destinationAwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    destinationAwsSecretAccessKey: str = Field(min_length=1)
+
+
 class EnvSynchronizerTaskCreate(TaskRequestBase):
     serviceType: Literal["env_synchronizer"]
     envRepository: str = Field(min_length=1, max_length=255)
@@ -59,7 +68,7 @@ class EnvSynchronizerTaskCreate(TaskRequestBase):
 
 
 TaskCreate: TypeAlias = Annotated[
-    DbTaskCreate | S3TaskCreate | EnvBackupperTaskCreate | EnvSynchronizerTaskCreate,
+    DbTaskCreate | S3TaskCreate | EnvBackupperTaskCreate | EnvRestorerTaskCreate | EnvSynchronizerTaskCreate,
     Field(discriminator="serviceType"),
 ]
 
@@ -121,6 +130,22 @@ class EnvBackupperTaskUpdate(BaseModel):
     destinationAwsSecretAccessKey: str | None = None
 
 
+class EnvRestorerTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["env_restorer"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["scheduled", "event_based"] | None = None
+    envBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationAwsSecretAccessKey: str | None = None
+
+
 class EnvSynchronizerTaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -135,7 +160,7 @@ class EnvSynchronizerTaskUpdate(BaseModel):
 
 
 TaskUpdate: TypeAlias = Annotated[
-    DbTaskUpdate | S3TaskUpdate | EnvBackupperTaskUpdate | EnvSynchronizerTaskUpdate,
+    DbTaskUpdate | S3TaskUpdate | EnvBackupperTaskUpdate | EnvRestorerTaskUpdate | EnvSynchronizerTaskUpdate,
     Field(discriminator="serviceType"),
 ]
 
@@ -147,7 +172,7 @@ class TaskSummaryBase(BaseModel):
     name: str
     namespace: str
     enabled: bool
-    serviceType: Literal["db_backupper", "s3_backupper", "env_backupper", "env_synchronizer"]
+    serviceType: Literal["db_backupper", "s3_backupper", "env_backupper", "env_restorer", "env_synchronizer"]
     schedule: str | None
     triggerMode: Literal["scheduled", "event_based"]
     deployed: bool
@@ -170,12 +195,16 @@ class EnvBackupperTaskSummary(TaskSummaryBase):
     serviceType: Literal["env_backupper"]
 
 
+class EnvRestorerTaskSummary(TaskSummaryBase):
+    serviceType: Literal["env_restorer"]
+
+
 class EnvSynchronizerTaskSummary(TaskSummaryBase):
     serviceType: Literal["env_synchronizer"]
 
 
 TaskSummary: TypeAlias = Annotated[
-    DbTaskSummary | S3TaskSummary | EnvBackupperTaskSummary | EnvSynchronizerTaskSummary,
+    DbTaskSummary | S3TaskSummary | EnvBackupperTaskSummary | EnvRestorerTaskSummary | EnvSynchronizerTaskSummary,
     Field(discriminator="serviceType"),
 ]
 
@@ -221,13 +250,21 @@ class EnvBackupperTaskDetail(EnvBackupperTaskSummary):
     hasDestinationAwsSecretAccessKey: bool
 
 
+class EnvRestorerTaskDetail(EnvRestorerTaskSummary):
+    envBackupsFilenamePrefix: str
+    destinationAwsEndpoint: str
+    destinationAwsBucketName: str
+    destinationAwsAccessKeyId: str
+    hasDestinationAwsSecretAccessKey: bool
+
+
 class EnvSynchronizerTaskDetail(EnvSynchronizerTaskSummary):
     envRepository: str
     pathToHelmfile: str
 
 
 TaskDetail: TypeAlias = Annotated[
-    DbTaskDetail | S3TaskDetail | EnvBackupperTaskDetail | EnvSynchronizerTaskDetail,
+    DbTaskDetail | S3TaskDetail | EnvBackupperTaskDetail | EnvRestorerTaskDetail | EnvSynchronizerTaskDetail,
     Field(discriminator="serviceType"),
 ]
 

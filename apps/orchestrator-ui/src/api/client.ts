@@ -1,6 +1,6 @@
 const API_BASE_URL = "/api";
 
-export type ServiceType = "db_backupper" | "s3_backupper" | "env_backupper" | "env_synchronizer";
+export type ServiceType = "db_backupper" | "s3_backupper" | "env_backupper" | "env_restorer" | "env_synchronizer";
 export type TriggerMode = "scheduled" | "event_based";
 
 export type EventRuleWatcherStatus = "disabled" | "waiting_for_baseline" | "watching" | "cooldown" | "error";
@@ -158,11 +158,15 @@ export type EnvBackupperTaskSummary = TaskSummaryBase & {
   serviceType: "env_backupper";
 };
 
+export type EnvRestorerTaskSummary = TaskSummaryBase & {
+  serviceType: "env_restorer";
+};
+
 export type EnvSynchronizerTaskSummary = TaskSummaryBase & {
   serviceType: "env_synchronizer";
 };
 
-export type TaskSummary = DbTaskSummary | S3TaskSummary | EnvBackupperTaskSummary | EnvSynchronizerTaskSummary;
+export type TaskSummary = DbTaskSummary | S3TaskSummary | EnvBackupperTaskSummary | EnvRestorerTaskSummary | EnvSynchronizerTaskSummary;
 
 export type DbTaskDetail = DbTaskSummary & {
   dbBackupsFilenamePrefix: string;
@@ -205,12 +209,20 @@ export type EnvBackupperTaskDetail = EnvBackupperTaskSummary & {
   hasDestinationAwsSecretAccessKey: boolean;
 };
 
+export type EnvRestorerTaskDetail = EnvRestorerTaskSummary & {
+  envBackupsFilenamePrefix: string;
+  destinationAwsEndpoint: string;
+  destinationAwsBucketName: string;
+  destinationAwsAccessKeyId: string;
+  hasDestinationAwsSecretAccessKey: boolean;
+};
+
 export type EnvSynchronizerTaskDetail = EnvSynchronizerTaskSummary & {
   envRepository: string;
   pathToHelmfile: string;
 };
 
-export type TaskDetail = DbTaskDetail | S3TaskDetail | EnvBackupperTaskDetail | EnvSynchronizerTaskDetail;
+export type TaskDetail = DbTaskDetail | S3TaskDetail | EnvBackupperTaskDetail | EnvRestorerTaskDetail | EnvSynchronizerTaskDetail;
 
 export type BackupEventRuleSummary = {
   id: number;
@@ -434,13 +446,22 @@ export type EnvBackupperTaskPayload = TaskPayloadBase & {
   destinationAwsSecretAccessKey?: string;
 };
 
+export type EnvRestorerTaskPayload = TaskPayloadBase & {
+  serviceType: "env_restorer";
+  envBackupsFilenamePrefix: string;
+  destinationAwsEndpoint: string;
+  destinationAwsBucketName: string;
+  destinationAwsAccessKeyId: string;
+  destinationAwsSecretAccessKey?: string;
+};
+
 export type EnvSynchronizerTaskPayload = TaskPayloadBase & {
   serviceType: "env_synchronizer";
   envRepository: string;
   pathToHelmfile: string;
 };
 
-export type TaskPayload = DbTaskPayload | S3TaskPayload | EnvBackupperTaskPayload | EnvSynchronizerTaskPayload;
+export type TaskPayload = DbTaskPayload | S3TaskPayload | EnvBackupperTaskPayload | EnvRestorerTaskPayload | EnvSynchronizerTaskPayload;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {

@@ -245,6 +245,16 @@ def run_recovery_rule(rule_id: int, service: RecoveryEventRuleService = Depends(
     return service.run_rule(rule_id)
 
 
+@api_router.post("/recovery-rules/{rule_id}/run/db", response_model=RecoveryEventRuleDetail)
+def run_recovery_rule_db(rule_id: int, service: RecoveryEventRuleService = Depends(get_recovery_rule_service)) -> RecoveryEventRuleDetail:
+    return service.run_rule_db(rule_id)
+
+
+@api_router.post("/recovery-rules/{rule_id}/run/s3", response_model=RecoveryEventRuleDetail)
+def run_recovery_rule_s3(rule_id: int, service: RecoveryEventRuleService = Depends(get_recovery_rule_service)) -> RecoveryEventRuleDetail:
+    return service.run_rule_s3(rule_id)
+
+
 @api_router.post("/recovery-rules/{rule_id}/disable", response_model=RecoveryEventRuleDetail)
 def disable_recovery_rule(rule_id: int, service: RecoveryEventRuleService = Depends(get_recovery_rule_service)) -> RecoveryEventRuleDetail:
     return service.disable_rule(rule_id)

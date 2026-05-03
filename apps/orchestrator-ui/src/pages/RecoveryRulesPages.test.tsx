@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, test, vi } from "vitest";
 
@@ -6,6 +7,9 @@ const { api } = vi.hoisted(() => ({
   api: {
     listRecoveryRules: vi.fn(),
     getRecoveryRule: vi.fn(),
+    runRecoveryRule: vi.fn(),
+    runRecoveryRuleDb: vi.fn(),
+    runRecoveryRuleS3: vi.fn(),
     listNamespaces: vi.fn(),
     listServiceDiscovery: vi.fn(),
   },
@@ -97,6 +101,9 @@ beforeEach(() => {
       hasTargetS3AwsSecretAccessKey: true,
     },
   });
+  api.runRecoveryRule.mockResolvedValue(undefined);
+  api.runRecoveryRuleDb.mockResolvedValue(undefined);
+  api.runRecoveryRuleS3.mockResolvedValue(undefined);
 });
 
 test("renders recovery rules list", async () => {
@@ -125,6 +132,42 @@ test("renders recovery rule details", async () => {
   expect(await screen.findByText("Combined recovery")).toBeInTheDocument();
   expect(screen.getByText("DB restore config")).toBeInTheDocument();
   expect(screen.getByText("S3 restore config")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "DB restore" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "S3 restore" })).toBeInTheDocument();
+});
+
+test("runs db-only recovery from details page", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/recovery-rules/1"]}>
+      <Routes>
+        <Route path="/recovery-rules/:ruleId" element={<RecoveryRuleDetailsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await screen.findByText("Combined recovery");
+  await user.click(screen.getByRole("button", { name: "DB restore" }));
+
+  expect(api.runRecoveryRuleDb).toHaveBeenCalledWith("1");
+});
+
+test("runs s3-only recovery from details page", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/recovery-rules/1"]}>
+      <Routes>
+        <Route path="/recovery-rules/:ruleId" element={<RecoveryRuleDetailsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await screen.findByText("Combined recovery");
+  await user.click(screen.getByRole("button", { name: "S3 restore" }));
+
+  expect(api.runRecoveryRuleS3).toHaveBeenCalledWith("1");
 });
 
 test("renders recovery rule form", async () => {

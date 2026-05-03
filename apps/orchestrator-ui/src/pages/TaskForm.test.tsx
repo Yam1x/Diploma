@@ -53,6 +53,19 @@ test("renders s3 fields for s3 task route", async () => {
   expect(screen.getByText("Destination S3 bucket")).toBeInTheDocument();
 });
 
+test("renders env restore fields for env restore route", async () => {
+  render(
+    <MemoryRouter initialEntries={["/tasks/new/env-restorer"]}>
+      <Routes>
+        <Route path="/tasks/new/:taskType" element={<TaskFormPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Source S3 endpoint")).toBeInTheDocument();
+  expect(screen.getByText("Source S3 bucket")).toBeInTheDocument();
+});
+
 test("fills database host from service discovery", async () => {
   const user = userEvent.setup();
 
@@ -146,6 +159,54 @@ test("keeps existing s3 secrets when edit form leaves them empty", async () => {
 
   expect(payload).not.toHaveProperty("sourceS3AwsSecretAccessKey");
   expect(payload).not.toHaveProperty("destinationS3AwsSecretAccessKey");
+});
+
+test("keeps existing env restore secret when edit form leaves it empty", async () => {
+  const detail = {
+    id: 8,
+    name: "Namespace restore",
+    namespace: "default",
+    enabled: true,
+    serviceType: "env_restorer",
+    schedule: "0 3 * * *",
+    triggerMode: "scheduled",
+    deployed: true,
+    releaseName: "env-restorer-8",
+    lastApplyStatus: "deployed",
+    lastApplyMessage: "ok",
+    lastAppliedAt: null,
+    updatedAt: new Date().toISOString(),
+    envBackupsFilenamePrefix: "namespace-default",
+    destinationAwsEndpoint: "https://minio.local",
+    destinationAwsBucketName: "backups",
+    destinationAwsAccessKeyId: "minio",
+    hasDestinationAwsSecretAccessKey: true,
+  };
+
+  api.getTask.mockResolvedValue(detail);
+  api.updateTask.mockResolvedValue(detail);
+
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/8/edit"]}>
+      <Routes>
+        <Route path="/tasks/:taskId/edit" element={<TaskFormPage />} />
+        <Route path="/tasks/:taskId" element={<div>details</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByDisplayValue("backups")).toBeInTheDocument();
+
+  const submitButton = document.querySelector('button[type="submit"]');
+  expect(submitButton).not.toBeNull();
+  await user.click(submitButton as HTMLButtonElement);
+
+  await waitFor(() => expect(api.updateTask).toHaveBeenCalled());
+  const payload = api.updateTask.mock.calls[0][1];
+
+  expect(payload).not.toHaveProperty("destinationAwsSecretAccessKey");
 });
 
 test("allows switching db backup task to event-based mode", async () => {

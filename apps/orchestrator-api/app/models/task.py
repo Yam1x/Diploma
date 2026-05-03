@@ -15,6 +15,7 @@ class ServiceType(str, enum.Enum):
     DB_RESTORER = "db_restorer"
     S3_RESTORER = "s3_restorer"
     ENV_BACKUPPER = "env_backupper"
+    ENV_RESTORER = "env_restorer"
     ENV_SYNCHRONIZER = "env_synchronizer"
 
 

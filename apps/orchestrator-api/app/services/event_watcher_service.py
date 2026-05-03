@@ -307,6 +307,8 @@ class EventWatcherService:
         if is_first_poll:
             state.last_db_is_empty = db_is_empty
             state.last_s3_is_empty = s3_is_empty
+            state.last_db_had_data = not db_is_empty
+            state.last_s3_had_data = not s3_is_empty
             state.db_restore_pending = False
             state.s3_restore_pending = False
             if db_is_empty:
@@ -315,14 +317,20 @@ class EventWatcherService:
                 state.last_s3_empty_at = now
             return
 
-        if db_is_empty:
+        if not db_is_empty:
+            state.last_db_had_data = True
+            state.db_restore_pending = False
+        elif state.last_db_had_data:
             if not state.last_db_is_empty:
                 state.last_db_empty_at = now
             state.db_restore_pending = True
         else:
             state.db_restore_pending = False
 
-        if s3_is_empty:
+        if not s3_is_empty:
+            state.last_s3_had_data = True
+            state.s3_restore_pending = False
+        elif state.last_s3_had_data:
             if not state.last_s3_is_empty:
                 state.last_s3_empty_at = now
             state.s3_restore_pending = True

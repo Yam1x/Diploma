@@ -38,6 +38,8 @@ class RecoveryEventRuleState(Base):
     rule_id: Mapped[int] = mapped_column(ForeignKey("recovery_event_rules.id"), primary_key=True)
     last_db_is_empty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_s3_is_empty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_db_had_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_s3_had_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     db_restore_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     s3_restore_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

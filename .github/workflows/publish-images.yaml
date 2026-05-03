@@ -41,6 +41,10 @@ jobs:
             image: diploma-env-backupper
             context: diploma-env-backupper
             dockerfile: diploma-env-backupper/Dockerfile
+          - name: env-restorer
+            image: diploma-env-restorer
+            context: diploma-env-restorer
+            dockerfile: diploma-env-restorer/Dockerfile
           - name: s3-restorer
             image: diploma-s3-restorer
             context: diploma-s3-restorer

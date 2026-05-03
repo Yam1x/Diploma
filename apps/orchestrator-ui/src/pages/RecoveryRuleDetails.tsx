@@ -94,6 +94,12 @@ export function RecoveryRuleDetailsPage() {
           <button className="button primary" onClick={() => void runAction(() => api.runRecoveryRule(String(rule.id)))}>
             Восстановить сейчас
           </button>
+          <button className="button ghost" onClick={() => void runAction(() => api.runRecoveryRuleDb(String(rule.id)))}>
+            DB restore
+          </button>
+          <button className="button ghost" onClick={() => void runAction(() => api.runRecoveryRuleS3(String(rule.id)))}>
+            S3 restore
+          </button>
           {rule.enabled ? (
             <button className="button danger" onClick={() => void runAction(() => api.disableRecoveryRule(String(rule.id)))}>
               Выключить

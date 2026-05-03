@@ -116,6 +116,24 @@ function renderTaskParameters(task: TaskDetail) {
     );
   }
 
+  if (task.serviceType === "env_restorer") {
+    return (
+      <article className="card">
+        <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
+        <dl>
+          <dt>РџСЂРµС„РёРєСЃ Р°СЂС…РёРІР°</dt>
+          <dd>{task.envBackupsFilenamePrefix}</dd>
+          <dt>Source S3 endpoint</dt>
+          <dd>{task.destinationAwsEndpoint}</dd>
+          <dt>Source S3 bucket</dt>
+          <dd>{task.destinationAwsBucketName}</dd>
+          <dt>Source S3 access key</dt>
+          <dd>{task.destinationAwsAccessKeyId}</dd>
+        </dl>
+      </article>
+    );
+  }
+
   return (
     <article className="card">
       <h3>Параметры выполнения</h3>
@@ -291,7 +309,7 @@ export function TaskDetailsPage() {
                 <dt>Префикс имени архива</dt>
                 <dd>{task.s3BackupsFilenamePrefix}</dd>
               </>
-            ) : task.serviceType === "env_backupper" ? (
+            ) : task.serviceType === "env_backupper" || task.serviceType === "env_restorer" ? (
               <>
                 <dt>Префикс имени архива</dt>
                 <dd>{task.envBackupsFilenamePrefix}</dd>

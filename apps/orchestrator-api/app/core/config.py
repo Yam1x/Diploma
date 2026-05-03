@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     env_backupper_chart_ref: str = "master"
     env_backupper_chart_path: str = "diploma-env-backupper/ci"
 
+    env_restorer_image_registry: str = "ghcr.io"
+    env_restorer_image_repository: str = "yam1x/diploma-env-restorer"
+    env_restorer_image_tag: str = "latest"
+    env_restorer_image_pull_policy: str = "Always"
+    env_restorer_chart_repository_url: str = "https://github.com/Yam1x/Diploma.git"
+    env_restorer_chart_ref: str = "master"
+    env_restorer_chart_path: str = "diploma-env-restorer/ci"
+
     env_synchronizer_image_registry: str = "ghcr.io"
     env_synchronizer_image_repository: str = "yam1x/diploma-env-synchronizer"
     env_synchronizer_image_tag: str = "latest"

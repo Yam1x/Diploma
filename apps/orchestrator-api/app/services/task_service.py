@@ -24,6 +24,10 @@ from app.schemas.task import (
     EnvBackupperTaskDetail,
     EnvBackupperTaskSummary,
     EnvBackupperTaskUpdate,
+    EnvRestorerTaskCreate,
+    EnvRestorerTaskDetail,
+    EnvRestorerTaskSummary,
+    EnvRestorerTaskUpdate,
     EnvSynchronizerTaskCreate,
     EnvSynchronizerTaskDetail,
     EnvSynchronizerTaskSummary,
@@ -128,6 +132,13 @@ class TaskService:
             task.destination_aws_bucket_name = env_backup_payload.destinationAwsBucketName
             task.destination_aws_access_key_id = env_backup_payload.destinationAwsAccessKeyId
             task.secret.destination_aws_secret_access_key_encrypted = env_backup_payload.destinationAwsSecretAccessKey
+        elif service_type == ServiceType.ENV_RESTORER:
+            env_restore_payload = self._expect_env_restorer_create(payload)
+            task.env_backups_filename_prefix = env_restore_payload.envBackupsFilenamePrefix
+            task.destination_aws_endpoint = env_restore_payload.destinationAwsEndpoint
+            task.destination_aws_bucket_name = env_restore_payload.destinationAwsBucketName
+            task.destination_aws_access_key_id = env_restore_payload.destinationAwsAccessKeyId
+            task.secret.destination_aws_secret_access_key_encrypted = env_restore_payload.destinationAwsSecretAccessKey
         else:
             env_payload = self._expect_env_synchronizer_create(payload)
             task.env_repository = env_payload.envRepository
@@ -176,6 +187,12 @@ class TaskService:
             self._apply_env_backupper_update(
                 task,
                 env_backup_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}),
+            )
+        elif task.service_type == ServiceType.ENV_RESTORER:
+            env_restore_changes = self._expect_env_restorer_update(payload)
+            self._apply_env_restorer_update(
+                task,
+                env_restore_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}),
             )
         else:
             env_changes = self._expect_env_synchronizer_update(payload)
@@ -348,6 +365,9 @@ class TaskService:
         if "destinationAwsSecretAccessKey" in changes:
             task.secret.destination_aws_secret_access_key_encrypted = changes["destinationAwsSecretAccessKey"] or None
 
+    def _apply_env_restorer_update(self, task: Task, changes: dict) -> None:
+        self._apply_env_backupper_update(task, changes)
+
     def _cleanup_release(self, task: Task) -> None:
         if not task.release_name:
             return
@@ -496,6 +516,19 @@ class TaskService:
                 "extraConfigMapEnvVars": runtime["env"],
             }
 
+        if task.service_type == ServiceType.ENV_RESTORER:
+            runtime = self._build_env_restore_runtime(task, config)
+            return {
+                "image": {
+                    "registry": config.image_registry,
+                    "repository": config.image_repository,
+                    "tag": config.image_tag,
+                    "pullPolicy": config.image_pull_policy,
+                },
+                "resources": runtime["resources"],
+                "extraConfigMapEnvVars": runtime["env"],
+            }
+
         return {
             "image": {
                 "registry": config.image_registry,
@@ -535,6 +568,25 @@ class TaskService:
                 "DESTINATION_ENV_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id or "",
                 "DESTINATION_ENV_AWS_SECRET_ACCESS_KEY": task.secret.destination_aws_secret_access_key_encrypted or "",
                 "DESTINATION_ENV_AWS_BUCKET_NAME": task.destination_aws_bucket_name or "",
+            },
+        }
+
+    def _build_env_restore_runtime(self, task: Task, config: ServiceDeploymentConfig) -> dict[str, Any]:
+        return {
+            "image": self._resolve_image(config),
+            "imagePullPolicy": config.image_pull_policy,
+            "resources": {
+                "limits": {"cpu": "200m", "memory": "512Mi"},
+                "requests": {"cpu": "1m", "memory": "256Mi"},
+            },
+            "env": {
+                "BACKUPS_SCHEDULE": task.schedule or "",
+                "TARGET_NAMESPACE": task.namespace,
+                "ENV_BACKUPS_FILENAME_PREFIX": task.env_backups_filename_prefix or "",
+                "SOURCE_ENV_AWS_ENDPOINT": task.destination_aws_endpoint or "",
+                "SOURCE_ENV_AWS_ACCESS_KEY_ID": task.destination_aws_access_key_id or "",
+                "SOURCE_ENV_AWS_SECRET_ACCESS_KEY": task.secret.destination_aws_secret_access_key_encrypted or "",
+                "SOURCE_ENV_AWS_BUCKET_NAME": task.destination_aws_bucket_name or "",
             },
         }
 
@@ -761,6 +813,11 @@ class TaskService:
                 raise HTTPException(status_code=400, detail="Destination AWS secret access key is not configured")
             return
 
+        if task.service_type == ServiceType.ENV_RESTORER:
+            if not task.secret.destination_aws_secret_access_key_encrypted:
+                raise HTTPException(status_code=400, detail="Source AWS secret access key is not configured")
+            return
+
         if task.service_type == ServiceType.DB_BACKUPPER:
             if not task.secret.database_password_encrypted:
                 raise HTTPException(status_code=400, detail="Database password is not configured")
@@ -907,6 +964,8 @@ class TaskService:
             return S3TaskSummary(serviceType=task.service_type.value, **common)
         if task.service_type == ServiceType.ENV_BACKUPPER:
             return EnvBackupperTaskSummary(serviceType=task.service_type.value, **common)
+        if task.service_type == ServiceType.ENV_RESTORER:
+            return EnvRestorerTaskSummary(serviceType=task.service_type.value, **common)
         if task.service_type == ServiceType.ENV_SYNCHRONIZER:
             return EnvSynchronizerTaskSummary(serviceType=task.service_type.value, **common)
         raise HTTPException(status_code=500, detail="Unsupported public task type")
@@ -954,6 +1013,16 @@ class TaskService:
 
         if task.service_type == ServiceType.ENV_BACKUPPER:
             return EnvBackupperTaskDetail(
+                **summary.model_dump(),
+                envBackupsFilenamePrefix=task.env_backups_filename_prefix or "",
+                destinationAwsEndpoint=task.destination_aws_endpoint or "",
+                destinationAwsBucketName=task.destination_aws_bucket_name or "",
+                destinationAwsAccessKeyId=task.destination_aws_access_key_id or "",
+                hasDestinationAwsSecretAccessKey=bool(task.secret.destination_aws_secret_access_key_encrypted),
+            )
+
+        if task.service_type == ServiceType.ENV_RESTORER:
+            return EnvRestorerTaskDetail(
                 **summary.model_dump(),
                 envBackupsFilenamePrefix=task.env_backups_filename_prefix or "",
                 destinationAwsEndpoint=task.destination_aws_endpoint or "",
@@ -1080,6 +1149,12 @@ class TaskService:
         return payload
 
     @staticmethod
+    def _expect_env_restorer_create(payload: TaskCreate) -> EnvRestorerTaskCreate:
+        if not isinstance(payload, EnvRestorerTaskCreate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
     def _expect_env_synchronizer_create(payload: TaskCreate) -> EnvSynchronizerTaskCreate:
         if not isinstance(payload, EnvSynchronizerTaskCreate):
             raise HTTPException(status_code=400, detail="Unsupported service type payload")
@@ -1100,6 +1175,12 @@ class TaskService:
     @staticmethod
     def _expect_env_backupper_update(payload: TaskUpdate) -> EnvBackupperTaskUpdate:
         if not isinstance(payload, EnvBackupperTaskUpdate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_env_restorer_update(payload: TaskUpdate) -> EnvRestorerTaskUpdate:
+        if not isinstance(payload, EnvRestorerTaskUpdate):
             raise HTTPException(status_code=400, detail="Unsupported service type payload")
         return payload
 
@@ -1169,6 +1250,18 @@ class TaskService:
                 chart_ref=settings.env_backupper_chart_ref,
                 chart_path=settings.env_backupper_chart_path,
                 release_prefix="env-backupper",
+            )
+
+        if service_type == ServiceType.ENV_RESTORER:
+            return ServiceDeploymentConfig(
+                image_registry=settings.env_restorer_image_registry,
+                image_repository=settings.env_restorer_image_repository,
+                image_tag=settings.env_restorer_image_tag,
+                image_pull_policy=settings.env_restorer_image_pull_policy,
+                chart_repository_url=settings.env_restorer_chart_repository_url,
+                chart_ref=settings.env_restorer_chart_ref,
+                chart_path=settings.env_restorer_chart_path,
+                release_prefix="env-restorer",
             )
 
         return ServiceDeploymentConfig(
