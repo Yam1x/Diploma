@@ -230,6 +230,20 @@ class TaskService:
         try:
             if task.trigger_mode == TriggerMode.EVENT_BASED.value and self._supports_event_mode(task.service_type):
                 self.create_triggered_job_run(task, trigger_type="manual")
+            elif task.service_type == ServiceType.ENV_RESTORER:
+                job_name = self.kube.create_job(
+                    task.namespace,
+                    task.release_name,
+                    self._build_env_restore_job_spec(task),
+                    trigger_type="manual",
+                )
+                task.last_apply_status = "deployed"
+                task.last_apply_message = f"Manual run started: {job_name}"
+                task.last_applied_at = datetime.now(timezone.utc)
+                run = self._record_job_run(task, job_name, "manual")
+                self.db.commit()
+                self.notifications.notify_manual_run_started(task, run)
+                return self._to_detail(task)
             else:
                 job_name = self.kube.create_job_from_cronjob(task.namespace, task.release_name, trigger_type="manual")
                 task.last_apply_status = "deployed"
@@ -580,7 +594,6 @@ class TaskService:
                 "requests": {"cpu": "1m", "memory": "256Mi"},
             },
             "env": {
-                "BACKUPS_SCHEDULE": task.schedule or "",
                 "TARGET_NAMESPACE": task.namespace,
                 "ENV_BACKUPS_FILENAME_PREFIX": task.env_backups_filename_prefix or "",
                 "SOURCE_ENV_AWS_ENDPOINT": task.destination_aws_endpoint or "",
@@ -766,6 +779,29 @@ class TaskService:
                     ],
                 }
             }
+        }
+
+    def _build_env_restore_job_spec(self, task: Task) -> dict[str, Any]:
+        config = self._get_deployment_config(task.service_type, self.settings)
+        runtime = self._build_env_restore_runtime(task, config)
+        return {
+            "backoffLimit": 0,
+            "ttlSecondsAfterFinished": 86400,
+            "template": {
+                "spec": {
+                    "serviceAccountName": task.release_name,
+                    "restartPolicy": "Never",
+                    "containers": [
+                        {
+                            "name": task.release_name,
+                            "image": runtime["image"],
+                            "imagePullPolicy": runtime["imagePullPolicy"],
+                            "resources": runtime["resources"],
+                            "env": self._build_container_env(runtime["env"]),
+                        }
+                    ],
+                }
+            },
         }
 
     def _build_ad_hoc_job_spec(self, task: Task) -> dict[str, Any]:
@@ -1065,6 +1101,9 @@ class TaskService:
 
     @staticmethod
     def _normalize_schedule(task: Task) -> None:
+        if task.service_type == ServiceType.ENV_RESTORER:
+            task.schedule = None
+            return
         if task.trigger_mode == TriggerMode.EVENT_BASED.value and TaskService._supports_event_mode(task.service_type):
             task.schedule = None
             return

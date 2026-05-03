@@ -152,6 +152,7 @@ export function TaskFormFields({
       ? "Загружаем сервисы..."
       : "Подставить из Service Discovery";
   const serviceDiscoveryEnabled = Boolean(value.namespace) && !serviceDiscoveryLoading;
+  const usesSchedule = value.serviceType !== "env_restorer";
 
   return (
     <div className="card form-grid">
@@ -194,7 +195,7 @@ export function TaskFormFields({
         {serviceDiscoveryError ? <small className="field-help discovery-note">Service Discovery: {serviceDiscoveryError}</small> : null}
       </label>
 
-      <div className="schedule-field">
+      <div className="schedule-field" hidden={!usesSchedule}>
         <div>
           <span>Расписание</span>
           <small className="field-help">Выберите режим запуска, а интерфейс соберёт cron-выражение автоматически.</small>
@@ -277,6 +278,10 @@ export function TaskFormFields({
           <code>{cronPreview}</code>
         </div>
       </div>
+
+      {!usesSchedule ? (
+        <div className="alert">`env_restorer` не использует cron-расписание. Деплой запускает одноразовый restore job, повторный запуск делается вручную.</div>
+      ) : null}
 
       {value.serviceType === "db_backupper" && value.triggerMode === "event_based" ? (
         <div className="alert">Event Rules управляют event-based запуском DB backup задач. Для обычного CronJob оставьте режим "По расписанию".</div>

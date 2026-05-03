@@ -168,7 +168,7 @@ test("keeps existing env restore secret when edit form leaves it empty", async (
     namespace: "default",
     enabled: true,
     serviceType: "env_restorer",
-    schedule: "0 3 * * *",
+    schedule: null,
     triggerMode: "scheduled",
     deployed: true,
     releaseName: "env-restorer-8",

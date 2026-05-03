@@ -79,7 +79,7 @@ def build_env_restorer_task() -> Task:
         namespace="default",
         service_type=ServiceType.ENV_RESTORER,
         enabled=True,
-        schedule="0 3 * * *",
+        schedule=None,
         trigger_mode=TriggerMode.SCHEDULED.value,
         release_name="env-restorer-10",
         env_backups_filename_prefix="namespace-default",
@@ -146,6 +146,7 @@ def test_build_values_for_env_restorer_task(service) -> None:
     assert values["image"]["repository"] == service.settings.env_restorer_image_repository
     assert values["extraConfigMapEnvVars"]["TARGET_NAMESPACE"] == "default"
     assert values["extraConfigMapEnvVars"]["SOURCE_ENV_AWS_BUCKET_NAME"] == "backups"
+    assert "BACKUPS_SCHEDULE" not in values["extraConfigMapEnvVars"]
 
 
 def test_validate_required_s3_secrets_requires_both_keys(service) -> None:

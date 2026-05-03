@@ -78,7 +78,7 @@ def test_env_restorer_create_schema_accepts_payload() -> None:
         "name": "Namespace restore",
         "namespace": "default",
         "enabled": True,
-        "schedule": "0 3 * * *",
+        "schedule": None,
         "triggerMode": "scheduled",
         "envBackupsFilenamePrefix": "namespace-default",
         "destinationAwsEndpoint": "https://minio.local",

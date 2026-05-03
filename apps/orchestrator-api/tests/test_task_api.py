@@ -64,7 +64,7 @@ def build_env_restorer_payload(enabled: bool = False) -> dict:
         "name": "Namespace restore",
         "namespace": "default",
         "enabled": enabled,
-        "schedule": "0 3 * * *",
+        "schedule": None,
         "triggerMode": "scheduled",
         "envBackupsFilenamePrefix": "namespace-default",
         "destinationAwsEndpoint": "https://minio.local",
@@ -221,8 +221,10 @@ def test_env_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
     created = create_response.json()
     assert created["serviceType"] == "env_restorer"
     assert created["releaseName"] == "env-restorer-1"
+    assert created["schedule"] is None
     assert fake_helm.upgrade_calls[0]["chart_path"] == "diploma-env-restorer/ci"
     assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["SOURCE_ENV_AWS_BUCKET_NAME"] == "backups"
+    assert "BACKUPS_SCHEDULE" not in fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]
 
     run_response = client.post("/api/tasks/1/run")
     assert run_response.status_code == 200

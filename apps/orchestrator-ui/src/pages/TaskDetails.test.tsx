@@ -71,7 +71,7 @@ test("renders env restore task details", async () => {
     namespace: "default",
     enabled: true,
     serviceType: "env_restorer",
-    schedule: "0 3 * * *",
+    schedule: null,
     triggerMode: "scheduled",
     deployed: true,
     releaseName: "env-restorer-5",

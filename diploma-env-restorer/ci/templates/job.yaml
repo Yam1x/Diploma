@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      restartPolicy: Never
+      containers:
+        - name: {{ .Release.Name }}
+          {{- if .Values.image.registry }}
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+          {{- else }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+          env:
+            - name: TARGET_NAMESPACE
+              value: {{ .Values.extraConfigMapEnvVars.TARGET_NAMESPACE }}
+            - name: ENV_BACKUPS_FILENAME_PREFIX
+              value: {{ .Values.extraConfigMapEnvVars.ENV_BACKUPS_FILENAME_PREFIX }}
+            - name: SOURCE_ENV_AWS_ENDPOINT
+              value: {{ .Values.extraConfigMapEnvVars.SOURCE_ENV_AWS_ENDPOINT }}
+            - name: SOURCE_ENV_AWS_ACCESS_KEY_ID
+              value: {{ .Values.extraConfigMapEnvVars.SOURCE_ENV_AWS_ACCESS_KEY_ID }}
+            - name: SOURCE_ENV_AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.extraConfigMapEnvVars.SOURCE_ENV_AWS_SECRET_ACCESS_KEY }}
+            - name: SOURCE_ENV_AWS_BUCKET_NAME
+              value: {{ .Values.extraConfigMapEnvVars.SOURCE_ENV_AWS_BUCKET_NAME }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
