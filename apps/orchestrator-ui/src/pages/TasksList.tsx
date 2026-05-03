@@ -5,6 +5,13 @@ import { DashboardStatsResponse, JobRunSummary, TaskJobStats, TaskSummary, api }
 import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
+function formatTaskTriggerMode(task: TaskSummary) {
+  if (task.serviceType === "env_restorer") {
+    return "Вручную";
+  }
+  return task.triggerMode === "event_based" ? "РџРѕ СЃРѕР±С‹С‚РёСЋ" : "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
+}
+
 function formatBoolean(value: boolean) {
   return value ? "Да" : "Нет";
 }
@@ -331,7 +338,7 @@ export function TasksListPage() {
                 <td>{task.namespace}</td>
                 <td>{formatBoolean(task.enabled)}</td>
                 <td>{formatBoolean(task.deployed)}</td>
-                <td>{formatTriggerMode(task.triggerMode)}</td>
+                <td>{formatTaskTriggerMode(task)}</td>
                 <td>{task.schedule ?? "Не используется"}</td>
                 <td>{formatApplyStatus(task.lastApplyStatus)}</td>
                 <td>{new Date(task.updatedAt).toLocaleString()}</td>

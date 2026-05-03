@@ -279,6 +279,10 @@ export function TaskFormFields({
         </div>
       </div>
 
+      {!usesSchedule ? (
+        <div className="alert">`env_restorer` не использует расписание. Деплой только подготавливает доступ, а восстановление запускается вручную.</div>
+      ) : null}
+
       {value.serviceType === "db_backupper" && value.triggerMode === "event_based" ? (
         <div className="alert">Event Rules управляют event-based запуском DB backup задач. Для обычного CronJob оставьте режим "По расписанию".</div>
       ) : null}

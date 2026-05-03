@@ -5,6 +5,13 @@ import { JobRunSummary, TaskDetail, api } from "../api/client";
 import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
+function formatTaskTriggerMode(task: TaskDetail) {
+  if (task.serviceType === "env_restorer") {
+    return "Вручную";
+  }
+  return task.triggerMode === "event_based" ? "РџРѕ СЃРѕР±С‹С‚РёСЋ + cron fallback" : "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
+}
+
 function formatBoolean(value: boolean) {
   return value ? "Да" : "Нет";
 }
@@ -296,7 +303,7 @@ export function TaskDetailsPage() {
             <dt>Тип сервиса</dt>
             <dd>{formatServiceType(task.serviceType)}</dd>
             <dt>Режим запуска</dt>
-            <dd>{formatTriggerMode(task.triggerMode)}</dd>
+            <dd>{formatTaskTriggerMode(task)}</dd>
             <dt>Расписание</dt>
             <dd>{task.schedule ?? "Не используется"}</dd>
             {task.serviceType === "db_backupper" ? (

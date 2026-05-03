@@ -38,8 +38,8 @@ export const taskTypes: TaskTypeDefinition[] = [
     serviceType: "env_restorer",
     title: "Восстановление окружения",
     description:
-      "Создаёт и деплоит scheduled-задачу `env_restorer`, которая при ручном запуске берёт последний snapshot-архив namespace из S3/MinIO и применяет его обратно в Kubernetes.",
-    metadata: "Подходит для ручного apply-only restore ресурсов namespace из последнего backup-архива по prefix.",
+      "Создаёт и деплоит `env_restorer`, который подготавливает доступ для restore и по ручному запуску берёт последний snapshot-архив namespace из S3/MinIO и применяет его обратно в Kubernetes.",
+    metadata: "Подходит для ручного restore namespace из последнего backup-архива. Автозапуска по расписанию нет.",
   },
   {
     routeType: "env-synchronizer",
