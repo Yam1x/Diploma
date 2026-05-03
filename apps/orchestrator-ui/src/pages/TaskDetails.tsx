@@ -43,7 +43,7 @@ function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
 }
 
 function formatTriggerMode(triggerMode: TaskDetail["triggerMode"]) {
-  return triggerMode === "event_based" ? "По событию" : "По расписанию";
+  return triggerMode === "event_based" ? "По событию + cron fallback" : "По расписанию";
 }
 
 function formatJobStatus(status: JobRunSummary["status"]) {
@@ -98,6 +98,24 @@ function renderTaskParameters(task: TaskDetail) {
     );
   }
 
+  if (task.serviceType === "env_backupper") {
+    return (
+      <article className="card">
+        <h3>Параметры выполнения</h3>
+        <dl>
+          <dt>Префикс архива</dt>
+          <dd>{task.envBackupsFilenamePrefix}</dd>
+          <dt>S3 endpoint</dt>
+          <dd>{task.destinationAwsEndpoint}</dd>
+          <dt>S3 bucket</dt>
+          <dd>{task.destinationAwsBucketName}</dd>
+          <dt>S3 access key</dt>
+          <dd>{task.destinationAwsAccessKeyId}</dd>
+        </dl>
+      </article>
+    );
+  }
+
   return (
     <article className="card">
       <h3>Параметры выполнения</h3>
@@ -106,6 +124,28 @@ function renderTaskParameters(task: TaskDetail) {
         <dd>{task.envRepository}</dd>
         <dt>Путь к Helmfile</dt>
         <dd>{task.pathToHelmfile}</dd>
+      </dl>
+    </article>
+  );
+}
+
+function renderWatcherCard(task: TaskDetail) {
+  if (task.serviceType !== "db_backupper" && task.serviceType !== "s3_backupper") {
+    return null;
+  }
+
+  return (
+    <article className="card">
+      <h3>Event watcher</h3>
+      <dl>
+        <dt>Статус</dt>
+        <dd>{task.eventWatcherStatus}</dd>
+        <dt>Последнее событие</dt>
+        <dd>{formatDate(task.lastEventDetectedAt)}</dd>
+        <dt>Последний trigger</dt>
+        <dd>{formatDate(task.lastEventTriggeredAt)}</dd>
+        <dt>Сообщение</dt>
+        <dd>{task.lastEventMessage ?? "Нет"}</dd>
       </dl>
     </article>
   );
@@ -198,7 +238,9 @@ export function TaskDetailsPage() {
       <div className="toolbar">
         <div>
           <h2>{task.name}</h2>
-          <p className="subtle">Текущий релиз: `{task.releaseName}` в namespace `{task.namespace}`.</p>
+          <p className="subtle">
+            Текущий релиз: `{task.releaseName}` в namespace `{task.namespace}`.
+          </p>
         </div>
         <div className="toolbar-actions">
           <Link className="button ghost" to={`/tasks/${task.id}/edit`}>
@@ -249,9 +291,15 @@ export function TaskDetailsPage() {
                 <dt>Префикс имени архива</dt>
                 <dd>{task.s3BackupsFilenamePrefix}</dd>
               </>
+            ) : task.serviceType === "env_backupper" ? (
+              <>
+                <dt>Префикс имени архива</dt>
+                <dd>{task.envBackupsFilenamePrefix}</dd>
+              </>
             ) : null}
           </dl>
         </article>
+
         <article className="card">
           <h3>Состояние деплоя</h3>
           <dl>
@@ -265,7 +313,9 @@ export function TaskDetailsPage() {
             <dd>{task.lastApplyMessage ?? "Сообщений пока нет"}</dd>
           </dl>
         </article>
+
         {renderTaskParameters(task)}
+        {renderWatcherCard(task)}
       </div>
 
       <article className="card table-wrap">

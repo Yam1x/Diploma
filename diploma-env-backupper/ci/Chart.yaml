@@ -1,0 +1,9 @@
+apiVersion: v2
+name: diploma-env-backupper
+description: Chart that allows you to create namespace environment backups
+
+type: application
+
+version: "0.0.1"
+
+appVersion: "0.0.1"

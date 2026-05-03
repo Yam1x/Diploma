@@ -14,6 +14,7 @@ class ServiceType(str, enum.Enum):
     S3_BACKUPPER = "s3_backupper"
     DB_RESTORER = "db_restorer"
     S3_RESTORER = "s3_restorer"
+    ENV_BACKUPPER = "env_backupper"
     ENV_SYNCHRONIZER = "env_synchronizer"
 
 
@@ -48,6 +49,7 @@ class Task(Base):
     destination_s3_aws_access_key_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destination_s3_aws_bucket_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     target_s3_aws_bucket_subfolder_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    env_backups_filename_prefix: Mapped[str | None] = mapped_column(String(120), nullable=True)
     env_repository: Mapped[str | None] = mapped_column(String(255), nullable=True)
     path_to_helmfile: Mapped[str | None] = mapped_column(String(255), nullable=True)
     managed_by_rule_id: Mapped[int | None] = mapped_column(ForeignKey("backup_event_rules.id"), nullable=True, index=True)

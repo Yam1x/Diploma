@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "{{ .Values.extraConfigMapEnvVars.BACKUPS_SCHEDULE }}"
+  successfulJobsHistoryLimit: 20
+  failedJobsHistoryLimit: 20
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ .Release.Name }}
+          restartPolicy: OnFailure
+          containers:
+            - name: {{ .Release.Name }}
+              {{- if .Values.image.registry }}
+              image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+              {{- else }}
+              image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+              {{- end }}
+              resources:
+                limits:
+                  cpu: {{ .Values.resources.limits.cpu }}
+                  memory: {{ .Values.resources.limits.memory }}
+                requests:
+                  cpu: {{ .Values.resources.requests.cpu }}
+                  memory: {{ .Values.resources.requests.memory }}
+              env:
+                - name: TARGET_NAMESPACE
+                  value: {{ .Values.extraConfigMapEnvVars.TARGET_NAMESPACE }}
+                - name: ENV_BACKUPS_FILENAME_PREFIX
+                  value: {{ .Values.extraConfigMapEnvVars.ENV_BACKUPS_FILENAME_PREFIX }}
+                - name: DESTINATION_ENV_AWS_ENDPOINT
+                  value: {{ .Values.extraConfigMapEnvVars.DESTINATION_ENV_AWS_ENDPOINT }}
+                - name: DESTINATION_ENV_AWS_ACCESS_KEY_ID
+                  value: {{ .Values.extraConfigMapEnvVars.DESTINATION_ENV_AWS_ACCESS_KEY_ID }}
+                - name: DESTINATION_ENV_AWS_SECRET_ACCESS_KEY
+                  value: {{ .Values.extraConfigMapEnvVars.DESTINATION_ENV_AWS_SECRET_ACCESS_KEY }}
+                - name: DESTINATION_ENV_AWS_BUCKET_NAME
+                  value: {{ .Values.extraConfigMapEnvVars.DESTINATION_ENV_AWS_BUCKET_NAME }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}

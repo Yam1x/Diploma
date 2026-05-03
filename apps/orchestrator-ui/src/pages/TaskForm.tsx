@@ -49,6 +49,22 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
     };
   }
 
+  if (serviceType === "env_backupper") {
+    return {
+      serviceType,
+      name: "",
+      namespace: "",
+      enabled: false,
+      schedule: DEFAULT_SCHEDULE,
+      triggerMode: "scheduled",
+      envBackupsFilenamePrefix: "",
+      destinationAwsEndpoint: "",
+      destinationAwsBucketName: "",
+      destinationAwsAccessKeyId: "",
+      destinationAwsSecretAccessKey: "",
+    };
+  }
+
   return {
     serviceType,
     name: "",
@@ -103,6 +119,22 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
     };
   }
 
+  if (detail.serviceType === "env_backupper") {
+    return {
+      serviceType: detail.serviceType,
+      name: detail.name,
+      namespace: detail.namespace,
+      enabled: detail.enabled,
+      schedule: detail.schedule ?? DEFAULT_SCHEDULE,
+      triggerMode: "scheduled",
+      envBackupsFilenamePrefix: detail.envBackupsFilenamePrefix,
+      destinationAwsEndpoint: detail.destinationAwsEndpoint,
+      destinationAwsBucketName: detail.destinationAwsBucketName,
+      destinationAwsAccessKeyId: detail.destinationAwsAccessKeyId,
+      destinationAwsSecretAccessKey: "",
+    };
+  }
+
   return {
     serviceType: detail.serviceType,
     name: detail.name,
@@ -127,6 +159,12 @@ function buildConfiguredSecrets(detail: TaskDetail): ConfiguredSecrets {
     return {
       sourceS3AwsSecretAccessKey: detail.hasSourceS3AwsSecretAccessKey,
       destinationS3AwsSecretAccessKey: detail.hasDestinationS3AwsSecretAccessKey,
+    };
+  }
+
+  if (detail.serviceType === "env_backupper") {
+    return {
+      destinationAwsSecretAccessKey: detail.hasDestinationAwsSecretAccessKey,
     };
   }
 
@@ -267,6 +305,10 @@ export function TaskFormPage() {
           }
           if (!value.destinationS3AwsSecretAccessKey) {
             delete payload.destinationS3AwsSecretAccessKey;
+          }
+        } else if (value.serviceType === "env_backupper") {
+          if (!value.destinationAwsSecretAccessKey) {
+            delete payload.destinationAwsSecretAccessKey;
           }
         }
         await api.updateTask(taskId, payload as TaskPayload);

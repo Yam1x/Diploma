@@ -51,6 +51,27 @@ def test_s3_task_update_schema_accepts_s3_payload() -> None:
     assert result.destinationS3AwsBucketName == "archive"
 
 
+def test_env_backupper_create_schema_accepts_payload() -> None:
+    payload = {
+        "serviceType": "env_backupper",
+        "name": "Namespace snapshot",
+        "namespace": "default",
+        "enabled": True,
+        "schedule": "0 2 * * *",
+        "triggerMode": "scheduled",
+        "envBackupsFilenamePrefix": "namespace-default",
+        "destinationAwsEndpoint": "https://minio.local",
+        "destinationAwsBucketName": "backups",
+        "destinationAwsAccessKeyId": "minio",
+        "destinationAwsSecretAccessKey": "minio-secret",
+    }
+
+    result = CREATE_ADAPTER.validate_python(payload)
+
+    assert result.serviceType == "env_backupper"
+    assert result.envBackupsFilenamePrefix == "namespace-default"
+
+
 def test_create_schema_rejects_fields_for_wrong_service() -> None:
     payload = {
         "serviceType": "s3_backupper",

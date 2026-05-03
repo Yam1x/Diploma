@@ -42,6 +42,22 @@ def build_s3_payload(enabled: bool = False) -> dict:
     }
 
 
+def build_env_backupper_payload(enabled: bool = False) -> dict:
+    return {
+        "serviceType": "env_backupper",
+        "name": "Namespace snapshot",
+        "namespace": "default",
+        "enabled": enabled,
+        "schedule": "0 2 * * *",
+        "triggerMode": "scheduled",
+        "envBackupsFilenamePrefix": "namespace-default",
+        "destinationAwsEndpoint": "https://minio.local",
+        "destinationAwsBucketName": "backups",
+        "destinationAwsAccessKeyId": "minio",
+        "destinationAwsSecretAccessKey": "minio-secret",
+    }
+
+
 def test_service_discovery_api(client) -> None:
     response = client.get("/api/namespaces/default/service-discovery")
 
@@ -154,3 +170,29 @@ def test_s3_task_api_rejects_event_based_trigger_mode(client, fake_helm) -> None
     assert response.status_code == 400
     assert "configured only through event rules" in response.json()["detail"]
     assert fake_helm.upgrade_calls == []
+
+
+def test_env_backupper_api_lifecycle(client, fake_helm) -> None:
+    create_response = client.post("/api/tasks", json=build_env_backupper_payload(enabled=True))
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["serviceType"] == "env_backupper"
+    assert created["releaseName"] == "env-backupper-1"
+    assert fake_helm.upgrade_calls[0]["chart_path"] == "diploma-env-backupper/ci"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["TARGET_NAMESPACE"] == "default"
+
+    detail_response = client.get("/api/tasks/1")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["envBackupsFilenamePrefix"] == "namespace-default"
+    assert detail_response.json()["hasDestinationAwsSecretAccessKey"] is True
+
+    update_response = client.patch(
+        "/api/tasks/1",
+        json={
+            "serviceType": "env_backupper",
+            "envBackupsFilenamePrefix": "namespace-archive",
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["envBackupsFilenamePrefix"] == "namespace-archive"

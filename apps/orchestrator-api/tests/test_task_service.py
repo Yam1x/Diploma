@@ -55,9 +55,28 @@ def build_s3_task() -> Task:
     return task
 
 
+def build_env_backupper_task() -> Task:
+    task = Task(
+        name="Namespace snapshot",
+        namespace="default",
+        service_type=ServiceType.ENV_BACKUPPER,
+        enabled=True,
+        schedule="0 2 * * *",
+        trigger_mode=TriggerMode.SCHEDULED.value,
+        release_name="env-backupper-9",
+        env_backups_filename_prefix="namespace-default",
+        destination_aws_endpoint="https://minio.local",
+        destination_aws_bucket_name="backups",
+        destination_aws_access_key_id="minio",
+    )
+    task.secret = TaskSecret(destination_aws_secret_access_key_encrypted="minio-secret")
+    return task
+
+
 def test_release_names_use_service_specific_prefix(service) -> None:
     assert service._build_release_name(12, ServiceType.DB_BACKUPPER) == "db-backupper-12"
     assert service._build_release_name(12, ServiceType.S3_BACKUPPER) == "s3-backupper-12"
+    assert service._build_release_name(12, ServiceType.ENV_BACKUPPER) == "env-backupper-12"
 
 
 def test_build_values_for_s3_task(service) -> None:
@@ -86,6 +105,17 @@ def test_build_discovered_service_generates_host_and_endpoints(service) -> None:
     assert discovered.host == "minio"
     assert [endpoint.value for endpoint in discovered.endpoints] == ["http://minio:9000", "https://minio"]
     assert [endpoint.label for endpoint in discovered.endpoints] == ["minio:9000 (api)", "minio:443 (https)"]
+
+
+def test_build_values_for_env_backupper_task(service) -> None:
+    task = build_env_backupper_task()
+    config = service._get_deployment_config(ServiceType.ENV_BACKUPPER, service.settings)
+
+    values = service._build_values(task, config)
+
+    assert values["image"]["repository"] == service.settings.env_backupper_image_repository
+    assert values["extraConfigMapEnvVars"]["TARGET_NAMESPACE"] == "default"
+    assert values["extraConfigMapEnvVars"]["ENV_BACKUPS_FILENAME_PREFIX"] == "namespace-default"
 
 
 def test_validate_required_s3_secrets_requires_both_keys(service) -> None:

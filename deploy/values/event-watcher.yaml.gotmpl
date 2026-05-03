@@ -52,6 +52,16 @@ config:
       repositoryUrl: "https://github.com/Yam1x/Diploma.git"
       ref: "master"
       path: "diploma-s3-restorer/ci"
+  envBackupper:
+    image:
+      registry: "ghcr.io"
+      repository: "yam1x/diploma-env-backupper"
+      tag: "latest"
+      pullPolicy: "Always"
+    chart:
+      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      ref: "master"
+      path: "diploma-env-backupper/ci"
   envSynchronizer:
     image:
       registry: "ghcr.io"

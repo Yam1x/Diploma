@@ -239,8 +239,8 @@ export function TasksListPage() {
                     <th>Namespace</th>
                     <th>Всего</th>
                     <th>Вручную</th>
-                    <th>По расписанию</th>
-                    <th>По событию</th>
+                    <th>Плановые</th>
+                    <th>Событийные</th>
                     <th>Успешно</th>
                     <th>Ошибки</th>
                     <th>Активно</th>

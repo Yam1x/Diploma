@@ -26,6 +26,14 @@ export const taskTypes: TaskTypeDefinition[] = [
     metadata: "Подходит для backup bucket-ов и subfolder-ов по расписанию. Event-based настройка перенесена в Event Rules.",
   },
   {
+    routeType: "env-backupper",
+    serviceType: "env_backupper",
+    title: "Резервное копирование окружения",
+    description:
+      "Создаёт и деплоит scheduled-задачу `env_backupper`, которая снимает snapshot Kubernetes-ресурсов выбранного namespace и загружает архив в S3/MinIO.",
+    metadata: "Подходит для плановых и ручных backup-ов инфраструктурного состояния namespace: сервисов, workload-ов, ConfigMap и Secret.",
+  },
+  {
     routeType: "env-synchronizer",
     serviceType: "env_synchronizer",
     title: "Синхронизация окружения",

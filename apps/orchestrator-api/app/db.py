@@ -44,7 +44,7 @@ def _upgrade_task_schema() -> None:
                 SELECT t.typname
                 FROM pg_type AS t
                 JOIN pg_enum AS e ON e.enumtypid = t.oid
-                WHERE e.enumlabel IN ('db_backupper', 's3_backupper', 'db_restorer', 's3_restorer')
+                WHERE e.enumlabel IN ('db_backupper', 's3_backupper', 'db_restorer', 's3_restorer', 'env_backupper')
                 GROUP BY t.typname
                 ORDER BY COUNT(*) DESC, t.typname
                 LIMIT 1
@@ -56,10 +56,12 @@ def _upgrade_task_schema() -> None:
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'env_synchronizer'"))
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'db_restorer'"))
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 's3_restorer'"))
+            connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'env_backupper'"))
 
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_repository VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS path_to_helmfile VARCHAR(255)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS target_s3_aws_bucket_subfolder_name VARCHAR(255)"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_backups_filename_prefix VARCHAR(120)"))
         connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trigger_mode VARCHAR(20) NOT NULL DEFAULT 'scheduled'"))
         connection.execute(text("ALTER TABLE tasks ALTER COLUMN schedule DROP NOT NULL"))
         connection.execute(
@@ -197,6 +199,8 @@ def _upgrade_task_schema() -> None:
                     rule_id INTEGER PRIMARY KEY REFERENCES recovery_event_rules(id),
                     last_db_is_empty BOOLEAN NOT NULL DEFAULT FALSE,
                     last_s3_is_empty BOOLEAN NOT NULL DEFAULT FALSE,
+                    last_db_had_data BOOLEAN NOT NULL DEFAULT FALSE,
+                    last_s3_had_data BOOLEAN NOT NULL DEFAULT FALSE,
                     db_restore_pending BOOLEAN NOT NULL DEFAULT FALSE,
                     s3_restore_pending BOOLEAN NOT NULL DEFAULT FALSE,
                     last_polled_at TIMESTAMPTZ NULL,
@@ -212,6 +216,8 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
+        connection.execute(text("ALTER TABLE recovery_event_rule_states ADD COLUMN IF NOT EXISTS last_db_had_data BOOLEAN NOT NULL DEFAULT FALSE"))
+        connection.execute(text("ALTER TABLE recovery_event_rule_states ADD COLUMN IF NOT EXISTS last_s3_had_data BOOLEAN NOT NULL DEFAULT FALSE"))
         connection.execute(
             text(
                 """

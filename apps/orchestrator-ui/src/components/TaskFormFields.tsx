@@ -146,7 +146,6 @@ export function TaskFormFields({
   };
 
   const cronPreview = getNormalizedSchedule(scheduleDraft) || "Не задано";
-  const showSchedule = true;
   const serviceDiscoveryPlaceholder = !value.namespace
     ? "Сначала выберите namespace"
     : serviceDiscoveryLoading
@@ -161,6 +160,21 @@ export function TaskFormFields({
         <small className="field-help">Понятное имя задачи, под которым она будет отображаться в панели управления.</small>
         <input value={value.name} onChange={update("name")} required />
       </label>
+
+      {value.serviceType === "db_backupper" ? (
+        <label>
+          <span>Режим запуска</span>
+          <small className="field-help">Переключает DB backup между cron-запуском и событийным режимом.</small>
+          <select
+            value={value.triggerMode}
+            onChange={(event) => onChange({ ...value, triggerMode: event.target.value as TaskPayload["triggerMode"] })}
+          >
+            <option value="scheduled">По расписанию</option>
+            <option value="event_based">По событию</option>
+          </select>
+        </label>
+      ) : null}
+
       <label>
         <span>Namespace</span>
         <small className="field-help">Namespace Kubernetes, в который будет задеплоен сервис резервного копирования.</small>
@@ -179,90 +193,93 @@ export function TaskFormFields({
         </div>
         {serviceDiscoveryError ? <small className="field-help discovery-note">Service Discovery: {serviceDiscoveryError}</small> : null}
       </label>
-      {showSchedule ? (
-        <div className="schedule-field">
-          <div>
-            <span>Расписание</span>
-            <small className="field-help">Выберите готовый режим запуска, а интерфейс сам соберет cron-выражение.</small>
-          </div>
-          <div className="schedule-grid">
+
+      <div className="schedule-field">
+        <div>
+          <span>Расписание</span>
+          <small className="field-help">Выберите режим запуска, а интерфейс соберёт cron-выражение автоматически.</small>
+        </div>
+        <div className="schedule-grid">
+          <label>
+            <span>Режим</span>
+            <select value={scheduleDraft.mode} onChange={handleScheduleModeChange}>
+              {scheduleModeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {scheduleDraft.mode === "hourly" ? (
             <label>
-              <span>Режим</span>
-              <select value={scheduleDraft.mode} onChange={handleScheduleModeChange}>
-                {scheduleModeOptions.map((option) => (
+              <span>Минута часа</span>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                value={scheduleDraft.minute}
+                onChange={(event) => updateScheduleDraft({ minute: event.target.value })}
+              />
+            </label>
+          ) : null}
+
+          {scheduleDraft.mode === "daily" || scheduleDraft.mode === "weekly" || scheduleDraft.mode === "monthly" ? (
+            <label>
+              <span>Время</span>
+              <input type="time" value={scheduleDraft.time} onChange={(event) => updateScheduleDraft({ time: event.target.value })} />
+            </label>
+          ) : null}
+
+          {scheduleDraft.mode === "weekly" ? (
+            <label>
+              <span>День недели</span>
+              <select value={scheduleDraft.weekday} onChange={(event) => updateScheduleDraft({ weekday: event.target.value })}>
+                {weekdayOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </label>
+          ) : null}
 
-            {scheduleDraft.mode === "hourly" ? (
-              <label>
-                <span>Минута часа</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="59"
-                  value={scheduleDraft.minute}
-                  onChange={(event) => updateScheduleDraft({ minute: event.target.value })}
-                />
-              </label>
-            ) : null}
+          {scheduleDraft.mode === "monthly" ? (
+            <label>
+              <span>День месяца</span>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={scheduleDraft.monthDay}
+                onChange={(event) => updateScheduleDraft({ monthDay: event.target.value })}
+              />
+            </label>
+          ) : null}
 
-            {scheduleDraft.mode === "daily" || scheduleDraft.mode === "weekly" || scheduleDraft.mode === "monthly" ? (
-              <label>
-                <span>Время</span>
-                <input type="time" value={scheduleDraft.time} onChange={(event) => updateScheduleDraft({ time: event.target.value })} />
-              </label>
-            ) : null}
-
-            {scheduleDraft.mode === "weekly" ? (
-              <label>
-                <span>День недели</span>
-                <select value={scheduleDraft.weekday} onChange={(event) => updateScheduleDraft({ weekday: event.target.value })}>
-                  {weekdayOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-
-            {scheduleDraft.mode === "monthly" ? (
-              <label>
-                <span>День месяца</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={scheduleDraft.monthDay}
-                  onChange={(event) => updateScheduleDraft({ monthDay: event.target.value })}
-                />
-              </label>
-            ) : null}
-
-            {scheduleDraft.mode === "custom" ? (
-              <label className="schedule-grid-full">
-                <span>Cron-выражение</span>
-                <input
-                  value={scheduleDraft.custom}
-                  onChange={(event) => {
-                    const nextCustom = event.target.value;
-                    applyScheduleDraft({ ...scheduleDraft, custom: nextCustom });
-                  }}
-                  placeholder="0 * * * *"
-                  required
-                />
-              </label>
-            ) : null}
-          </div>
-          <div className="schedule-preview">
-            <span>Итоговый cron</span>
-            <code>{cronPreview}</code>
-          </div>
+          {scheduleDraft.mode === "custom" ? (
+            <label className="schedule-grid-full">
+              <span>Cron-выражение</span>
+              <input
+                value={scheduleDraft.custom}
+                onChange={(event) => {
+                  const nextCustom = event.target.value;
+                  applyScheduleDraft({ ...scheduleDraft, custom: nextCustom });
+                }}
+                placeholder="0 * * * *"
+                required
+              />
+            </label>
+          ) : null}
         </div>
+        <div className="schedule-preview">
+          <span>Итоговый cron</span>
+          <code>{cronPreview}</code>
+        </div>
+      </div>
+
+      {value.serviceType === "db_backupper" && value.triggerMode === "event_based" ? (
+        <div className="alert">Event Rules управляют event-based запуском DB backup задач. Для обычного CronJob оставьте режим "По расписанию".</div>
       ) : null}
 
       {value.serviceType === "db_backupper" ? (
@@ -293,17 +310,17 @@ export function TaskFormFields({
           </label>
           <label>
             <span>Пользователь базы данных</span>
-            <small className="field-help">Пользователь, от имени которого будет выполняться подключение к PostgreSQL.</small>
+            <small className="field-help">Пользователь, от имени которого backup job будет подключаться к PostgreSQL.</small>
             <input value={value.databaseUsername} onChange={update("databaseUsername")} required />
           </label>
           <label>
             <span>Пароль базы данных {configuredSecrets?.databasePassword ? "(настроен)" : ""}</span>
-            <small className="field-help">Пароль пользователя базы данных. Оставьте пустым, чтобы не менять уже сохранённое значение.</small>
+            <small className="field-help">Оставьте поле пустым, чтобы не менять уже сохранённое значение.</small>
             <input type="password" value={value.databasePassword ?? ""} onChange={update("databasePassword")} />
           </label>
           <label>
             <span>S3 endpoint</span>
-            <small className="field-help">Адрес S3-совместимого хранилища, в которое будут отправляться резервные копии.</small>
+            <small className="field-help">Адрес S3-совместимого хранилища, в которое будет отправляться дамп.</small>
             <div className="discovery-field">
               <input value={value.destinationAwsEndpoint} onChange={update("destinationAwsEndpoint")} required />
               <DiscoverySelect
@@ -317,17 +334,17 @@ export function TaskFormFields({
           </label>
           <label>
             <span>S3 bucket</span>
-            <small className="field-help">Bucket, в котором будут храниться файлы резервных копий.</small>
+            <small className="field-help">Bucket, в котором будут храниться резервные копии базы данных.</small>
             <input value={value.destinationAwsBucketName} onChange={update("destinationAwsBucketName")} required />
           </label>
           <label>
             <span>S3 access key</span>
-            <small className="field-help">Публичный ключ доступа для подключения к S3-хранилищу.</small>
+            <small className="field-help">Публичный ключ доступа к S3.</small>
             <input value={value.destinationAwsAccessKeyId} onChange={update("destinationAwsAccessKeyId")} required />
           </label>
           <label>
             <span>S3 secret key {configuredSecrets?.destinationAwsSecretAccessKey ? "(настроен)" : ""}</span>
-            <small className="field-help">Секретный ключ доступа к S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
+            <small className="field-help">Оставьте поле пустым, чтобы сохранить текущее значение.</small>
             <input type="password" value={value.destinationAwsSecretAccessKey ?? ""} onChange={update("destinationAwsSecretAccessKey")} />
           </label>
         </>
@@ -340,7 +357,7 @@ export function TaskFormFields({
           </label>
           <label>
             <span>Source S3 endpoint</span>
-            <small className="field-help">Адрес исходного S3-совместимого хранилища, из которого будут считываться файлы.</small>
+            <small className="field-help">Адрес исходного S3-хранилища, из которого job будет читать файлы.</small>
             <div className="discovery-field">
               <input value={value.sourceS3AwsEndpoint} onChange={update("sourceS3AwsEndpoint")} required />
               <DiscoverySelect
@@ -364,17 +381,17 @@ export function TaskFormFields({
           </label>
           <label>
             <span>Source S3 access key</span>
-            <small className="field-help">Публичный ключ доступа к исходному S3-хранилищу.</small>
+            <small className="field-help">Публичный ключ доступа к исходному S3.</small>
             <input value={value.sourceS3AwsAccessKeyId} onChange={update("sourceS3AwsAccessKeyId")} required />
           </label>
           <label>
             <span>Source S3 secret key {configuredSecrets?.sourceS3AwsSecretAccessKey ? "(настроен)" : ""}</span>
-            <small className="field-help">Секретный ключ доступа к исходному S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
+            <small className="field-help">Оставьте поле пустым, чтобы сохранить текущее значение.</small>
             <input type="password" value={value.sourceS3AwsSecretAccessKey ?? ""} onChange={update("sourceS3AwsSecretAccessKey")} />
           </label>
           <label>
             <span>Destination S3 endpoint</span>
-            <small className="field-help">Адрес целевого S3-совместимого хранилища, куда будет отправлен архив.</small>
+            <small className="field-help">Адрес целевого S3-хранилища, куда будет загружен архив.</small>
             <input value={value.destinationS3AwsEndpoint} onChange={update("destinationS3AwsEndpoint")} required />
           </label>
           <label>
@@ -384,13 +401,50 @@ export function TaskFormFields({
           </label>
           <label>
             <span>Destination S3 access key</span>
-            <small className="field-help">Публичный ключ доступа к целевому S3-хранилищу.</small>
+            <small className="field-help">Публичный ключ доступа к целевому S3.</small>
             <input value={value.destinationS3AwsAccessKeyId} onChange={update("destinationS3AwsAccessKeyId")} required />
           </label>
           <label>
             <span>Destination S3 secret key {configuredSecrets?.destinationS3AwsSecretAccessKey ? "(настроен)" : ""}</span>
-            <small className="field-help">Секретный ключ доступа к целевому S3. Оставьте поле пустым, чтобы сохранить текущее значение.</small>
+            <small className="field-help">Оставьте поле пустым, чтобы сохранить текущее значение.</small>
             <input type="password" value={value.destinationS3AwsSecretAccessKey ?? ""} onChange={update("destinationS3AwsSecretAccessKey")} />
+          </label>
+        </>
+      ) : value.serviceType === "env_backupper" ? (
+        <>
+          <label>
+            <span>Префикс имени архива</span>
+            <small className="field-help">Префикс, который будет добавляться к имени каждого snapshot-архива namespace.</small>
+            <input value={value.envBackupsFilenamePrefix} onChange={update("envBackupsFilenamePrefix")} required />
+          </label>
+          <label>
+            <span>S3 endpoint</span>
+            <small className="field-help">Адрес S3/MinIO, куда будет загружаться архив состояния namespace.</small>
+            <div className="discovery-field">
+              <input value={value.destinationAwsEndpoint} onChange={update("destinationAwsEndpoint")} required />
+              <DiscoverySelect
+                ariaLabel="Service Discovery: S3 endpoint для env backupper"
+                placeholder={serviceDiscoveryPlaceholder}
+                options={s3EndpointOptions}
+                disabled={!serviceDiscoveryEnabled || s3EndpointOptions.length === 0}
+                onSelect={(nextValue) => updateValue({ destinationAwsEndpoint: nextValue })}
+              />
+            </div>
+          </label>
+          <label>
+            <span>S3 bucket</span>
+            <small className="field-help">Bucket, в который будут складываться архивы со snapshot выбранного namespace.</small>
+            <input value={value.destinationAwsBucketName} onChange={update("destinationAwsBucketName")} required />
+          </label>
+          <label>
+            <span>S3 access key</span>
+            <small className="field-help">Публичный ключ доступа к S3/MinIO для загрузки backup-архива.</small>
+            <input value={value.destinationAwsAccessKeyId} onChange={update("destinationAwsAccessKeyId")} required />
+          </label>
+          <label>
+            <span>S3 secret key {configuredSecrets?.destinationAwsSecretAccessKey ? "(настроен)" : ""}</span>
+            <small className="field-help">Оставьте поле пустым, чтобы не менять сохранённое значение.</small>
+            <input type="password" value={value.destinationAwsSecretAccessKey ?? ""} onChange={update("destinationAwsSecretAccessKey")} />
           </label>
         </>
       ) : (
