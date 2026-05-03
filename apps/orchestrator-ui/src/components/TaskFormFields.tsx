@@ -195,7 +195,7 @@ export function TaskFormFields({
         {serviceDiscoveryError ? <small className="field-help discovery-note">Service Discovery: {serviceDiscoveryError}</small> : null}
       </label>
 
-      <div className="schedule-field" hidden={!usesSchedule}>
+      <div className="schedule-field" style={usesSchedule ? undefined : { display: "none" }}>
         <div>
           <span>Расписание</span>
           <small className="field-help">Выберите режим запуска, а интерфейс соберёт cron-выражение автоматически.</small>
