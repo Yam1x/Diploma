@@ -52,12 +52,17 @@ function LayoutContent({ children }: PropsWithChildren) {
   return (
     <div className="shell">
       <header className="hero">
-        <div>
-          <p className="eyebrow">Diploma Control Plane</p>
-          <h1>Оркестрация резервного копирования для Kubernetes</h1>
-          <p className="subtle">
-            Настраивайте backup-сервисы и просматривайте артефакты в MinIO из одной панели управления.
-          </p>
+        <div className="hero-copy">
+          <div className="hero-brand">
+            <p className="eyebrow">Diploma Control Plane</p>
+            <span className="hero-status">Kubernetes orchestration</span>
+          </div>
+          <div className="hero-summary">
+            <h1>Управление резервным копированием и восстановлением</h1>
+            <p className="subtle">
+              Единая светлая панель для задач backup, recovery, event rules и артефактов MinIO.
+            </p>
+          </div>
         </div>
         <div className="notification-shell">
           <button
@@ -140,10 +145,10 @@ function LayoutContent({ children }: PropsWithChildren) {
       <div className="workspace">
         <aside className="sidebar card">
           <div className="sidebar-group">
-            <p className="sidebar-title">Сервисы резервного копирования</p>
+            <p className="sidebar-title">Основные разделы</p>
             <nav className="sidebar-nav">
               <Link className={isBackupSettingsRoute(location.pathname) ? "sidebar-link active" : "sidebar-link"} to="/">
-                Настройка сервисов
+                Задачи и сервисы
               </Link>
               <Link className={isEventRulesRoute(location.pathname) ? "sidebar-link active" : "sidebar-link"} to="/event-rules">
                 Event Rules
@@ -160,7 +165,7 @@ function LayoutContent({ children }: PropsWithChildren) {
             <p className="sidebar-title">Хранилище</p>
             <nav className="sidebar-nav">
               <Link className={location.pathname.startsWith("/minio-files") ? "sidebar-link active" : "sidebar-link"} to="/minio-files">
-                Просмотр файлов в MinIO
+                Файлы MinIO
               </Link>
             </nav>
           </div>
