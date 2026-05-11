@@ -65,12 +65,53 @@ def build_env_restorer_payload(enabled: bool = False) -> dict:
         "namespace": "default",
         "enabled": enabled,
         "schedule": None,
-        "triggerMode": "scheduled",
+        "triggerMode": "manual",
         "envBackupsFilenamePrefix": "namespace-default",
         "destinationAwsEndpoint": "https://minio.local",
         "destinationAwsBucketName": "backups",
         "destinationAwsAccessKeyId": "minio",
         "destinationAwsSecretAccessKey": "minio-secret",
+    }
+
+
+def build_db_restorer_payload(enabled: bool = False) -> dict:
+    return {
+        "serviceType": "db_restorer",
+        "name": "Primary DB restore",
+        "namespace": "default",
+        "enabled": enabled,
+        "schedule": None,
+        "triggerMode": "manual",
+        "dbBackupsFilenamePrefix": "primary",
+        "sourceAwsEndpoint": "https://minio.local",
+        "sourceAwsBucketName": "backups",
+        "sourceAwsAccessKeyId": "minio",
+        "sourceAwsSecretAccessKey": "minio-secret",
+        "targetDatabaseHost": "postgresql",
+        "targetDatabaseName": "app",
+        "targetDatabaseUsername": "postgres",
+        "targetDatabasePassword": "secret",
+    }
+
+
+def build_s3_restorer_payload(enabled: bool = False) -> dict:
+    return {
+        "serviceType": "s3_restorer",
+        "name": "Bucket restore",
+        "namespace": "default",
+        "enabled": enabled,
+        "schedule": None,
+        "triggerMode": "manual",
+        "s3BackupsFilenamePrefix": "bucket-archive",
+        "sourceS3AwsEndpoint": "https://source.local",
+        "sourceS3AwsBucketName": "source-bucket",
+        "sourceS3AwsAccessKeyId": "source-key",
+        "sourceS3AwsSecretAccessKey": "source-secret",
+        "targetS3AwsEndpoint": "https://destination.local",
+        "targetS3AwsBucketName": "destination-bucket",
+        "targetS3AwsBucketSubfolderName": "restored",
+        "targetS3AwsAccessKeyId": "destination-key",
+        "targetS3AwsSecretAccessKey": "destination-secret",
     }
 
 
@@ -222,6 +263,7 @@ def test_env_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
     assert created["serviceType"] == "env_restorer"
     assert created["releaseName"] == "env-restorer-1"
     assert created["schedule"] is None
+    assert created["triggerMode"] == "manual"
     assert fake_helm.upgrade_calls[0]["chart_path"] == "diploma-env-restorer/ci"
     assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["SOURCE_ENV_AWS_BUCKET_NAME"] == "backups"
     assert "BACKUPS_SCHEDULE" not in fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]
@@ -248,3 +290,69 @@ def test_env_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
     disable_response = client.post("/api/tasks/1/disable")
     assert disable_response.status_code == 200
     assert disable_response.json()["lastApplyStatus"] == "disabled"
+
+
+def test_db_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
+    create_response = client.post("/api/tasks", json=build_db_restorer_payload(enabled=True))
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["serviceType"] == "db_restorer"
+    assert created["triggerMode"] == "manual"
+    assert created["schedule"] is None
+    assert created["releaseName"] == "db-restorer-1"
+    assert fake_helm.upgrade_calls[0]["chart_path"] == "diploma-db-restorer/ci"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["SOURCE_DB_AWS_BUCKET_NAME"] == "backups"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["TARGET_DATABASE_HOST"] == "postgresql"
+
+    run_response = client.post("/api/tasks/1/run")
+    assert run_response.status_code == 200
+    assert fake_kube.created_jobs == [("default", "db-restorer-1", "manual")]
+
+    detail_response = client.get("/api/tasks/1")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["hasSourceAwsSecretAccessKey"] is True
+    assert detail_response.json()["hasTargetDatabasePassword"] is True
+
+    update_response = client.patch(
+        "/api/tasks/1",
+        json={
+            "serviceType": "db_restorer",
+            "targetDatabaseName": "restored-app",
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["targetDatabaseName"] == "restored-app"
+
+
+def test_s3_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
+    create_response = client.post("/api/tasks", json=build_s3_restorer_payload(enabled=True))
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["serviceType"] == "s3_restorer"
+    assert created["triggerMode"] == "manual"
+    assert created["schedule"] is None
+    assert created["releaseName"] == "s3-restorer-1"
+    assert fake_helm.upgrade_calls[0]["chart_path"] == "diploma-s3-restorer/ci"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["SOURCE_S3_AWS_BUCKET_NAME"] == "source-bucket"
+    assert fake_helm.upgrade_calls[0]["values"]["extraConfigMapEnvVars"]["TARGET_S3_AWS_BUCKET_NAME"] == "destination-bucket"
+
+    run_response = client.post("/api/tasks/1/run")
+    assert run_response.status_code == 200
+    assert fake_kube.created_jobs == [("default", "s3-restorer-1", "manual")]
+
+    detail_response = client.get("/api/tasks/1")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["hasSourceS3AwsSecretAccessKey"] is True
+    assert detail_response.json()["hasTargetS3AwsSecretAccessKey"] is True
+
+    update_response = client.patch(
+        "/api/tasks/1",
+        json={
+            "serviceType": "s3_restorer",
+            "targetS3AwsBucketSubfolderName": "restored-v2",
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["targetS3AwsBucketSubfolderName"] == "restored-v2"

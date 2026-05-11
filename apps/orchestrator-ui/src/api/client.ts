@@ -1,7 +1,14 @@
 const API_BASE_URL = "/api";
 
-export type ServiceType = "db_backupper" | "s3_backupper" | "env_backupper" | "env_restorer" | "env_synchronizer";
-export type TriggerMode = "scheduled" | "event_based";
+export type ServiceType =
+  | "db_backupper"
+  | "s3_backupper"
+  | "env_backupper"
+  | "db_restorer"
+  | "s3_restorer"
+  | "env_restorer"
+  | "env_synchronizer";
+export type TriggerMode = "manual" | "scheduled" | "event_based";
 
 export type EventRuleWatcherStatus = "disabled" | "waiting_for_baseline" | "watching" | "cooldown" | "error";
 export type RecoveryRuleWatcherStatus =
@@ -158,6 +165,14 @@ export type EnvBackupperTaskSummary = TaskSummaryBase & {
   serviceType: "env_backupper";
 };
 
+export type DbRestorerTaskSummary = TaskSummaryBase & {
+  serviceType: "db_restorer";
+};
+
+export type S3RestorerTaskSummary = TaskSummaryBase & {
+  serviceType: "s3_restorer";
+};
+
 export type EnvRestorerTaskSummary = TaskSummaryBase & {
   serviceType: "env_restorer";
 };
@@ -166,7 +181,14 @@ export type EnvSynchronizerTaskSummary = TaskSummaryBase & {
   serviceType: "env_synchronizer";
 };
 
-export type TaskSummary = DbTaskSummary | S3TaskSummary | EnvBackupperTaskSummary | EnvRestorerTaskSummary | EnvSynchronizerTaskSummary;
+export type TaskSummary =
+  | DbTaskSummary
+  | S3TaskSummary
+  | EnvBackupperTaskSummary
+  | DbRestorerTaskSummary
+  | S3RestorerTaskSummary
+  | EnvRestorerTaskSummary
+  | EnvSynchronizerTaskSummary;
 
 export type DbTaskDetail = DbTaskSummary & {
   dbBackupsFilenamePrefix: string;
@@ -209,6 +231,31 @@ export type EnvBackupperTaskDetail = EnvBackupperTaskSummary & {
   hasDestinationAwsSecretAccessKey: boolean;
 };
 
+export type DbRestorerTaskDetail = DbRestorerTaskSummary & {
+  dbBackupsFilenamePrefix: string;
+  sourceAwsEndpoint: string;
+  sourceAwsBucketName: string;
+  sourceAwsAccessKeyId: string;
+  targetDatabaseHost: string;
+  targetDatabaseName: string;
+  targetDatabaseUsername: string;
+  hasSourceAwsSecretAccessKey: boolean;
+  hasTargetDatabasePassword: boolean;
+};
+
+export type S3RestorerTaskDetail = S3RestorerTaskSummary & {
+  s3BackupsFilenamePrefix: string;
+  sourceS3AwsEndpoint: string;
+  sourceS3AwsBucketName: string;
+  sourceS3AwsAccessKeyId: string;
+  targetS3AwsEndpoint: string;
+  targetS3AwsBucketName: string;
+  targetS3AwsBucketSubfolderName: string;
+  targetS3AwsAccessKeyId: string;
+  hasSourceS3AwsSecretAccessKey: boolean;
+  hasTargetS3AwsSecretAccessKey: boolean;
+};
+
 export type EnvRestorerTaskDetail = EnvRestorerTaskSummary & {
   envBackupsFilenamePrefix: string;
   destinationAwsEndpoint: string;
@@ -222,7 +269,14 @@ export type EnvSynchronizerTaskDetail = EnvSynchronizerTaskSummary & {
   pathToHelmfile: string;
 };
 
-export type TaskDetail = DbTaskDetail | S3TaskDetail | EnvBackupperTaskDetail | EnvRestorerTaskDetail | EnvSynchronizerTaskDetail;
+export type TaskDetail =
+  | DbTaskDetail
+  | S3TaskDetail
+  | EnvBackupperTaskDetail
+  | DbRestorerTaskDetail
+  | S3RestorerTaskDetail
+  | EnvRestorerTaskDetail
+  | EnvSynchronizerTaskDetail;
 
 export type BackupEventRuleSummary = {
   id: number;
@@ -446,6 +500,33 @@ export type EnvBackupperTaskPayload = TaskPayloadBase & {
   destinationAwsSecretAccessKey?: string;
 };
 
+export type DbRestorerTaskPayload = TaskPayloadBase & {
+  serviceType: "db_restorer";
+  dbBackupsFilenamePrefix: string;
+  sourceAwsEndpoint: string;
+  sourceAwsBucketName: string;
+  sourceAwsAccessKeyId: string;
+  sourceAwsSecretAccessKey?: string;
+  targetDatabaseHost: string;
+  targetDatabaseName: string;
+  targetDatabaseUsername: string;
+  targetDatabasePassword?: string;
+};
+
+export type S3RestorerTaskPayload = TaskPayloadBase & {
+  serviceType: "s3_restorer";
+  s3BackupsFilenamePrefix: string;
+  sourceS3AwsEndpoint: string;
+  sourceS3AwsBucketName: string;
+  sourceS3AwsAccessKeyId: string;
+  sourceS3AwsSecretAccessKey?: string;
+  targetS3AwsEndpoint: string;
+  targetS3AwsBucketName: string;
+  targetS3AwsBucketSubfolderName: string;
+  targetS3AwsAccessKeyId: string;
+  targetS3AwsSecretAccessKey?: string;
+};
+
 export type EnvRestorerTaskPayload = TaskPayloadBase & {
   serviceType: "env_restorer";
   envBackupsFilenamePrefix: string;
@@ -461,7 +542,14 @@ export type EnvSynchronizerTaskPayload = TaskPayloadBase & {
   pathToHelmfile: string;
 };
 
-export type TaskPayload = DbTaskPayload | S3TaskPayload | EnvBackupperTaskPayload | EnvRestorerTaskPayload | EnvSynchronizerTaskPayload;
+export type TaskPayload =
+  | DbTaskPayload
+  | S3TaskPayload
+  | EnvBackupperTaskPayload
+  | DbRestorerTaskPayload
+  | S3RestorerTaskPayload
+  | EnvRestorerTaskPayload
+  | EnvSynchronizerTaskPayload;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {

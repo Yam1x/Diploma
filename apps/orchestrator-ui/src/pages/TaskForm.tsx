@@ -65,6 +65,47 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
     };
   }
 
+  if (serviceType === "db_restorer") {
+    return {
+      serviceType,
+      name: "",
+      namespace: "",
+      enabled: false,
+      schedule: null,
+      triggerMode: "manual",
+      dbBackupsFilenamePrefix: "",
+      sourceAwsEndpoint: "",
+      sourceAwsBucketName: "",
+      sourceAwsAccessKeyId: "",
+      sourceAwsSecretAccessKey: "",
+      targetDatabaseHost: "",
+      targetDatabaseName: "",
+      targetDatabaseUsername: "",
+      targetDatabasePassword: "",
+    };
+  }
+
+  if (serviceType === "s3_restorer") {
+    return {
+      serviceType,
+      name: "",
+      namespace: "",
+      enabled: false,
+      schedule: null,
+      triggerMode: "manual",
+      s3BackupsFilenamePrefix: "",
+      sourceS3AwsEndpoint: "",
+      sourceS3AwsBucketName: "",
+      sourceS3AwsAccessKeyId: "",
+      sourceS3AwsSecretAccessKey: "",
+      targetS3AwsEndpoint: "",
+      targetS3AwsBucketName: "",
+      targetS3AwsBucketSubfolderName: "",
+      targetS3AwsAccessKeyId: "",
+      targetS3AwsSecretAccessKey: "",
+    };
+  }
+
   if (serviceType === "env_restorer") {
     return {
       serviceType,
@@ -72,7 +113,7 @@ function buildEmptyPayload(serviceType: ServiceType): TaskPayload {
       namespace: "",
       enabled: false,
       schedule: null,
-      triggerMode: "scheduled",
+      triggerMode: "manual",
       envBackupsFilenamePrefix: "",
       destinationAwsEndpoint: "",
       destinationAwsBucketName: "",
@@ -101,7 +142,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       namespace: detail.namespace,
       enabled: detail.enabled,
       schedule: detail.schedule ?? DEFAULT_SCHEDULE,
-      triggerMode: "scheduled",
+      triggerMode: detail.triggerMode,
       dbBackupsFilenamePrefix: detail.dbBackupsFilenamePrefix,
       databaseHost: detail.databaseHost,
       databaseName: detail.databaseName,
@@ -121,7 +162,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       namespace: detail.namespace,
       enabled: detail.enabled,
       schedule: detail.schedule ?? DEFAULT_SCHEDULE,
-      triggerMode: "scheduled",
+      triggerMode: detail.triggerMode,
       s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
       sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
       sourceS3AwsAccessKeyId: detail.sourceS3AwsAccessKeyId,
@@ -142,12 +183,53 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       namespace: detail.namespace,
       enabled: detail.enabled,
       schedule: detail.schedule ?? DEFAULT_SCHEDULE,
-      triggerMode: "scheduled",
+      triggerMode: detail.triggerMode,
       envBackupsFilenamePrefix: detail.envBackupsFilenamePrefix,
       destinationAwsEndpoint: detail.destinationAwsEndpoint,
       destinationAwsBucketName: detail.destinationAwsBucketName,
       destinationAwsAccessKeyId: detail.destinationAwsAccessKeyId,
       destinationAwsSecretAccessKey: "",
+    };
+  }
+
+  if (detail.serviceType === "db_restorer") {
+    return {
+      serviceType: detail.serviceType,
+      name: detail.name,
+      namespace: detail.namespace,
+      enabled: detail.enabled,
+      schedule: detail.schedule,
+      triggerMode: detail.triggerMode,
+      dbBackupsFilenamePrefix: detail.dbBackupsFilenamePrefix,
+      sourceAwsEndpoint: detail.sourceAwsEndpoint,
+      sourceAwsBucketName: detail.sourceAwsBucketName,
+      sourceAwsAccessKeyId: detail.sourceAwsAccessKeyId,
+      sourceAwsSecretAccessKey: "",
+      targetDatabaseHost: detail.targetDatabaseHost,
+      targetDatabaseName: detail.targetDatabaseName,
+      targetDatabaseUsername: detail.targetDatabaseUsername,
+      targetDatabasePassword: "",
+    };
+  }
+
+  if (detail.serviceType === "s3_restorer") {
+    return {
+      serviceType: detail.serviceType,
+      name: detail.name,
+      namespace: detail.namespace,
+      enabled: detail.enabled,
+      schedule: detail.schedule,
+      triggerMode: detail.triggerMode,
+      s3BackupsFilenamePrefix: detail.s3BackupsFilenamePrefix,
+      sourceS3AwsEndpoint: detail.sourceS3AwsEndpoint,
+      sourceS3AwsBucketName: detail.sourceS3AwsBucketName,
+      sourceS3AwsAccessKeyId: detail.sourceS3AwsAccessKeyId,
+      sourceS3AwsSecretAccessKey: "",
+      targetS3AwsEndpoint: detail.targetS3AwsEndpoint,
+      targetS3AwsBucketName: detail.targetS3AwsBucketName,
+      targetS3AwsBucketSubfolderName: detail.targetS3AwsBucketSubfolderName,
+      targetS3AwsAccessKeyId: detail.targetS3AwsAccessKeyId,
+      targetS3AwsSecretAccessKey: "",
     };
   }
 
@@ -158,7 +240,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
       namespace: detail.namespace,
       enabled: detail.enabled,
       schedule: detail.schedule,
-      triggerMode: "scheduled",
+      triggerMode: detail.triggerMode,
       envBackupsFilenamePrefix: detail.envBackupsFilenamePrefix,
       destinationAwsEndpoint: detail.destinationAwsEndpoint,
       destinationAwsBucketName: detail.destinationAwsBucketName,
@@ -173,7 +255,7 @@ function buildPayloadFromDetail(detail: TaskDetail): TaskPayload {
     namespace: detail.namespace,
     enabled: detail.enabled,
     schedule: detail.schedule ?? DEFAULT_SCHEDULE,
-    triggerMode: "scheduled",
+    triggerMode: detail.triggerMode,
     envRepository: detail.envRepository,
     pathToHelmfile: detail.pathToHelmfile,
   };
@@ -197,6 +279,20 @@ function buildConfiguredSecrets(detail: TaskDetail): ConfiguredSecrets {
   if (detail.serviceType === "env_backupper") {
     return {
       destinationAwsSecretAccessKey: detail.hasDestinationAwsSecretAccessKey,
+    };
+  }
+
+  if (detail.serviceType === "db_restorer") {
+    return {
+      databasePassword: detail.hasTargetDatabasePassword,
+      destinationAwsSecretAccessKey: detail.hasSourceAwsSecretAccessKey,
+    };
+  }
+
+  if (detail.serviceType === "s3_restorer") {
+    return {
+      sourceS3AwsSecretAccessKey: detail.hasSourceS3AwsSecretAccessKey,
+      destinationS3AwsSecretAccessKey: detail.hasTargetS3AwsSecretAccessKey,
     };
   }
 
@@ -337,12 +433,26 @@ export function TaskFormPage() {
           if (!value.destinationAwsSecretAccessKey) {
             delete payload.destinationAwsSecretAccessKey;
           }
+        } else if (value.serviceType === "db_restorer") {
+          if (!value.targetDatabasePassword) {
+            delete payload.targetDatabasePassword;
+          }
+          if (!value.sourceAwsSecretAccessKey) {
+            delete payload.sourceAwsSecretAccessKey;
+          }
         } else if (value.serviceType === "s3_backupper") {
           if (!value.sourceS3AwsSecretAccessKey) {
             delete payload.sourceS3AwsSecretAccessKey;
           }
           if (!value.destinationS3AwsSecretAccessKey) {
             delete payload.destinationS3AwsSecretAccessKey;
+          }
+        } else if (value.serviceType === "s3_restorer") {
+          if (!value.sourceS3AwsSecretAccessKey) {
+            delete payload.sourceS3AwsSecretAccessKey;
+          }
+          if (!value.targetS3AwsSecretAccessKey) {
+            delete payload.targetS3AwsSecretAccessKey;
           }
         } else if (value.serviceType === "env_backupper" || value.serviceType === "env_restorer") {
           if (!value.destinationAwsSecretAccessKey) {

@@ -72,7 +72,7 @@ test("renders env restore task details", async () => {
     enabled: true,
     serviceType: "env_restorer",
     schedule: null,
-    triggerMode: "scheduled",
+    triggerMode: "manual",
     deployed: true,
     releaseName: "env-restorer-5",
     lastApplyStatus: "deployed",
@@ -97,6 +97,86 @@ test("renders env restore task details", async () => {
   expect(await screen.findByText("Namespace restore")).toBeInTheDocument();
   expect(screen.getByText("Source S3 bucket")).toBeInTheDocument();
   expect(screen.getByText("backups")).toBeInTheDocument();
+  expect(screen.getByText("Вручную")).toBeInTheDocument();
+});
+
+test("renders db restore task details", async () => {
+  api.getTask.mockResolvedValue({
+    id: 6,
+    name: "Primary DB restore",
+    namespace: "default",
+    enabled: true,
+    serviceType: "db_restorer",
+    schedule: null,
+    triggerMode: "manual",
+    deployed: true,
+    releaseName: "db-restorer-6",
+    lastApplyStatus: "deployed",
+    lastApplyMessage: "ok",
+    lastAppliedAt: null,
+    updatedAt: new Date().toISOString(),
+    dbBackupsFilenamePrefix: "primary",
+    sourceAwsEndpoint: "https://minio.local",
+    sourceAwsBucketName: "backups",
+    sourceAwsAccessKeyId: "minio",
+    targetDatabaseHost: "postgresql",
+    targetDatabaseName: "app",
+    targetDatabaseUsername: "postgres",
+    hasSourceAwsSecretAccessKey: true,
+    hasTargetDatabasePassword: true,
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/6"]}>
+      <Routes>
+        <Route path="/tasks/:taskId" element={<TaskDetailsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Primary DB restore")).toBeInTheDocument();
+  expect(screen.getByText("Хост целевой БД")).toBeInTheDocument();
+  expect(screen.getByText("postgresql")).toBeInTheDocument();
+});
+
+test("renders s3 restore task details", async () => {
+  api.getTask.mockResolvedValue({
+    id: 7,
+    name: "Bucket restore",
+    namespace: "default",
+    enabled: true,
+    serviceType: "s3_restorer",
+    schedule: null,
+    triggerMode: "manual",
+    deployed: true,
+    releaseName: "s3-restorer-7",
+    lastApplyStatus: "deployed",
+    lastApplyMessage: "ok",
+    lastAppliedAt: null,
+    updatedAt: new Date().toISOString(),
+    s3BackupsFilenamePrefix: "bucket-archive",
+    sourceS3AwsEndpoint: "https://source.local",
+    sourceS3AwsBucketName: "source-bucket",
+    sourceS3AwsAccessKeyId: "source-key",
+    targetS3AwsEndpoint: "https://destination.local",
+    targetS3AwsBucketName: "destination-bucket",
+    targetS3AwsBucketSubfolderName: "restored",
+    targetS3AwsAccessKeyId: "destination-key",
+    hasSourceS3AwsSecretAccessKey: true,
+    hasTargetS3AwsSecretAccessKey: true,
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/7"]}>
+      <Routes>
+        <Route path="/tasks/:taskId" element={<TaskDetailsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Bucket restore")).toBeInTheDocument();
+  expect(screen.getByText("Target S3 bucket")).toBeInTheDocument();
+  expect(screen.getByText("destination-bucket")).toBeInTheDocument();
 });
 
 test("renders event-based db watcher details", async () => {

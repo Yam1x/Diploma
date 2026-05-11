@@ -5,11 +5,15 @@ import { JobRunSummary, TaskDetail, api } from "../api/client";
 import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
+function isManualRecoveryTask(task: TaskDetail) {
+  return task.serviceType === "db_restorer" || task.serviceType === "s3_restorer" || task.serviceType === "env_restorer";
+}
+
 function formatTaskTriggerMode(task: TaskDetail) {
-  if (task.serviceType === "env_restorer") {
+  if (isManualRecoveryTask(task)) {
     return "Вручную";
   }
-  return task.triggerMode === "event_based" ? "РџРѕ СЃРѕР±С‹С‚РёСЋ + cron fallback" : "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
+  return task.triggerMode === "event_based" ? "По событию + cron fallback" : "По расписанию";
 }
 
 function formatBoolean(value: boolean) {
@@ -47,10 +51,6 @@ function formatTriggerType(triggerType: JobRunSummary["triggerType"]) {
     return "По событию";
   }
   return "По расписанию";
-}
-
-function formatTriggerMode(triggerMode: TaskDetail["triggerMode"]) {
-  return triggerMode === "event_based" ? "По событию + cron fallback" : "По расписанию";
 }
 
 function formatJobStatus(status: JobRunSummary["status"]) {
@@ -123,12 +123,56 @@ function renderTaskParameters(task: TaskDetail) {
     );
   }
 
+  if (task.serviceType === "db_restorer") {
+    return (
+      <article className="card">
+        <h3>Параметры выполнения</h3>
+        <dl>
+          <dt>Префикс файла</dt>
+          <dd>{task.dbBackupsFilenamePrefix}</dd>
+          <dt>Source S3 endpoint</dt>
+          <dd>{task.sourceAwsEndpoint}</dd>
+          <dt>Source S3 bucket</dt>
+          <dd>{task.sourceAwsBucketName}</dd>
+          <dt>Хост целевой БД</dt>
+          <dd>{task.targetDatabaseHost}</dd>
+          <dt>Имя целевой БД</dt>
+          <dd>{task.targetDatabaseName}</dd>
+          <dt>Пользователь целевой БД</dt>
+          <dd>{task.targetDatabaseUsername}</dd>
+        </dl>
+      </article>
+    );
+  }
+
+  if (task.serviceType === "s3_restorer") {
+    return (
+      <article className="card">
+        <h3>Параметры выполнения</h3>
+        <dl>
+          <dt>Префикс архива</dt>
+          <dd>{task.s3BackupsFilenamePrefix}</dd>
+          <dt>Source S3 endpoint</dt>
+          <dd>{task.sourceS3AwsEndpoint}</dd>
+          <dt>Source S3 bucket</dt>
+          <dd>{task.sourceS3AwsBucketName}</dd>
+          <dt>Target S3 endpoint</dt>
+          <dd>{task.targetS3AwsEndpoint}</dd>
+          <dt>Target S3 bucket</dt>
+          <dd>{task.targetS3AwsBucketName}</dd>
+          <dt>Target S3 subfolder</dt>
+          <dd>{task.targetS3AwsBucketSubfolderName || "Корень bucket"}</dd>
+        </dl>
+      </article>
+    );
+  }
+
   if (task.serviceType === "env_restorer") {
     return (
       <article className="card">
-        <h3>РџР°СЂР°РјРµС‚СЂС‹ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
+        <h3>Параметры выполнения</h3>
         <dl>
-          <dt>РџСЂРµС„РёРєСЃ Р°СЂС…РёРІР°</dt>
+          <dt>Префикс архива</dt>
           <dd>{task.envBackupsFilenamePrefix}</dd>
           <dt>Source S3 endpoint</dt>
           <dd>{task.destinationAwsEndpoint}</dd>
@@ -312,6 +356,16 @@ export function TaskDetailsPage() {
                 <dd>{task.dbBackupsFilenamePrefix}</dd>
               </>
             ) : task.serviceType === "s3_backupper" ? (
+              <>
+                <dt>Префикс имени архива</dt>
+                <dd>{task.s3BackupsFilenamePrefix}</dd>
+              </>
+            ) : task.serviceType === "db_restorer" ? (
+              <>
+                <dt>Префикс имени файла</dt>
+                <dd>{task.dbBackupsFilenamePrefix}</dd>
+              </>
+            ) : task.serviceType === "s3_restorer" ? (
               <>
                 <dt>Префикс имени архива</dt>
                 <dd>{task.s3BackupsFilenamePrefix}</dd>

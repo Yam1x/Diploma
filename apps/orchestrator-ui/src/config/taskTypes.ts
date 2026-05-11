@@ -34,6 +34,22 @@ export const taskTypes: TaskTypeDefinition[] = [
     metadata: "Подходит для плановых и ручных backup-ов инфраструктурного состояния namespace: сервисов, workload-ов, ConfigMap и Secret.",
   },
   {
+    routeType: "db-restorer",
+    serviceType: "db_restorer",
+    title: "Восстановление БД",
+    description:
+      "Создаёт и деплоит `db_restorer`, который подготавливает доступ для restore и по ручному запуску восстанавливает последний dump PostgreSQL из S3/MinIO в целевую БД.",
+    metadata: "Подходит для ручного restore БД из последнего backup-дампа. Автозапуска по расписанию нет.",
+  },
+  {
+    routeType: "s3-restorer",
+    serviceType: "s3_restorer",
+    title: "Восстановление S3",
+    description:
+      "Создаёт и деплоит `s3_restorer`, который подготавливает доступ для restore и по ручному запуску восстанавливает последний S3-архив в целевой bucket.",
+    metadata: "Подходит для ручного restore bucket из последнего backup-архива. Автозапуска по расписанию нет.",
+  },
+  {
     routeType: "env-restorer",
     serviceType: "env_restorer",
     title: "Восстановление окружения",

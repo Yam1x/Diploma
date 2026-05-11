@@ -79,7 +79,7 @@ def test_env_restorer_create_schema_accepts_payload() -> None:
         "namespace": "default",
         "enabled": True,
         "schedule": None,
-        "triggerMode": "scheduled",
+        "triggerMode": "manual",
         "envBackupsFilenamePrefix": "namespace-default",
         "destinationAwsEndpoint": "https://minio.local",
         "destinationAwsBucketName": "backups",
@@ -91,6 +91,46 @@ def test_env_restorer_create_schema_accepts_payload() -> None:
 
     assert result.serviceType == "env_restorer"
     assert result.envBackupsFilenamePrefix == "namespace-default"
+
+
+def test_db_restorer_create_schema_accepts_payload() -> None:
+    payload = {
+        "serviceType": "db_restorer",
+        "name": "Primary DB restore",
+        "namespace": "default",
+        "enabled": True,
+        "schedule": None,
+        "triggerMode": "manual",
+        "dbBackupsFilenamePrefix": "primary",
+        "sourceAwsEndpoint": "https://minio.local",
+        "sourceAwsBucketName": "backups",
+        "sourceAwsAccessKeyId": "minio",
+        "sourceAwsSecretAccessKey": "minio-secret",
+        "targetDatabaseHost": "postgresql",
+        "targetDatabaseName": "app",
+        "targetDatabaseUsername": "postgres",
+        "targetDatabasePassword": "secret",
+    }
+
+    result = CREATE_ADAPTER.validate_python(payload)
+
+    assert result.serviceType == "db_restorer"
+    assert result.triggerMode == "manual"
+    assert result.targetDatabaseHost == "postgresql"
+
+
+def test_s3_restorer_update_schema_accepts_payload() -> None:
+    payload = {
+        "serviceType": "s3_restorer",
+        "triggerMode": "manual",
+        "targetS3AwsBucketSubfolderName": "restored",
+        "targetS3AwsBucketName": "target-bucket",
+    }
+
+    result = UPDATE_ADAPTER.validate_python(payload)
+
+    assert result.serviceType == "s3_restorer"
+    assert result.targetS3AwsBucketName == "target-bucket"
 
 
 def test_create_schema_rejects_fields_for_wrong_service() -> None:

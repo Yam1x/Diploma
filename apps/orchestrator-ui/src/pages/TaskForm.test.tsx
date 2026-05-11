@@ -66,6 +66,32 @@ test("renders env restore fields for env restore route", async () => {
   expect(screen.getByText("Source S3 bucket")).toBeInTheDocument();
 });
 
+test("renders db restore fields for db restore route", async () => {
+  render(
+    <MemoryRouter initialEntries={["/tasks/new/db-restorer"]}>
+      <Routes>
+        <Route path="/tasks/new/:taskType" element={<TaskFormPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Source S3 endpoint")).toBeInTheDocument();
+  expect(screen.getByText("Хост целевой базы данных")).toBeInTheDocument();
+});
+
+test("renders s3 restore fields for s3 restore route", async () => {
+  render(
+    <MemoryRouter initialEntries={["/tasks/new/s3-restorer"]}>
+      <Routes>
+        <Route path="/tasks/new/:taskType" element={<TaskFormPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("Target S3 endpoint")).toBeInTheDocument();
+  expect(screen.getByText("Target S3 bucket")).toBeInTheDocument();
+});
+
 test("fills database host from service discovery", async () => {
   const user = userEvent.setup();
 
@@ -169,7 +195,7 @@ test("keeps existing env restore secret when edit form leaves it empty", async (
     enabled: true,
     serviceType: "env_restorer",
     schedule: null,
-    triggerMode: "scheduled",
+    triggerMode: "manual",
     deployed: true,
     releaseName: "env-restorer-8",
     lastApplyStatus: "deployed",
@@ -207,6 +233,113 @@ test("keeps existing env restore secret when edit form leaves it empty", async (
   const payload = api.updateTask.mock.calls[0][1];
 
   expect(payload).not.toHaveProperty("destinationAwsSecretAccessKey");
+});
+
+test("keeps existing db restore secrets when edit form leaves them empty", async () => {
+  const detail = {
+    id: 9,
+    name: "Primary DB restore",
+    namespace: "default",
+    enabled: true,
+    serviceType: "db_restorer",
+    schedule: null,
+    triggerMode: "manual",
+    deployed: true,
+    releaseName: "db-restorer-9",
+    lastApplyStatus: "deployed",
+    lastApplyMessage: "ok",
+    lastAppliedAt: null,
+    updatedAt: new Date().toISOString(),
+    dbBackupsFilenamePrefix: "primary",
+    sourceAwsEndpoint: "https://minio.local",
+    sourceAwsBucketName: "backups",
+    sourceAwsAccessKeyId: "minio",
+    targetDatabaseHost: "postgresql",
+    targetDatabaseName: "app",
+    targetDatabaseUsername: "postgres",
+    hasSourceAwsSecretAccessKey: true,
+    hasTargetDatabasePassword: true,
+  };
+
+  api.getTask.mockResolvedValue(detail);
+  api.updateTask.mockResolvedValue(detail);
+
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/9/edit"]}>
+      <Routes>
+        <Route path="/tasks/:taskId/edit" element={<TaskFormPage />} />
+        <Route path="/tasks/:taskId" element={<div>details</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByDisplayValue("postgresql")).toBeInTheDocument();
+
+  const submitButton = document.querySelector('button[type="submit"]');
+  expect(submitButton).not.toBeNull();
+  await user.click(submitButton as HTMLButtonElement);
+
+  await waitFor(() => expect(api.updateTask).toHaveBeenCalled());
+  const payload = api.updateTask.mock.calls[0][1];
+
+  expect(payload).not.toHaveProperty("sourceAwsSecretAccessKey");
+  expect(payload).not.toHaveProperty("targetDatabasePassword");
+});
+
+test("keeps existing s3 restore secrets when edit form leaves them empty", async () => {
+  const detail = {
+    id: 10,
+    name: "Bucket restore",
+    namespace: "default",
+    enabled: true,
+    serviceType: "s3_restorer",
+    schedule: null,
+    triggerMode: "manual",
+    deployed: true,
+    releaseName: "s3-restorer-10",
+    lastApplyStatus: "deployed",
+    lastApplyMessage: "ok",
+    lastAppliedAt: null,
+    updatedAt: new Date().toISOString(),
+    s3BackupsFilenamePrefix: "bucket-archive",
+    sourceS3AwsEndpoint: "https://source.local",
+    sourceS3AwsBucketName: "source-bucket",
+    sourceS3AwsAccessKeyId: "source-key",
+    targetS3AwsEndpoint: "https://destination.local",
+    targetS3AwsBucketName: "destination-bucket",
+    targetS3AwsBucketSubfolderName: "restored",
+    targetS3AwsAccessKeyId: "destination-key",
+    hasSourceS3AwsSecretAccessKey: true,
+    hasTargetS3AwsSecretAccessKey: true,
+  };
+
+  api.getTask.mockResolvedValue(detail);
+  api.updateTask.mockResolvedValue(detail);
+
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={["/tasks/10/edit"]}>
+      <Routes>
+        <Route path="/tasks/:taskId/edit" element={<TaskFormPage />} />
+        <Route path="/tasks/:taskId" element={<div>details</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByDisplayValue("destination-bucket")).toBeInTheDocument();
+
+  const submitButton = document.querySelector('button[type="submit"]');
+  expect(submitButton).not.toBeNull();
+  await user.click(submitButton as HTMLButtonElement);
+
+  await waitFor(() => expect(api.updateTask).toHaveBeenCalled());
+  const payload = api.updateTask.mock.calls[0][1];
+
+  expect(payload).not.toHaveProperty("sourceS3AwsSecretAccessKey");
+  expect(payload).not.toHaveProperty("targetS3AwsSecretAccessKey");
 });
 
 test("allows switching db backup task to event-based mode", async () => {

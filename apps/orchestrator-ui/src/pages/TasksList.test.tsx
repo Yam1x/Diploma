@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
-import { beforeEach, vi } from "vitest";
+import { beforeEach, test, vi } from "vitest";
 
 const { api } = vi.hoisted(() => ({
   api: {
@@ -39,14 +39,14 @@ beforeEach(() => {
     },
     {
       id: 2,
-      name: "Bucket archive",
+      name: "Bucket restore",
       namespace: "default",
       enabled: false,
       deployed: false,
-      serviceType: "s3_backupper",
-      schedule: "30 * * * *",
-      triggerMode: "scheduled",
-      releaseName: "s3-backupper-2",
+      serviceType: "s3_restorer",
+      schedule: null,
+      triggerMode: "manual",
+      releaseName: "s3-restorer-2",
       lastApplyStatus: null,
       lastApplyMessage: null,
       lastAppliedAt: null,
@@ -79,7 +79,7 @@ test("renders task list with trigger modes", async () => {
   );
 
   expect(await screen.findByText("Primary DB")).toBeInTheDocument();
-  expect(screen.getByText("Bucket archive")).toBeInTheDocument();
+  expect(screen.getByText("Bucket restore")).toBeInTheDocument();
   expect(screen.getByText("По событию")).toBeInTheDocument();
-  expect(screen.getByText("По расписанию")).toBeInTheDocument();
+  expect(screen.getAllByText("Вручную").length).toBeGreaterThan(0);
 });

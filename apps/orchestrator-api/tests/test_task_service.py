@@ -80,7 +80,7 @@ def build_env_restorer_task() -> Task:
         service_type=ServiceType.ENV_RESTORER,
         enabled=True,
         schedule=None,
-        trigger_mode=TriggerMode.SCHEDULED.value,
+        trigger_mode=TriggerMode.MANUAL.value,
         release_name="env-restorer-10",
         env_backups_filename_prefix="namespace-default",
         destination_aws_endpoint="https://minio.local",
@@ -91,10 +91,61 @@ def build_env_restorer_task() -> Task:
     return task
 
 
+def build_db_restorer_task() -> Task:
+    task = Task(
+        name="Primary DB restore",
+        namespace="default",
+        service_type=ServiceType.DB_RESTORER,
+        enabled=True,
+        schedule=None,
+        trigger_mode=TriggerMode.MANUAL.value,
+        release_name="db-restorer-11",
+        db_backups_filename_prefix="primary",
+        database_host="postgresql",
+        database_name="app",
+        database_username="postgres",
+        destination_aws_endpoint="https://minio.local",
+        destination_aws_bucket_name="backups",
+        destination_aws_access_key_id="minio",
+    )
+    task.secret = TaskSecret(
+        database_password_encrypted="secret",
+        destination_aws_secret_access_key_encrypted="minio-secret",
+    )
+    return task
+
+
+def build_s3_restorer_task() -> Task:
+    task = Task(
+        name="Bucket restore",
+        namespace="default",
+        service_type=ServiceType.S3_RESTORER,
+        enabled=True,
+        schedule=None,
+        trigger_mode=TriggerMode.MANUAL.value,
+        release_name="s3-restorer-12",
+        s3_backups_filename_prefix="bucket",
+        source_s3_aws_endpoint="https://source.local",
+        source_s3_aws_access_key_id="source-key",
+        source_s3_aws_bucket_name="source-bucket",
+        destination_s3_aws_endpoint="https://target.local",
+        destination_s3_aws_access_key_id="target-key",
+        destination_s3_aws_bucket_name="target-bucket",
+        target_s3_aws_bucket_subfolder_name="restored",
+    )
+    task.secret = TaskSecret(
+        source_s3_aws_secret_access_key_encrypted="source-secret",
+        destination_s3_aws_secret_access_key_encrypted="target-secret",
+    )
+    return task
+
+
 def test_release_names_use_service_specific_prefix(service) -> None:
     assert service._build_release_name(12, ServiceType.DB_BACKUPPER) == "db-backupper-12"
     assert service._build_release_name(12, ServiceType.S3_BACKUPPER) == "s3-backupper-12"
     assert service._build_release_name(12, ServiceType.ENV_BACKUPPER) == "env-backupper-12"
+    assert service._build_release_name(12, ServiceType.DB_RESTORER) == "db-restorer-12"
+    assert service._build_release_name(12, ServiceType.S3_RESTORER) == "s3-restorer-12"
     assert service._build_release_name(12, ServiceType.ENV_RESTORER) == "env-restorer-12"
 
 
@@ -149,6 +200,30 @@ def test_build_values_for_env_restorer_task(service) -> None:
     assert "BACKUPS_SCHEDULE" not in values["extraConfigMapEnvVars"]
 
 
+def test_build_values_for_db_restorer_task(service) -> None:
+    task = build_db_restorer_task()
+    config = service._get_deployment_config(ServiceType.DB_RESTORER, service.settings)
+
+    values = service._build_values(task, config)
+
+    assert values["image"]["repository"] == service.settings.db_restorer_image_repository
+    assert values["extraConfigMapEnvVars"]["SOURCE_DB_AWS_BUCKET_NAME"] == "backups"
+    assert values["extraConfigMapEnvVars"]["TARGET_DATABASE_HOST"] == "postgresql"
+    assert "BACKUPS_SCHEDULE" not in values["extraConfigMapEnvVars"]
+
+
+def test_build_values_for_s3_restorer_task(service) -> None:
+    task = build_s3_restorer_task()
+    config = service._get_deployment_config(ServiceType.S3_RESTORER, service.settings)
+
+    values = service._build_values(task, config)
+
+    assert values["image"]["repository"] == service.settings.s3_restorer_image_repository
+    assert values["extraConfigMapEnvVars"]["SOURCE_S3_AWS_BUCKET_NAME"] == "source-bucket"
+    assert values["extraConfigMapEnvVars"]["TARGET_S3_AWS_BUCKET_SUBFOLDER_NAME"] == "restored"
+    assert "BACKUPS_SCHEDULE" not in values["extraConfigMapEnvVars"]
+
+
 def test_validate_required_s3_secrets_requires_both_keys(service) -> None:
     task = build_s3_task()
     task.secret.source_s3_aws_secret_access_key_encrypted = None
@@ -168,6 +243,23 @@ def test_validate_trigger_mode_rejects_public_event_based_for_s3(service) -> Non
     assert "configured only through event rules" in exc.value.detail
 
 
+def test_validate_trigger_mode_requires_manual_for_public_restorers(service) -> None:
+    with pytest.raises(HTTPException) as exc:
+        service._validate_trigger_mode(ServiceType.DB_RESTORER, "scheduled")
+
+    assert exc.value.status_code == 400
+    assert "Manual trigger mode is required" in exc.value.detail
+
+
+def test_normalize_schedule_clears_manual_public_recovery_schedule(service) -> None:
+    task = build_db_restorer_task()
+    task.schedule = "0 * * * *"
+
+    service._normalize_schedule(task)
+
+    assert task.schedule is None
+
+
 def test_build_db_job_spec_adds_pgpassword_for_manual_jobs(service) -> None:
     task = build_db_event_task()
     config = service._get_deployment_config(ServiceType.DB_BACKUPPER, service.settings)
@@ -176,4 +268,15 @@ def test_build_db_job_spec_adds_pgpassword_for_manual_jobs(service) -> None:
 
     env = {item["name"]: item["value"] for item in spec["template"]["spec"]["containers"][0]["env"]}
     assert env["DATABASE_PASSWORD"] == "secret"
+    assert env["PGPASSWORD"] == "secret"
+
+
+def test_build_db_restore_job_spec_adds_pgpassword_for_manual_jobs(service) -> None:
+    task = build_db_restorer_task()
+    config = service._get_deployment_config(ServiceType.DB_RESTORER, service.settings)
+
+    spec = service._build_db_restore_job_spec(task, config)
+
+    env = {item["name"]: item["value"] for item in spec["template"]["spec"]["containers"][0]["env"]}
+    assert env["TARGET_DATABASE_PASSWORD"] == "secret"
     assert env["PGPASSWORD"] == "secret"

@@ -17,6 +17,10 @@ from app.models.task import ServiceType, Task, TaskEventWatchState, TaskJobRun, 
 from app.services.notification_service import NotificationService
 from app.schemas.task import (
     DbTaskCreate,
+    DbRestorerTaskCreate,
+    DbRestorerTaskDetail,
+    DbRestorerTaskSummary,
+    DbRestorerTaskUpdate,
     DbTaskDetail,
     DbTaskSummary,
     DbTaskUpdate,
@@ -32,6 +36,10 @@ from app.schemas.task import (
     EnvSynchronizerTaskDetail,
     EnvSynchronizerTaskSummary,
     EnvSynchronizerTaskUpdate,
+    S3RestorerTaskCreate,
+    S3RestorerTaskDetail,
+    S3RestorerTaskSummary,
+    S3RestorerTaskUpdate,
     S3TaskCreate,
     S3TaskDetail,
     S3TaskSummary,
@@ -132,6 +140,29 @@ class TaskService:
             task.destination_aws_bucket_name = env_backup_payload.destinationAwsBucketName
             task.destination_aws_access_key_id = env_backup_payload.destinationAwsAccessKeyId
             task.secret.destination_aws_secret_access_key_encrypted = env_backup_payload.destinationAwsSecretAccessKey
+        elif service_type == ServiceType.DB_RESTORER:
+            db_restore_payload = self._expect_db_restorer_create(payload)
+            task.db_backups_filename_prefix = db_restore_payload.dbBackupsFilenamePrefix
+            task.destination_aws_endpoint = db_restore_payload.sourceAwsEndpoint
+            task.destination_aws_bucket_name = db_restore_payload.sourceAwsBucketName
+            task.destination_aws_access_key_id = db_restore_payload.sourceAwsAccessKeyId
+            task.database_host = db_restore_payload.targetDatabaseHost
+            task.database_name = db_restore_payload.targetDatabaseName
+            task.database_username = db_restore_payload.targetDatabaseUsername
+            task.secret.destination_aws_secret_access_key_encrypted = db_restore_payload.sourceAwsSecretAccessKey
+            task.secret.database_password_encrypted = db_restore_payload.targetDatabasePassword
+        elif service_type == ServiceType.S3_RESTORER:
+            s3_restore_payload = self._expect_s3_restorer_create(payload)
+            task.s3_backups_filename_prefix = s3_restore_payload.s3BackupsFilenamePrefix
+            task.source_s3_aws_endpoint = s3_restore_payload.sourceS3AwsEndpoint
+            task.source_s3_aws_bucket_name = s3_restore_payload.sourceS3AwsBucketName
+            task.source_s3_aws_access_key_id = s3_restore_payload.sourceS3AwsAccessKeyId
+            task.destination_s3_aws_endpoint = s3_restore_payload.targetS3AwsEndpoint
+            task.destination_s3_aws_bucket_name = s3_restore_payload.targetS3AwsBucketName
+            task.target_s3_aws_bucket_subfolder_name = s3_restore_payload.targetS3AwsBucketSubfolderName or None
+            task.destination_s3_aws_access_key_id = s3_restore_payload.targetS3AwsAccessKeyId
+            task.secret.source_s3_aws_secret_access_key_encrypted = s3_restore_payload.sourceS3AwsSecretAccessKey
+            task.secret.destination_s3_aws_secret_access_key_encrypted = s3_restore_payload.targetS3AwsSecretAccessKey
         elif service_type == ServiceType.ENV_RESTORER:
             env_restore_payload = self._expect_env_restorer_create(payload)
             task.env_backups_filename_prefix = env_restore_payload.envBackupsFilenamePrefix
@@ -188,6 +219,18 @@ class TaskService:
                 task,
                 env_backup_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}),
             )
+        elif task.service_type == ServiceType.DB_RESTORER:
+            db_restore_changes = self._expect_db_restorer_update(payload)
+            self._apply_db_restorer_update(
+                task,
+                db_restore_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}),
+            )
+        elif task.service_type == ServiceType.S3_RESTORER:
+            s3_restore_changes = self._expect_s3_restorer_update(payload)
+            self._apply_s3_restorer_update(
+                task,
+                s3_restore_changes.model_dump(exclude_unset=True, exclude={"serviceType", "enabled", "name", "namespace", "schedule"}),
+            )
         elif task.service_type == ServiceType.ENV_RESTORER:
             env_restore_changes = self._expect_env_restorer_update(payload)
             self._apply_env_restorer_update(
@@ -230,11 +273,11 @@ class TaskService:
         try:
             if task.trigger_mode == TriggerMode.EVENT_BASED.value and self._supports_event_mode(task.service_type):
                 self.create_triggered_job_run(task, trigger_type="manual")
-            elif task.service_type == ServiceType.ENV_RESTORER:
+            elif task.service_type in {ServiceType.DB_RESTORER, ServiceType.S3_RESTORER, ServiceType.ENV_RESTORER}:
                 job_name = self.kube.create_job(
                     task.namespace,
                     task.release_name,
-                    self._build_env_restore_job_spec(task),
+                    self._build_manual_restore_job_spec(task),
                     trigger_type="manual",
                 )
                 task.last_apply_status = "deployed"
@@ -378,6 +421,50 @@ class TaskService:
 
         if "destinationAwsSecretAccessKey" in changes:
             task.secret.destination_aws_secret_access_key_encrypted = changes["destinationAwsSecretAccessKey"] or None
+
+    def _apply_db_restorer_update(self, task: Task, changes: dict) -> None:
+        field_map = {
+            "dbBackupsFilenamePrefix": "db_backups_filename_prefix",
+            "sourceAwsEndpoint": "destination_aws_endpoint",
+            "sourceAwsBucketName": "destination_aws_bucket_name",
+            "sourceAwsAccessKeyId": "destination_aws_access_key_id",
+            "targetDatabaseHost": "database_host",
+            "targetDatabaseName": "database_name",
+            "targetDatabaseUsername": "database_username",
+        }
+        for source, target in field_map.items():
+            if source in changes:
+                setattr(task, target, changes[source])
+
+        if "sourceAwsSecretAccessKey" in changes:
+            task.secret.destination_aws_secret_access_key_encrypted = changes["sourceAwsSecretAccessKey"] or None
+
+        if "targetDatabasePassword" in changes:
+            task.secret.database_password_encrypted = changes["targetDatabasePassword"] or None
+
+    def _apply_s3_restorer_update(self, task: Task, changes: dict) -> None:
+        field_map = {
+            "s3BackupsFilenamePrefix": "s3_backups_filename_prefix",
+            "sourceS3AwsEndpoint": "source_s3_aws_endpoint",
+            "sourceS3AwsBucketName": "source_s3_aws_bucket_name",
+            "sourceS3AwsAccessKeyId": "source_s3_aws_access_key_id",
+            "targetS3AwsEndpoint": "destination_s3_aws_endpoint",
+            "targetS3AwsBucketName": "destination_s3_aws_bucket_name",
+            "targetS3AwsBucketSubfolderName": "target_s3_aws_bucket_subfolder_name",
+            "targetS3AwsAccessKeyId": "destination_s3_aws_access_key_id",
+        }
+        for source, target in field_map.items():
+            if source in changes:
+                value = changes[source]
+                if source == "targetS3AwsBucketSubfolderName":
+                    value = value or None
+                setattr(task, target, value)
+
+        if "sourceS3AwsSecretAccessKey" in changes:
+            task.secret.source_s3_aws_secret_access_key_encrypted = changes["sourceS3AwsSecretAccessKey"] or None
+
+        if "targetS3AwsSecretAccessKey" in changes:
+            task.secret.destination_s3_aws_secret_access_key_encrypted = changes["targetS3AwsSecretAccessKey"] or None
 
     def _apply_env_restorer_update(self, task: Task, changes: dict) -> None:
         self._apply_env_backupper_update(task, changes)
@@ -816,6 +903,16 @@ class TaskService:
             return self._build_s3_restore_job_spec(task, config)
         raise ValueError("Ad-hoc jobs are not supported for this task type")
 
+    def _build_manual_restore_job_spec(self, task: Task) -> dict[str, Any]:
+        config = self._get_deployment_config(task.service_type, self.settings)
+        if task.service_type == ServiceType.DB_RESTORER:
+            return self._build_db_restore_job_spec(task, config)
+        if task.service_type == ServiceType.S3_RESTORER:
+            return self._build_s3_restore_job_spec(task, config)
+        if task.service_type == ServiceType.ENV_RESTORER:
+            return self._build_env_restore_job_spec(task)
+        raise ValueError("Manual restore jobs are not supported for this task type")
+
     @staticmethod
     def _resolve_image(config: ServiceDeploymentConfig) -> str:
         if config.image_registry:
@@ -986,7 +1083,7 @@ class TaskService:
             "namespace": task.namespace,
             "enabled": task.enabled,
             "schedule": self._public_schedule(task),
-            "triggerMode": task.trigger_mode,
+            "triggerMode": self._public_trigger_mode(task),
             "deployed": task.last_apply_status == "deployed",
             "releaseName": task.release_name,
             "lastApplyStatus": task.last_apply_status,
@@ -1000,6 +1097,10 @@ class TaskService:
             return S3TaskSummary(serviceType=task.service_type.value, **common)
         if task.service_type == ServiceType.ENV_BACKUPPER:
             return EnvBackupperTaskSummary(serviceType=task.service_type.value, **common)
+        if task.service_type == ServiceType.DB_RESTORER:
+            return DbRestorerTaskSummary(serviceType=task.service_type.value, **common)
+        if task.service_type == ServiceType.S3_RESTORER:
+            return S3RestorerTaskSummary(serviceType=task.service_type.value, **common)
         if task.service_type == ServiceType.ENV_RESTORER:
             return EnvRestorerTaskSummary(serviceType=task.service_type.value, **common)
         if task.service_type == ServiceType.ENV_SYNCHRONIZER:
@@ -1057,6 +1158,35 @@ class TaskService:
                 hasDestinationAwsSecretAccessKey=bool(task.secret.destination_aws_secret_access_key_encrypted),
             )
 
+        if task.service_type == ServiceType.DB_RESTORER:
+            return DbRestorerTaskDetail(
+                **summary.model_dump(),
+                dbBackupsFilenamePrefix=task.db_backups_filename_prefix or "",
+                sourceAwsEndpoint=task.destination_aws_endpoint or "",
+                sourceAwsBucketName=task.destination_aws_bucket_name or "",
+                sourceAwsAccessKeyId=task.destination_aws_access_key_id or "",
+                targetDatabaseHost=task.database_host or "",
+                targetDatabaseName=task.database_name or "",
+                targetDatabaseUsername=task.database_username or "",
+                hasSourceAwsSecretAccessKey=bool(task.secret.destination_aws_secret_access_key_encrypted),
+                hasTargetDatabasePassword=bool(task.secret.database_password_encrypted),
+            )
+
+        if task.service_type == ServiceType.S3_RESTORER:
+            return S3RestorerTaskDetail(
+                **summary.model_dump(),
+                s3BackupsFilenamePrefix=task.s3_backups_filename_prefix or "",
+                sourceS3AwsEndpoint=task.source_s3_aws_endpoint or "",
+                sourceS3AwsBucketName=task.source_s3_aws_bucket_name or "",
+                sourceS3AwsAccessKeyId=task.source_s3_aws_access_key_id or "",
+                targetS3AwsEndpoint=task.destination_s3_aws_endpoint or "",
+                targetS3AwsBucketName=task.destination_s3_aws_bucket_name or "",
+                targetS3AwsBucketSubfolderName=task.target_s3_aws_bucket_subfolder_name or "",
+                targetS3AwsAccessKeyId=task.destination_s3_aws_access_key_id or "",
+                hasSourceS3AwsSecretAccessKey=bool(task.secret.source_s3_aws_secret_access_key_encrypted),
+                hasTargetS3AwsSecretAccessKey=bool(task.secret.destination_s3_aws_secret_access_key_encrypted),
+            )
+
         if task.service_type == ServiceType.ENV_RESTORER:
             return EnvRestorerTaskDetail(
                 **summary.model_dump(),
@@ -1095,13 +1225,21 @@ class TaskService:
 
     @staticmethod
     def _public_schedule(task: Task) -> str | None:
+        if task.trigger_mode == TriggerMode.MANUAL.value or TaskService._is_public_manual_task_type(task.service_type):
+            return None
         if task.trigger_mode == TriggerMode.EVENT_BASED.value and TaskService._supports_event_mode(task.service_type):
             return None
         return task.schedule
 
     @staticmethod
+    def _public_trigger_mode(task: Task) -> str:
+        if TaskService._is_public_manual_task_type(task.service_type):
+            return TriggerMode.MANUAL.value
+        return task.trigger_mode
+
+    @staticmethod
     def _normalize_schedule(task: Task) -> None:
-        if task.service_type == ServiceType.ENV_RESTORER:
+        if task.trigger_mode == TriggerMode.MANUAL.value or TaskService._is_public_manual_task_type(task.service_type):
             task.schedule = None
             return
         if task.trigger_mode == TriggerMode.EVENT_BASED.value and TaskService._supports_event_mode(task.service_type):
@@ -1114,6 +1252,18 @@ class TaskService:
     @staticmethod
     def _validate_trigger_mode(service_type: ServiceType, trigger_mode: str) -> TriggerMode:
         normalized = TriggerMode(trigger_mode)
+        if TaskService._is_public_manual_task_type(service_type) and normalized != TriggerMode.MANUAL:
+            raise HTTPException(
+                status_code=400,
+                detail="Manual trigger mode is required for db_restorer, s3_restorer, and env_restorer tasks",
+            )
+        if normalized == TriggerMode.MANUAL:
+            if TaskService._is_public_manual_task_type(service_type):
+                return normalized
+            raise HTTPException(
+                status_code=400,
+                detail="Manual trigger mode is supported only for db_restorer, s3_restorer, and env_restorer tasks",
+            )
         if normalized == TriggerMode.EVENT_BASED and service_type in {ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER}:
             raise HTTPException(status_code=400, detail="Event-based trigger mode is configured only through event rules")
         if normalized == TriggerMode.EVENT_BASED and not TaskService._supports_event_mode(service_type):
@@ -1130,6 +1280,14 @@ class TaskService:
             ServiceType.S3_BACKUPPER,
             ServiceType.DB_RESTORER,
             ServiceType.S3_RESTORER,
+        }
+
+    @staticmethod
+    def _is_public_manual_task_type(service_type: ServiceType) -> bool:
+        return service_type in {
+            ServiceType.DB_RESTORER,
+            ServiceType.S3_RESTORER,
+            ServiceType.ENV_RESTORER,
         }
 
     @staticmethod
@@ -1188,6 +1346,18 @@ class TaskService:
         return payload
 
     @staticmethod
+    def _expect_db_restorer_create(payload: TaskCreate) -> DbRestorerTaskCreate:
+        if not isinstance(payload, DbRestorerTaskCreate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_s3_restorer_create(payload: TaskCreate) -> S3RestorerTaskCreate:
+        if not isinstance(payload, S3RestorerTaskCreate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
     def _expect_env_restorer_create(payload: TaskCreate) -> EnvRestorerTaskCreate:
         if not isinstance(payload, EnvRestorerTaskCreate):
             raise HTTPException(status_code=400, detail="Unsupported service type payload")
@@ -1214,6 +1384,18 @@ class TaskService:
     @staticmethod
     def _expect_env_backupper_update(payload: TaskUpdate) -> EnvBackupperTaskUpdate:
         if not isinstance(payload, EnvBackupperTaskUpdate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_db_restorer_update(payload: TaskUpdate) -> DbRestorerTaskUpdate:
+        if not isinstance(payload, DbRestorerTaskUpdate):
+            raise HTTPException(status_code=400, detail="Unsupported service type payload")
+        return payload
+
+    @staticmethod
+    def _expect_s3_restorer_update(payload: TaskUpdate) -> S3RestorerTaskUpdate:
+        if not isinstance(payload, S3RestorerTaskUpdate):
             raise HTTPException(status_code=400, detail="Unsupported service type payload")
         return payload
 

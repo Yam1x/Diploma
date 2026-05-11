@@ -20,6 +20,7 @@ class ServiceType(str, enum.Enum):
 
 
 class TriggerMode(str, enum.Enum):
+    MANUAL = "manual"
     SCHEDULED = "scheduled"
     EVENT_BASED = "event_based"
 

@@ -5,11 +5,15 @@ import { DashboardStatsResponse, JobRunSummary, TaskJobStats, TaskSummary, api }
 import { useNotifications } from "../components/NotificationsProvider";
 import { getTaskTypeByServiceType } from "../config/taskTypes";
 
+function isManualRecoveryTask(task: TaskSummary) {
+  return task.serviceType === "db_restorer" || task.serviceType === "s3_restorer" || task.serviceType === "env_restorer";
+}
+
 function formatTaskTriggerMode(task: TaskSummary) {
-  if (task.serviceType === "env_restorer") {
+  if (isManualRecoveryTask(task)) {
     return "Вручную";
   }
-  return task.triggerMode === "event_based" ? "РџРѕ СЃРѕР±С‹С‚РёСЋ" : "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
+  return task.triggerMode === "event_based" ? "По событию" : "По расписанию";
 }
 
 function formatBoolean(value: boolean) {
@@ -33,10 +37,6 @@ function formatApplyStatus(status: string | null) {
 
 function formatServiceType(serviceType: TaskSummary["serviceType"]) {
   return getTaskTypeByServiceType(serviceType)?.title ?? serviceType;
-}
-
-function formatTriggerMode(triggerMode: TaskSummary["triggerMode"]) {
-  return triggerMode === "event_based" ? "По событию" : "По расписанию";
 }
 
 function formatSize(size: number) {
@@ -106,11 +106,7 @@ export function TasksListPage() {
   const [statsError, setStatsError] = useState<string | null>(null);
 
   async function load() {
-    const [tasksResult, namespacesResult, statsResult] = await Promise.allSettled([
-      api.listTasks(),
-      api.listNamespaces(),
-      api.getDashboardStats(),
-    ]);
+    const [tasksResult, namespacesResult, statsResult] = await Promise.allSettled([api.listTasks(), api.listNamespaces(), api.getDashboardStats()]);
 
     if (tasksResult.status === "rejected") {
       setError(tasksResult.reason instanceof Error ? tasksResult.reason.message : "Не удалось загрузить задачи");
@@ -177,7 +173,10 @@ export function TasksListPage() {
       <div className="toolbar">
         <div>
           <h2>Настройка задач оркестрации</h2>
-          <p className="subtle">Управляйте задачами `db_backupper`, `s3_backupper`, `env_backupper`, `env_restorer`, `env_synchronizer`, namespace и их деплоем из одного раздела.</p>
+          <p className="subtle">
+            Управляйте задачами `db_backupper`, `s3_backupper`, `env_backupper`, `db_restorer`, `s3_restorer`, `env_restorer`,
+            `env_synchronizer`, namespace и их деплоем из одного раздела.
+          </p>
         </div>
         <div className="toolbar-actions">
           <select value={selectedNamespace} onChange={(event) => setSelectedNamespace(event.target.value)}>
