@@ -303,7 +303,6 @@ export function EventRuleFormPage() {
       <div className="toolbar">
         <div>
           <h2>{isEditMode ? "Редактирование event rule" : "Создание event rule"}</h2>
-          <p className="subtle">Правило полностью владеет event-based конфигом DB + S3 в общем namespace.</p>
         </div>
         <Link className="button ghost" to={ruleId ? `/event-rules/${ruleId}` : "/event-rules"}>
           Отмена

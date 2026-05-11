@@ -45,7 +45,6 @@ export function RecoveryRulesListPage() {
       <div className="toolbar">
         <div>
           <h2>Recovery Rules</h2>
-          <p className="subtle">Настраивайте event-based восстановление для пары `db_restorer` + `s3_restorer`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button primary" to="/recovery-rules/new">

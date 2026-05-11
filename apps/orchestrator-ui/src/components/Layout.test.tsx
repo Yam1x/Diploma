@@ -30,11 +30,11 @@ test("renders sidebar with backup, recovery, and minio sections", async () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByText("Сервисы резервного копирования")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Настройка сервисов" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Управление резервным копированием и восстановлением" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Задачи и сервисы" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Event Rules" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Recovery Rules" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Просмотр файлов в MinIO" })).toHaveClass("active");
+  expect(screen.getByRole("link", { name: "Файлы MinIO" })).toHaveClass("active");
   expect(await screen.findByText("content")).toBeInTheDocument();
 });
 

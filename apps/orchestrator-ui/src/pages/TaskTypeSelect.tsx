@@ -8,7 +8,6 @@ export function TaskTypeSelectPage() {
       <div className="toolbar">
         <div>
           <h2>Выбор типа задачи</h2>
-          <p className="subtle">Сначала выберите, какой сервис нужно создать, и только затем переходите к его настройке.</p>
         </div>
         <Link className="button ghost" to="/">
           Назад
@@ -21,9 +20,9 @@ export function TaskTypeSelectPage() {
             <div className="stack task-type-copy">
               <div>
                 <h3>{taskType.title}</h3>
-                <p className="subtle">{taskType.description}</p>
+                {taskType.description ? <p className="subtle">{taskType.description}</p> : null}
               </div>
-              <p className="field-help">{taskType.metadata}</p>
+              {taskType.metadata ? <p className="field-help">{taskType.metadata}</p> : null}
             </div>
             <Link className="button primary" to={`/tasks/new/${taskType.routeType}`}>
               Выбрать

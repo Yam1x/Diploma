@@ -85,7 +85,6 @@ export function RecoveryRuleDetailsPage() {
       <div className="toolbar">
         <div>
           <h2>{rule.name}</h2>
-          <p className="subtle">Recovery rule управляет парой managed restore service в namespace `{rule.namespace}`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button ghost" to={`/recovery-rules/${rule.id}/edit`}>

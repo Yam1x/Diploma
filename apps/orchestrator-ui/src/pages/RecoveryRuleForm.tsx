@@ -303,7 +303,6 @@ export function RecoveryRuleFormPage() {
       <div className="toolbar">
         <div>
           <h2>{isEditMode ? "Редактирование recovery rule" : "Создание recovery rule"}</h2>
-          <p className="subtle">Правило полностью владеет event-based конфигом DB restore + S3 restore в общем namespace.</p>
         </div>
         <Link className="button ghost" to={ruleId ? `/recovery-rules/${ruleId}` : "/recovery-rules"}>
           Отмена

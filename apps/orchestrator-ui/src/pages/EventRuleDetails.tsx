@@ -84,7 +84,6 @@ export function EventRuleDetailsPage() {
       <div className="toolbar">
         <div>
           <h2>{rule.name}</h2>
-          <p className="subtle">Event rule владеет парой managed backup service в namespace `{rule.namespace}`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button ghost" to={`/event-rules/${rule.id}/edit`}>

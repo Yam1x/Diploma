@@ -53,15 +53,8 @@ function LayoutContent({ children }: PropsWithChildren) {
     <div className="shell">
       <header className="hero">
         <div className="hero-copy">
-          <div className="hero-brand">
-            <p className="eyebrow">Diploma Control Plane</p>
-            <span className="hero-status">Kubernetes orchestration</span>
-          </div>
           <div className="hero-summary">
             <h1>Управление резервным копированием и восстановлением</h1>
-            <p className="subtle">
-              Единая светлая панель для задач backup, recovery, event rules и артефактов MinIO.
-            </p>
           </div>
         </div>
         <div className="notification-shell">

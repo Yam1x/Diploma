@@ -44,7 +44,6 @@ export function EventRulesListPage() {
       <div className="toolbar">
         <div>
           <h2>Event Rules</h2>
-          <p className="subtle">Настраивайте полный event-based конфиг для пары `db_backupper` + `s3_backupper`.</p>
         </div>
         <div className="toolbar-actions">
           <Link className="button primary" to="/event-rules/new">
