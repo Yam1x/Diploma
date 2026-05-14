@@ -736,7 +736,7 @@ def _upgrade_task_schema() -> None:
                         s.destination_aws_secret_access_key_encrypted
                     FROM tasks t
                     LEFT JOIN task_secrets s ON s.task_id = t.id
-                    WHERE t.service_type = 'db_backupper'
+                    WHERE t.service_type::text = 'db_backupper'
                       AND NOT EXISTS (SELECT 1 FROM db_backup_task_configs c WHERE c.task_id = t.id)
                     """
                 )
@@ -758,7 +758,7 @@ def _upgrade_task_schema() -> None:
                         COALESCE(t.destination_s3_aws_bucket_name, ''), s.destination_s3_aws_secret_access_key_encrypted
                     FROM tasks t
                     LEFT JOIN task_secrets s ON s.task_id = t.id
-                    WHERE t.service_type = 's3_backupper'
+                    WHERE t.service_type::text = 's3_backupper'
                       AND NOT EXISTS (SELECT 1 FROM s3_backup_task_configs c WHERE c.task_id = t.id)
                     """
                 )
@@ -776,7 +776,7 @@ def _upgrade_task_schema() -> None:
                         s.destination_aws_secret_access_key_encrypted
                     FROM tasks t
                     LEFT JOIN task_secrets s ON s.task_id = t.id
-                    WHERE t.service_type = 'env_backupper'
+                    WHERE t.service_type::text = 'env_backupper'
                       AND NOT EXISTS (SELECT 1 FROM env_backup_task_configs c WHERE c.task_id = t.id)
                     """
                 )
@@ -796,7 +796,7 @@ def _upgrade_task_schema() -> None:
                         COALESCE(t.database_username, ''), s.database_password_encrypted
                     FROM tasks t
                     LEFT JOIN task_secrets s ON s.task_id = t.id
-                    WHERE t.service_type = 'db_restorer'
+                    WHERE t.service_type::text = 'db_restorer'
                       AND NOT EXISTS (SELECT 1 FROM db_restore_task_configs c WHERE c.task_id = t.id)
                     """
                 )
@@ -817,7 +817,7 @@ def _upgrade_task_schema() -> None:
                         COALESCE(t.destination_s3_aws_access_key_id, ''), s.destination_s3_aws_secret_access_key_encrypted
                     FROM tasks t
                     LEFT JOIN task_secrets s ON s.task_id = t.id
-                    WHERE t.service_type = 's3_restorer'
+                    WHERE t.service_type::text = 's3_restorer'
                       AND NOT EXISTS (SELECT 1 FROM s3_restore_task_configs c WHERE c.task_id = t.id)
                     """
                 )
@@ -835,7 +835,7 @@ def _upgrade_task_schema() -> None:
                         s.destination_aws_secret_access_key_encrypted
                     FROM tasks t
                     LEFT JOIN task_secrets s ON s.task_id = t.id
-                    WHERE t.service_type = 'env_restorer'
+                    WHERE t.service_type::text = 'env_restorer'
                       AND NOT EXISTS (SELECT 1 FROM env_restore_task_configs c WHERE c.task_id = t.id)
                     """
                 )
@@ -846,7 +846,7 @@ def _upgrade_task_schema() -> None:
                 INSERT INTO env_sync_task_configs (task_id, env_repository, path_to_helmfile)
                 SELECT t.id, COALESCE(t.env_repository, ''), COALESCE(t.path_to_helmfile, '')
                 FROM tasks t
-                WHERE t.service_type = 'env_synchronizer'
+                WHERE t.service_type::text = 'env_synchronizer'
                   AND NOT EXISTS (SELECT 1 FROM env_sync_task_configs c WHERE c.task_id = t.id)
                 """
             )
