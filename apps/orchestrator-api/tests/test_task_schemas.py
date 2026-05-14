@@ -18,21 +18,23 @@ def test_db_task_create_schema_accepts_db_payload() -> None:
         "enabled": True,
         "schedule": "0 * * * *",
         "triggerMode": "event_based",
-        "dbBackupsFilenamePrefix": "primary",
-        "databaseHost": "postgresql",
-        "databaseName": "app",
-        "databaseUsername": "postgres",
-        "databasePassword": "secret",
-        "destinationAwsEndpoint": "https://minio.local",
-        "destinationAwsBucketName": "backups",
-        "destinationAwsAccessKeyId": "minio",
-        "destinationAwsSecretAccessKey": "minio-secret",
+        "config": {
+            "dbBackupsFilenamePrefix": "primary",
+            "databaseHost": "postgresql",
+            "databaseName": "app",
+            "databaseUsername": "postgres",
+            "databasePassword": "secret",
+            "destinationAwsEndpoint": "https://minio.local",
+            "destinationAwsBucketName": "backups",
+            "destinationAwsAccessKeyId": "minio",
+            "destinationAwsSecretAccessKey": "minio-secret",
+        },
     }
 
     result = CREATE_ADAPTER.validate_python(payload)
 
     assert result.serviceType == "db_backupper"
-    assert result.dbBackupsFilenamePrefix == "primary"
+    assert result.config.dbBackupsFilenamePrefix == "primary"
     assert result.triggerMode == "event_based"
 
 
@@ -41,14 +43,16 @@ def test_s3_task_update_schema_accepts_s3_payload() -> None:
         "serviceType": "s3_backupper",
         "schedule": "15 * * * *",
         "triggerMode": "scheduled",
-        "sourceS3AwsBucketSubfolderName": "incoming",
-        "destinationS3AwsBucketName": "archive",
+        "config": {
+            "sourceS3AwsBucketSubfolderName": "incoming",
+            "destinationS3AwsBucketName": "archive",
+        },
     }
 
     result = UPDATE_ADAPTER.validate_python(payload)
 
     assert result.serviceType == "s3_backupper"
-    assert result.destinationS3AwsBucketName == "archive"
+    assert result.config.destinationS3AwsBucketName == "archive"
 
 
 def test_env_backupper_create_schema_accepts_payload() -> None:
@@ -59,17 +63,19 @@ def test_env_backupper_create_schema_accepts_payload() -> None:
         "enabled": True,
         "schedule": "0 2 * * *",
         "triggerMode": "scheduled",
-        "envBackupsFilenamePrefix": "namespace-default",
-        "destinationAwsEndpoint": "https://minio.local",
-        "destinationAwsBucketName": "backups",
-        "destinationAwsAccessKeyId": "minio",
-        "destinationAwsSecretAccessKey": "minio-secret",
+        "config": {
+            "envBackupsFilenamePrefix": "namespace-default",
+            "destinationAwsEndpoint": "https://minio.local",
+            "destinationAwsBucketName": "backups",
+            "destinationAwsAccessKeyId": "minio",
+            "destinationAwsSecretAccessKey": "minio-secret",
+        },
     }
 
     result = CREATE_ADAPTER.validate_python(payload)
 
     assert result.serviceType == "env_backupper"
-    assert result.envBackupsFilenamePrefix == "namespace-default"
+    assert result.config.envBackupsFilenamePrefix == "namespace-default"
 
 
 def test_env_restorer_create_schema_accepts_payload() -> None:
@@ -80,17 +86,19 @@ def test_env_restorer_create_schema_accepts_payload() -> None:
         "enabled": True,
         "schedule": None,
         "triggerMode": "manual",
-        "envBackupsFilenamePrefix": "namespace-default",
-        "destinationAwsEndpoint": "https://minio.local",
-        "destinationAwsBucketName": "backups",
-        "destinationAwsAccessKeyId": "minio",
-        "destinationAwsSecretAccessKey": "minio-secret",
+        "config": {
+            "envBackupsFilenamePrefix": "namespace-default",
+            "sourceAwsEndpoint": "https://minio.local",
+            "sourceAwsBucketName": "backups",
+            "sourceAwsAccessKeyId": "minio",
+            "sourceAwsSecretAccessKey": "minio-secret",
+        },
     }
 
     result = CREATE_ADAPTER.validate_python(payload)
 
     assert result.serviceType == "env_restorer"
-    assert result.envBackupsFilenamePrefix == "namespace-default"
+    assert result.config.envBackupsFilenamePrefix == "namespace-default"
 
 
 def test_db_restorer_create_schema_accepts_payload() -> None:
@@ -101,36 +109,40 @@ def test_db_restorer_create_schema_accepts_payload() -> None:
         "enabled": True,
         "schedule": None,
         "triggerMode": "manual",
-        "dbBackupsFilenamePrefix": "primary",
-        "sourceAwsEndpoint": "https://minio.local",
-        "sourceAwsBucketName": "backups",
-        "sourceAwsAccessKeyId": "minio",
-        "sourceAwsSecretAccessKey": "minio-secret",
-        "targetDatabaseHost": "postgresql",
-        "targetDatabaseName": "app",
-        "targetDatabaseUsername": "postgres",
-        "targetDatabasePassword": "secret",
+        "config": {
+            "dbBackupsFilenamePrefix": "primary",
+            "sourceAwsEndpoint": "https://minio.local",
+            "sourceAwsBucketName": "backups",
+            "sourceAwsAccessKeyId": "minio",
+            "sourceAwsSecretAccessKey": "minio-secret",
+            "targetDatabaseHost": "postgresql",
+            "targetDatabaseName": "app",
+            "targetDatabaseUsername": "postgres",
+            "targetDatabasePassword": "secret",
+        },
     }
 
     result = CREATE_ADAPTER.validate_python(payload)
 
     assert result.serviceType == "db_restorer"
     assert result.triggerMode == "manual"
-    assert result.targetDatabaseHost == "postgresql"
+    assert result.config.targetDatabaseHost == "postgresql"
 
 
 def test_s3_restorer_update_schema_accepts_payload() -> None:
     payload = {
         "serviceType": "s3_restorer",
         "triggerMode": "manual",
-        "targetS3AwsBucketSubfolderName": "restored",
-        "targetS3AwsBucketName": "target-bucket",
+        "config": {
+            "targetS3AwsBucketSubfolderName": "restored",
+            "targetS3AwsBucketName": "target-bucket",
+        },
     }
 
     result = UPDATE_ADAPTER.validate_python(payload)
 
     assert result.serviceType == "s3_restorer"
-    assert result.targetS3AwsBucketName == "target-bucket"
+    assert result.config.targetS3AwsBucketName == "target-bucket"
 
 
 def test_create_schema_rejects_fields_for_wrong_service() -> None:
@@ -140,15 +152,17 @@ def test_create_schema_rejects_fields_for_wrong_service() -> None:
         "namespace": "default",
         "enabled": False,
         "schedule": "0 0 * * *",
-        "dbBackupsFilenamePrefix": "wrong",
-        "databaseHost": "postgresql",
-        "databaseName": "app",
-        "databaseUsername": "postgres",
-        "databasePassword": "secret",
-        "destinationAwsEndpoint": "https://minio.local",
-        "destinationAwsBucketName": "backups",
-        "destinationAwsAccessKeyId": "minio",
-        "destinationAwsSecretAccessKey": "minio-secret",
+        "config": {
+            "dbBackupsFilenamePrefix": "wrong",
+            "databaseHost": "postgresql",
+            "databaseName": "app",
+            "databaseUsername": "postgres",
+            "databasePassword": "secret",
+            "destinationAwsEndpoint": "https://minio.local",
+            "destinationAwsBucketName": "backups",
+            "destinationAwsAccessKeyId": "minio",
+            "destinationAwsSecretAccessKey": "minio-secret",
+        },
     }
 
     with pytest.raises(ValidationError):

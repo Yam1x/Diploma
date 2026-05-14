@@ -12,8 +12,9 @@ from sqlalchemy.pool import StaticPool
 import app.main as main_module
 from app.api.deps import get_event_rule_service, get_minio_browser_service, get_recovery_rule_service, get_task_service
 from app.db import Base
-from app.models.event_rule import BackupEventRule, BackupEventRuleState  # noqa: F401
-from app.models.recovery_rule import RecoveryEventRule, RecoveryEventRuleState  # noqa: F401
+from app.models.event_rule import BackupEventRule, BackupEventRuleDbConfig, BackupEventRuleS3Config  # noqa: F401
+from app.models.recovery_rule import RecoveryEventRule, RecoveryEventRuleDbConfig, RecoveryEventRuleS3Config  # noqa: F401
+from app.models.runtime import DataChangeWatchState, EmptyStateWatchState, RuleJobRun  # noqa: F401
 from app.services.task_service import TaskService
 from app.services.event_rule_service import EventRuleService
 from app.services.recovery_rule_service import RecoveryEventRuleService

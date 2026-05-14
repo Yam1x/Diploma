@@ -49,6 +49,41 @@ def _upgrade_task_schema() -> None:
         return
 
     with engine.begin() as connection:
+        def table_exists(table_name: str) -> bool:
+            return bool(
+                connection.execute(
+                    text(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM information_schema.tables
+                            WHERE table_schema = current_schema()
+                              AND table_name = :table_name
+                        )
+                        """
+                    ),
+                    {"table_name": table_name},
+                ).scalar_one()
+            )
+
+        def column_exists(table_name: str, column_name: str) -> bool:
+            return bool(
+                connection.execute(
+                    text(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM information_schema.columns
+                            WHERE table_schema = current_schema()
+                              AND table_name = :table_name
+                              AND column_name = :column_name
+                        )
+                        """
+                    ),
+                    {"table_name": table_name, "column_name": column_name},
+                ).scalar_one()
+            )
+
         enum_type_name = connection.execute(
             text(
                 """
@@ -248,12 +283,6 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_db_task_id ON backup_event_rules(db_task_id)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_s3_task_id ON backup_event_rules(s3_task_id)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_managed_by_rule_id ON tasks(managed_by_rule_id)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_recovery_event_rules_db_task_id ON recovery_event_rules(db_task_id)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_recovery_event_rules_s3_task_id ON recovery_event_rules(s3_task_id)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_managed_by_recovery_rule_id ON tasks(managed_by_recovery_rule_id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_task_job_runs_task_id ON task_job_runs(task_id)"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_text TEXT"))
         connection.execute(text("ALTER TABLE task_job_runs ADD COLUMN IF NOT EXISTS logs_collected_at TIMESTAMPTZ"))
@@ -278,126 +307,147 @@ def _upgrade_task_schema() -> None:
             )
         )
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_event_key ON notifications(event_key)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_task_id ON notifications(task_id)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_job_run_id ON notifications(job_run_id)"))
-        connection.execute(
-            text(
-                """
-                DELETE FROM backup_event_rule_states
-                WHERE rule_id IN (
-                    SELECT r.id
-                    FROM backup_event_rules AS r
-                    LEFT JOIN tasks AS db_task ON db_task.id = r.db_task_id
-                    LEFT JOIN tasks AS s3_task ON s3_task.id = r.s3_task_id
-                    WHERE COALESCE(db_task.managed_by_rule_id, s3_task.managed_by_rule_id) IS NULL
+        if column_exists("notifications", "task_id"):
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_task_id ON notifications(task_id)"))
+        if column_exists("notifications", "job_run_id"):
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_job_run_id ON notifications(job_run_id)"))
+
+        legacy_backup_rule_links = column_exists("backup_event_rules", "db_task_id") and column_exists("backup_event_rules", "s3_task_id")
+        legacy_recovery_rule_links = column_exists("recovery_event_rules", "db_task_id") and column_exists("recovery_event_rules", "s3_task_id")
+        legacy_managed_task_links = column_exists("tasks", "managed_by_rule_id") and column_exists("tasks", "managed_by_recovery_rule_id")
+
+        if legacy_backup_rule_links:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_db_task_id ON backup_event_rules(db_task_id)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_backup_event_rules_s3_task_id ON backup_event_rules(s3_task_id)"))
+        if legacy_recovery_rule_links:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_recovery_event_rules_db_task_id ON recovery_event_rules(db_task_id)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_recovery_event_rules_s3_task_id ON recovery_event_rules(s3_task_id)"))
+        if legacy_managed_task_links:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_managed_by_rule_id ON tasks(managed_by_rule_id)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tasks_managed_by_recovery_rule_id ON tasks(managed_by_recovery_rule_id)"))
+
+        if legacy_backup_rule_links and legacy_managed_task_links:
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM backup_event_rule_states
+                    WHERE rule_id IN (
+                        SELECT r.id
+                        FROM backup_event_rules AS r
+                        LEFT JOIN tasks AS db_task ON db_task.id = r.db_task_id
+                        LEFT JOIN tasks AS s3_task ON s3_task.id = r.s3_task_id
+                        WHERE COALESCE(db_task.managed_by_rule_id, s3_task.managed_by_rule_id) IS NULL
+                    )
+                    """
                 )
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                DELETE FROM backup_event_rules AS r
-                WHERE EXISTS (
-                    SELECT 1
-                    FROM tasks AS db_task
-                    WHERE db_task.id = r.db_task_id
-                      AND db_task.managed_by_rule_id IS NULL
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM backup_event_rules AS r
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM tasks AS db_task
+                        WHERE db_task.id = r.db_task_id
+                          AND db_task.managed_by_rule_id IS NULL
+                    )
+                       OR EXISTS (
+                        SELECT 1
+                        FROM tasks AS s3_task
+                        WHERE s3_task.id = r.s3_task_id
+                          AND s3_task.managed_by_rule_id IS NULL
+                    )
+                    """
                 )
-                   OR EXISTS (
-                    SELECT 1
-                    FROM tasks AS s3_task
-                    WHERE s3_task.id = r.s3_task_id
-                      AND s3_task.managed_by_rule_id IS NULL
-                )
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                DELETE FROM recovery_event_rule_states
-                WHERE rule_id IN (
-                    SELECT r.id
-                    FROM recovery_event_rules AS r
-                    LEFT JOIN tasks AS db_task ON db_task.id = r.db_task_id
-                    LEFT JOIN tasks AS s3_task ON s3_task.id = r.s3_task_id
-                    WHERE COALESCE(db_task.managed_by_recovery_rule_id, s3_task.managed_by_recovery_rule_id) IS NULL
+        if legacy_recovery_rule_links and legacy_managed_task_links:
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM recovery_event_rule_states
+                    WHERE rule_id IN (
+                        SELECT r.id
+                        FROM recovery_event_rules AS r
+                        LEFT JOIN tasks AS db_task ON db_task.id = r.db_task_id
+                        LEFT JOIN tasks AS s3_task ON s3_task.id = r.s3_task_id
+                        WHERE COALESCE(db_task.managed_by_recovery_rule_id, s3_task.managed_by_recovery_rule_id) IS NULL
+                    )
+                    """
                 )
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                DELETE FROM recovery_event_rules AS r
-                WHERE EXISTS (
-                    SELECT 1
-                    FROM tasks AS db_task
-                    WHERE db_task.id = r.db_task_id
-                      AND db_task.managed_by_recovery_rule_id IS NULL
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM recovery_event_rules AS r
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM tasks AS db_task
+                        WHERE db_task.id = r.db_task_id
+                          AND db_task.managed_by_recovery_rule_id IS NULL
+                    )
+                       OR EXISTS (
+                        SELECT 1
+                        FROM tasks AS s3_task
+                        WHERE s3_task.id = r.s3_task_id
+                          AND s3_task.managed_by_recovery_rule_id IS NULL
+                    )
+                    """
                 )
-                   OR EXISTS (
-                    SELECT 1
-                    FROM tasks AS s3_task
-                    WHERE s3_task.id = r.s3_task_id
-                      AND s3_task.managed_by_recovery_rule_id IS NULL
-                )
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                DELETE FROM task_event_watch_states
-                WHERE task_id IN (
-                    SELECT id
-                    FROM tasks
+        if legacy_managed_task_links and table_exists("task_event_watch_states"):
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM task_event_watch_states
+                    WHERE task_id IN (
+                        SELECT id
+                        FROM tasks
+                        WHERE managed_by_rule_id IS NULL
+                          AND managed_by_recovery_rule_id IS NULL
+                          AND trigger_mode = 'event_based'
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM task_job_runs
+                    WHERE task_id IN (
+                        SELECT id
+                        FROM tasks
+                        WHERE managed_by_rule_id IS NULL
+                          AND managed_by_recovery_rule_id IS NULL
+                          AND trigger_mode = 'event_based'
+                    )
+                    """
+                )
+            )
+            if column_exists("notifications", "task_id"):
+                connection.execute(
+                    text(
+                        """
+                        DELETE FROM notifications
+                        WHERE task_id IN (
+                            SELECT id
+                            FROM tasks
+                            WHERE managed_by_rule_id IS NULL
+                              AND managed_by_recovery_rule_id IS NULL
+                              AND trigger_mode = 'event_based'
+                        )
+                        """
+                    )
+                )
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM tasks
                     WHERE managed_by_rule_id IS NULL
                       AND managed_by_recovery_rule_id IS NULL
                       AND trigger_mode = 'event_based'
+                    """
                 )
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                DELETE FROM task_job_runs
-                WHERE task_id IN (
-                    SELECT id
-                    FROM tasks
-                    WHERE managed_by_rule_id IS NULL
-                      AND managed_by_recovery_rule_id IS NULL
-                      AND trigger_mode = 'event_based'
-                )
-                """
-            )
-        )
-        connection.execute(
-            text(
-                """
-                DELETE FROM notifications
-                WHERE task_id IN (
-                    SELECT id
-                    FROM tasks
-                    WHERE managed_by_rule_id IS NULL
-                      AND managed_by_recovery_rule_id IS NULL
-                      AND trigger_mode = 'event_based'
-                )
-                """
-            )
-        )
-        connection.execute(
-            text(
-                """
-                DELETE FROM tasks
-                WHERE managed_by_rule_id IS NULL
-                  AND managed_by_recovery_rule_id IS NULL
-                  AND trigger_mode = 'event_based'
-                """
-            )
-        )
         connection.execute(
             text(
                 """
@@ -669,125 +719,127 @@ def _upgrade_task_schema() -> None:
         connection.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS run_id INTEGER"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_resource_type ON notifications(resource_type)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_resource_id ON notifications(resource_id)"))
-        connection.execute(
-            text(
-                """
-                INSERT INTO db_backup_task_configs (
-                    task_id, db_backups_filename_prefix, database_host, database_name, database_username,
-                    database_password_encrypted, destination_aws_endpoint, destination_aws_bucket_name,
-                    destination_aws_access_key_id, destination_aws_secret_access_key_encrypted
+        legacy_task_config_backfill = table_exists("task_secrets") and column_exists("tasks", "db_backups_filename_prefix")
+        if legacy_task_config_backfill:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO db_backup_task_configs (
+                        task_id, db_backups_filename_prefix, database_host, database_name, database_username,
+                        database_password_encrypted, destination_aws_endpoint, destination_aws_bucket_name,
+                        destination_aws_access_key_id, destination_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        t.id, COALESCE(t.db_backups_filename_prefix, ''), COALESCE(t.database_host, ''), COALESCE(t.database_name, ''),
+                        COALESCE(t.database_username, ''), s.database_password_encrypted, COALESCE(t.destination_aws_endpoint, ''),
+                        COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
+                        s.destination_aws_secret_access_key_encrypted
+                    FROM tasks t
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE t.service_type = 'db_backupper'
+                      AND NOT EXISTS (SELECT 1 FROM db_backup_task_configs c WHERE c.task_id = t.id)
+                    """
                 )
-                SELECT
-                    t.id, COALESCE(t.db_backups_filename_prefix, ''), COALESCE(t.database_host, ''), COALESCE(t.database_name, ''),
-                    COALESCE(t.database_username, ''), s.database_password_encrypted, COALESCE(t.destination_aws_endpoint, ''),
-                    COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
-                    s.destination_aws_secret_access_key_encrypted
-                FROM tasks t
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE t.service_type = 'db_backupper'
-                  AND NOT EXISTS (SELECT 1 FROM db_backup_task_configs c WHERE c.task_id = t.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO s3_backup_task_configs (
-                    task_id, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_access_key_id,
-                    source_s3_aws_bucket_name, source_s3_aws_bucket_subfolder_name, source_s3_aws_secret_access_key_encrypted,
-                    destination_s3_aws_endpoint, destination_s3_aws_access_key_id, destination_s3_aws_bucket_name,
-                    destination_s3_aws_secret_access_key_encrypted
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO s3_backup_task_configs (
+                        task_id, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_access_key_id,
+                        source_s3_aws_bucket_name, source_s3_aws_bucket_subfolder_name, source_s3_aws_secret_access_key_encrypted,
+                        destination_s3_aws_endpoint, destination_s3_aws_access_key_id, destination_s3_aws_bucket_name,
+                        destination_s3_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        t.id, COALESCE(t.s3_backups_filename_prefix, ''), COALESCE(t.source_s3_aws_endpoint, ''),
+                        COALESCE(t.source_s3_aws_access_key_id, ''), COALESCE(t.source_s3_aws_bucket_name, ''),
+                        t.source_s3_aws_bucket_subfolder_name, s.source_s3_aws_secret_access_key_encrypted,
+                        COALESCE(t.destination_s3_aws_endpoint, ''), COALESCE(t.destination_s3_aws_access_key_id, ''),
+                        COALESCE(t.destination_s3_aws_bucket_name, ''), s.destination_s3_aws_secret_access_key_encrypted
+                    FROM tasks t
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE t.service_type = 's3_backupper'
+                      AND NOT EXISTS (SELECT 1 FROM s3_backup_task_configs c WHERE c.task_id = t.id)
+                    """
                 )
-                SELECT
-                    t.id, COALESCE(t.s3_backups_filename_prefix, ''), COALESCE(t.source_s3_aws_endpoint, ''),
-                    COALESCE(t.source_s3_aws_access_key_id, ''), COALESCE(t.source_s3_aws_bucket_name, ''),
-                    t.source_s3_aws_bucket_subfolder_name, s.source_s3_aws_secret_access_key_encrypted,
-                    COALESCE(t.destination_s3_aws_endpoint, ''), COALESCE(t.destination_s3_aws_access_key_id, ''),
-                    COALESCE(t.destination_s3_aws_bucket_name, ''), s.destination_s3_aws_secret_access_key_encrypted
-                FROM tasks t
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE t.service_type = 's3_backupper'
-                  AND NOT EXISTS (SELECT 1 FROM s3_backup_task_configs c WHERE c.task_id = t.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO env_backup_task_configs (
-                    task_id, env_backups_filename_prefix, destination_aws_endpoint, destination_aws_bucket_name,
-                    destination_aws_access_key_id, destination_aws_secret_access_key_encrypted
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO env_backup_task_configs (
+                        task_id, env_backups_filename_prefix, destination_aws_endpoint, destination_aws_bucket_name,
+                        destination_aws_access_key_id, destination_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        t.id, COALESCE(t.env_backups_filename_prefix, ''), COALESCE(t.destination_aws_endpoint, ''),
+                        COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
+                        s.destination_aws_secret_access_key_encrypted
+                    FROM tasks t
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE t.service_type = 'env_backupper'
+                      AND NOT EXISTS (SELECT 1 FROM env_backup_task_configs c WHERE c.task_id = t.id)
+                    """
                 )
-                SELECT
-                    t.id, COALESCE(t.env_backups_filename_prefix, ''), COALESCE(t.destination_aws_endpoint, ''),
-                    COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
-                    s.destination_aws_secret_access_key_encrypted
-                FROM tasks t
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE t.service_type = 'env_backupper'
-                  AND NOT EXISTS (SELECT 1 FROM env_backup_task_configs c WHERE c.task_id = t.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO db_restore_task_configs (
-                    task_id, db_backups_filename_prefix, source_aws_endpoint, source_aws_bucket_name, source_aws_access_key_id,
-                    source_aws_secret_access_key_encrypted, target_database_host, target_database_name, target_database_username,
-                    target_database_password_encrypted
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO db_restore_task_configs (
+                        task_id, db_backups_filename_prefix, source_aws_endpoint, source_aws_bucket_name, source_aws_access_key_id,
+                        source_aws_secret_access_key_encrypted, target_database_host, target_database_name, target_database_username,
+                        target_database_password_encrypted
+                    )
+                    SELECT
+                        t.id, COALESCE(t.db_backups_filename_prefix, ''), COALESCE(t.destination_aws_endpoint, ''),
+                        COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
+                        s.destination_aws_secret_access_key_encrypted, COALESCE(t.database_host, ''), COALESCE(t.database_name, ''),
+                        COALESCE(t.database_username, ''), s.database_password_encrypted
+                    FROM tasks t
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE t.service_type = 'db_restorer'
+                      AND NOT EXISTS (SELECT 1 FROM db_restore_task_configs c WHERE c.task_id = t.id)
+                    """
                 )
-                SELECT
-                    t.id, COALESCE(t.db_backups_filename_prefix, ''), COALESCE(t.destination_aws_endpoint, ''),
-                    COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
-                    s.destination_aws_secret_access_key_encrypted, COALESCE(t.database_host, ''), COALESCE(t.database_name, ''),
-                    COALESCE(t.database_username, ''), s.database_password_encrypted
-                FROM tasks t
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE t.service_type = 'db_restorer'
-                  AND NOT EXISTS (SELECT 1 FROM db_restore_task_configs c WHERE c.task_id = t.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO s3_restore_task_configs (
-                    task_id, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_bucket_name, source_s3_aws_access_key_id,
-                    source_s3_aws_secret_access_key_encrypted, target_s3_aws_endpoint, target_s3_aws_bucket_name,
-                    target_s3_aws_bucket_subfolder_name, target_s3_aws_access_key_id, target_s3_aws_secret_access_key_encrypted
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO s3_restore_task_configs (
+                        task_id, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_bucket_name, source_s3_aws_access_key_id,
+                        source_s3_aws_secret_access_key_encrypted, target_s3_aws_endpoint, target_s3_aws_bucket_name,
+                        target_s3_aws_bucket_subfolder_name, target_s3_aws_access_key_id, target_s3_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        t.id, COALESCE(t.s3_backups_filename_prefix, ''), COALESCE(t.source_s3_aws_endpoint, ''),
+                        COALESCE(t.source_s3_aws_bucket_name, ''), COALESCE(t.source_s3_aws_access_key_id, ''),
+                        s.source_s3_aws_secret_access_key_encrypted, COALESCE(t.destination_s3_aws_endpoint, ''),
+                        COALESCE(t.destination_s3_aws_bucket_name, ''), t.target_s3_aws_bucket_subfolder_name,
+                        COALESCE(t.destination_s3_aws_access_key_id, ''), s.destination_s3_aws_secret_access_key_encrypted
+                    FROM tasks t
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE t.service_type = 's3_restorer'
+                      AND NOT EXISTS (SELECT 1 FROM s3_restore_task_configs c WHERE c.task_id = t.id)
+                    """
                 )
-                SELECT
-                    t.id, COALESCE(t.s3_backups_filename_prefix, ''), COALESCE(t.source_s3_aws_endpoint, ''),
-                    COALESCE(t.source_s3_aws_bucket_name, ''), COALESCE(t.source_s3_aws_access_key_id, ''),
-                    s.source_s3_aws_secret_access_key_encrypted, COALESCE(t.destination_s3_aws_endpoint, ''),
-                    COALESCE(t.destination_s3_aws_bucket_name, ''), t.target_s3_aws_bucket_subfolder_name,
-                    COALESCE(t.destination_s3_aws_access_key_id, ''), s.destination_s3_aws_secret_access_key_encrypted
-                FROM tasks t
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE t.service_type = 's3_restorer'
-                  AND NOT EXISTS (SELECT 1 FROM s3_restore_task_configs c WHERE c.task_id = t.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO env_restore_task_configs (
-                    task_id, env_backups_filename_prefix, source_aws_endpoint, source_aws_bucket_name, source_aws_access_key_id,
-                    source_aws_secret_access_key_encrypted
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO env_restore_task_configs (
+                        task_id, env_backups_filename_prefix, source_aws_endpoint, source_aws_bucket_name, source_aws_access_key_id,
+                        source_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        t.id, COALESCE(t.env_backups_filename_prefix, ''), COALESCE(t.destination_aws_endpoint, ''),
+                        COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
+                        s.destination_aws_secret_access_key_encrypted
+                    FROM tasks t
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE t.service_type = 'env_restorer'
+                      AND NOT EXISTS (SELECT 1 FROM env_restore_task_configs c WHERE c.task_id = t.id)
+                    """
                 )
-                SELECT
-                    t.id, COALESCE(t.env_backups_filename_prefix, ''), COALESCE(t.destination_aws_endpoint, ''),
-                    COALESCE(t.destination_aws_bucket_name, ''), COALESCE(t.destination_aws_access_key_id, ''),
-                    s.destination_aws_secret_access_key_encrypted
-                FROM tasks t
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE t.service_type = 'env_restorer'
-                  AND NOT EXISTS (SELECT 1 FROM env_restore_task_configs c WHERE c.task_id = t.id)
-                """
             )
-        )
         connection.execute(
             text(
                 """
@@ -799,93 +851,95 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
-        connection.execute(
-            text(
-                """
-                INSERT INTO backup_event_rule_db_configs (
-                    rule_id, name, db_backups_filename_prefix, database_host, database_name, database_username,
-                    database_password_encrypted, destination_aws_endpoint, destination_aws_bucket_name,
-                    destination_aws_access_key_id, destination_aws_secret_access_key_encrypted
+        if legacy_task_config_backfill and legacy_backup_rule_links:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO backup_event_rule_db_configs (
+                        rule_id, name, db_backups_filename_prefix, database_host, database_name, database_username,
+                        database_password_encrypted, destination_aws_endpoint, destination_aws_bucket_name,
+                        destination_aws_access_key_id, destination_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        r.id, COALESCE(r.db_display_name, 'DB backup'), COALESCE(t.db_backups_filename_prefix, ''),
+                        COALESCE(t.database_host, ''), COALESCE(t.database_name, ''), COALESCE(t.database_username, ''),
+                        s.database_password_encrypted, COALESCE(t.destination_aws_endpoint, ''), COALESCE(t.destination_aws_bucket_name, ''),
+                        COALESCE(t.destination_aws_access_key_id, ''), s.destination_aws_secret_access_key_encrypted
+                    FROM backup_event_rules r
+                    JOIN tasks t ON t.id = r.db_task_id
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE NOT EXISTS (SELECT 1 FROM backup_event_rule_db_configs c WHERE c.rule_id = r.id)
+                    """
                 )
-                SELECT
-                    r.id, COALESCE(r.db_display_name, 'DB backup'), COALESCE(t.db_backups_filename_prefix, ''),
-                    COALESCE(t.database_host, ''), COALESCE(t.database_name, ''), COALESCE(t.database_username, ''),
-                    s.database_password_encrypted, COALESCE(t.destination_aws_endpoint, ''), COALESCE(t.destination_aws_bucket_name, ''),
-                    COALESCE(t.destination_aws_access_key_id, ''), s.destination_aws_secret_access_key_encrypted
-                FROM backup_event_rules r
-                JOIN tasks t ON t.id = r.db_task_id
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE NOT EXISTS (SELECT 1 FROM backup_event_rule_db_configs c WHERE c.rule_id = r.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO backup_event_rule_s3_configs (
-                    rule_id, name, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_access_key_id,
-                    source_s3_aws_bucket_name, source_s3_aws_bucket_subfolder_name, source_s3_aws_secret_access_key_encrypted,
-                    destination_s3_aws_endpoint, destination_s3_aws_access_key_id, destination_s3_aws_bucket_name,
-                    destination_s3_aws_secret_access_key_encrypted
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO backup_event_rule_s3_configs (
+                        rule_id, name, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_access_key_id,
+                        source_s3_aws_bucket_name, source_s3_aws_bucket_subfolder_name, source_s3_aws_secret_access_key_encrypted,
+                        destination_s3_aws_endpoint, destination_s3_aws_access_key_id, destination_s3_aws_bucket_name,
+                        destination_s3_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        r.id, COALESCE(r.s3_display_name, 'S3 backup'), COALESCE(t.s3_backups_filename_prefix, ''),
+                        COALESCE(t.source_s3_aws_endpoint, ''), COALESCE(t.source_s3_aws_access_key_id, ''),
+                        COALESCE(t.source_s3_aws_bucket_name, ''), t.source_s3_aws_bucket_subfolder_name,
+                        s.source_s3_aws_secret_access_key_encrypted, COALESCE(t.destination_s3_aws_endpoint, ''),
+                        COALESCE(t.destination_s3_aws_access_key_id, ''), COALESCE(t.destination_s3_aws_bucket_name, ''),
+                        s.destination_s3_aws_secret_access_key_encrypted
+                    FROM backup_event_rules r
+                    JOIN tasks t ON t.id = r.s3_task_id
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE NOT EXISTS (SELECT 1 FROM backup_event_rule_s3_configs c WHERE c.rule_id = r.id)
+                    """
                 )
-                SELECT
-                    r.id, COALESCE(r.s3_display_name, 'S3 backup'), COALESCE(t.s3_backups_filename_prefix, ''),
-                    COALESCE(t.source_s3_aws_endpoint, ''), COALESCE(t.source_s3_aws_access_key_id, ''),
-                    COALESCE(t.source_s3_aws_bucket_name, ''), t.source_s3_aws_bucket_subfolder_name,
-                    s.source_s3_aws_secret_access_key_encrypted, COALESCE(t.destination_s3_aws_endpoint, ''),
-                    COALESCE(t.destination_s3_aws_access_key_id, ''), COALESCE(t.destination_s3_aws_bucket_name, ''),
-                    s.destination_s3_aws_secret_access_key_encrypted
-                FROM backup_event_rules r
-                JOIN tasks t ON t.id = r.s3_task_id
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE NOT EXISTS (SELECT 1 FROM backup_event_rule_s3_configs c WHERE c.rule_id = r.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO recovery_event_rule_db_configs (
-                    rule_id, name, db_backups_filename_prefix, source_aws_endpoint, source_aws_bucket_name, source_aws_access_key_id,
-                    source_aws_secret_access_key_encrypted, target_database_host, target_database_name, target_database_username,
-                    target_database_password_encrypted
+        if legacy_task_config_backfill and legacy_recovery_rule_links:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO recovery_event_rule_db_configs (
+                        rule_id, name, db_backups_filename_prefix, source_aws_endpoint, source_aws_bucket_name, source_aws_access_key_id,
+                        source_aws_secret_access_key_encrypted, target_database_host, target_database_name, target_database_username,
+                        target_database_password_encrypted
+                    )
+                    SELECT
+                        r.id, COALESCE(r.db_display_name, 'DB restore'), COALESCE(t.db_backups_filename_prefix, ''),
+                        COALESCE(t.destination_aws_endpoint, ''), COALESCE(t.destination_aws_bucket_name, ''),
+                        COALESCE(t.destination_aws_access_key_id, ''), s.destination_aws_secret_access_key_encrypted,
+                        COALESCE(t.database_host, ''), COALESCE(t.database_name, ''), COALESCE(t.database_username, ''),
+                        s.database_password_encrypted
+                    FROM recovery_event_rules r
+                    JOIN tasks t ON t.id = r.db_task_id
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE NOT EXISTS (SELECT 1 FROM recovery_event_rule_db_configs c WHERE c.rule_id = r.id)
+                    """
                 )
-                SELECT
-                    r.id, COALESCE(r.db_display_name, 'DB restore'), COALESCE(t.db_backups_filename_prefix, ''),
-                    COALESCE(t.destination_aws_endpoint, ''), COALESCE(t.destination_aws_bucket_name, ''),
-                    COALESCE(t.destination_aws_access_key_id, ''), s.destination_aws_secret_access_key_encrypted,
-                    COALESCE(t.database_host, ''), COALESCE(t.database_name, ''), COALESCE(t.database_username, ''),
-                    s.database_password_encrypted
-                FROM recovery_event_rules r
-                JOIN tasks t ON t.id = r.db_task_id
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE NOT EXISTS (SELECT 1 FROM recovery_event_rule_db_configs c WHERE c.rule_id = r.id)
-                """
             )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO recovery_event_rule_s3_configs (
-                    rule_id, name, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_bucket_name,
-                    source_s3_aws_access_key_id, source_s3_aws_secret_access_key_encrypted, target_s3_aws_endpoint,
-                    target_s3_aws_bucket_name, target_s3_aws_bucket_subfolder_name, target_s3_aws_access_key_id,
-                    target_s3_aws_secret_access_key_encrypted
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO recovery_event_rule_s3_configs (
+                        rule_id, name, s3_backups_filename_prefix, source_s3_aws_endpoint, source_s3_aws_bucket_name,
+                        source_s3_aws_access_key_id, source_s3_aws_secret_access_key_encrypted, target_s3_aws_endpoint,
+                        target_s3_aws_bucket_name, target_s3_aws_bucket_subfolder_name, target_s3_aws_access_key_id,
+                        target_s3_aws_secret_access_key_encrypted
+                    )
+                    SELECT
+                        r.id, COALESCE(r.s3_display_name, 'S3 restore'), COALESCE(t.s3_backups_filename_prefix, ''),
+                        COALESCE(t.source_s3_aws_endpoint, ''), COALESCE(t.source_s3_aws_bucket_name, ''),
+                        COALESCE(t.source_s3_aws_access_key_id, ''), s.source_s3_aws_secret_access_key_encrypted,
+                        COALESCE(t.destination_s3_aws_endpoint, ''), COALESCE(t.destination_s3_aws_bucket_name, ''),
+                        t.target_s3_aws_bucket_subfolder_name, COALESCE(t.destination_s3_aws_access_key_id, ''),
+                        s.destination_s3_aws_secret_access_key_encrypted
+                    FROM recovery_event_rules r
+                    JOIN tasks t ON t.id = r.s3_task_id
+                    LEFT JOIN task_secrets s ON s.task_id = t.id
+                    WHERE NOT EXISTS (SELECT 1 FROM recovery_event_rule_s3_configs c WHERE c.rule_id = r.id)
+                    """
                 )
-                SELECT
-                    r.id, COALESCE(r.s3_display_name, 'S3 restore'), COALESCE(t.s3_backups_filename_prefix, ''),
-                    COALESCE(t.source_s3_aws_endpoint, ''), COALESCE(t.source_s3_aws_bucket_name, ''),
-                    COALESCE(t.source_s3_aws_access_key_id, ''), s.source_s3_aws_secret_access_key_encrypted,
-                    COALESCE(t.destination_s3_aws_endpoint, ''), COALESCE(t.destination_s3_aws_bucket_name, ''),
-                    t.target_s3_aws_bucket_subfolder_name, COALESCE(t.destination_s3_aws_access_key_id, ''),
-                    s.destination_s3_aws_secret_access_key_encrypted
-                FROM recovery_event_rules r
-                JOIN tasks t ON t.id = r.s3_task_id
-                LEFT JOIN task_secrets s ON s.task_id = t.id
-                WHERE NOT EXISTS (SELECT 1 FROM recovery_event_rule_s3_configs c WHERE c.rule_id = r.id)
-                """
             )
-        )
         connection.execute(
             text(
                 """
@@ -942,21 +996,22 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
-        connection.execute(
-            text(
-                """
-                UPDATE notifications
-                SET resource_type = CASE
-                        WHEN task_id IS NOT NULL THEN 'task'
-                        ELSE resource_type
-                    END,
-                    resource_id = COALESCE(resource_id, task_id),
-                    run_type = CASE
-                        WHEN job_run_id IS NOT NULL THEN 'task_job_run'
-                        ELSE run_type
-                    END,
-                    run_id = COALESCE(run_id, job_run_id)
-                WHERE resource_type IS NULL OR resource_id IS NULL OR run_type IS NULL OR run_id IS NULL
-                """
+        if column_exists("notifications", "task_id") and column_exists("notifications", "job_run_id"):
+            connection.execute(
+                text(
+                    """
+                    UPDATE notifications
+                    SET resource_type = CASE
+                            WHEN task_id IS NOT NULL THEN 'task'
+                            ELSE resource_type
+                        END,
+                        resource_id = COALESCE(resource_id, task_id),
+                        run_type = CASE
+                            WHEN job_run_id IS NOT NULL THEN 'task_job_run'
+                            ELSE run_type
+                        END,
+                        run_id = COALESCE(run_id, job_run_id)
+                    WHERE resource_type IS NULL OR resource_id IS NULL OR run_type IS NULL OR run_id IS NULL
+                    """
+                )
             )
-        )

@@ -353,8 +353,9 @@ class EventRuleService:
         summary = self._to_summary(rule)
         if rule.db_config is None or rule.s3_config is None:
             raise HTTPException(status_code=409, detail="Backup event rule is not fully configured")
+        summary_data = summary.model_dump(exclude={"dbConfig", "s3Config"})
         return BackupEventRuleDetail(
-            **summary.model_dump(),
+            **summary_data,
             dbConfig=BackupEventRuleDbConfigDetail(
                 name=rule.db_config.name,
                 dbBackupsFilenamePrefix=rule.db_config.db_backups_filename_prefix,

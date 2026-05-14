@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from app.services.event_rule_service import EventRuleService
+
 
 def build_rule_payload(enabled: bool = True) -> dict:
     return {
         "name": "Combined backup",
         "namespace": "default",
         "enabled": enabled,
-        "db": {
+        "dbConfig": {
             "name": "Primary DB",
             "dbBackupsFilenamePrefix": "primary",
             "databaseHost": "postgresql",
@@ -18,7 +20,7 @@ def build_rule_payload(enabled: bool = True) -> dict:
             "destinationAwsAccessKeyId": "minio",
             "destinationAwsSecretAccessKey": "minio-secret",
         },
-        "s3": {
+        "s3Config": {
             "name": "Bucket archive",
             "s3BackupsFilenamePrefix": "bucket-archive",
             "sourceS3AwsEndpoint": "https://source.local",
@@ -41,9 +43,9 @@ def test_event_rule_api_lifecycle(client) -> None:
     created = create_response.json()
     assert created["name"] == "Combined backup"
     assert created["enabled"] is True
-    assert created["db"]["name"] == "Primary DB"
-    assert created["s3"]["name"] == "Bucket archive"
-    assert created["eventWatcherStatus"] == "waiting_for_baseline"
+    assert created["dbConfig"]["name"] == "Primary DB"
+    assert created["s3Config"]["name"] == "Bucket archive"
+    assert created["watcher"]["status"] == "waiting_for_baseline"
 
     list_response = client.get("/api/event-rules")
     assert list_response.status_code == 200
@@ -53,12 +55,12 @@ def test_event_rule_api_lifecycle(client) -> None:
         "/api/event-rules/1",
         json={
             "name": "Combined backup updated",
-            "db": {"databaseName": "app_updated"},
+            "dbConfig": {"databaseName": "app_updated"},
         },
     )
     assert update_response.status_code == 200
     assert update_response.json()["name"] == "Combined backup updated"
-    assert update_response.json()["db"]["databaseName"] == "app_updated"
+    assert update_response.json()["dbConfig"]["databaseName"] == "app_updated"
 
     disable_response = client.post("/api/event-rules/1/disable")
     assert disable_response.status_code == 200
@@ -78,5 +80,5 @@ def test_manual_event_rule_run_starts_both_jobs(client, fake_kube) -> None:
     response = client.post("/api/event-rules/1/run")
 
     assert response.status_code == 200
-    assert ("default", "db-backupper-1", "manual") in fake_kube.created_jobs
-    assert ("default", "s3-backupper-2", "manual") in fake_kube.created_jobs
+    assert ("default", EventRuleService._db_release_name(1), "manual") in fake_kube.created_jobs
+    assert ("default", EventRuleService._s3_release_name(1), "manual") in fake_kube.created_jobs

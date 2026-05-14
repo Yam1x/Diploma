@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from app.services.recovery_rule_service import RecoveryEventRuleService
+
 
 def build_recovery_rule_payload(enabled: bool = True) -> dict:
     return {
         "name": "Combined recovery",
         "namespace": "default",
         "enabled": enabled,
-        "db": {
+        "dbConfig": {
             "name": "Primary DB restore",
             "dbBackupsFilenamePrefix": "primary",
             "sourceAwsEndpoint": "https://minio.local",
@@ -18,7 +20,7 @@ def build_recovery_rule_payload(enabled: bool = True) -> dict:
             "targetDatabaseUsername": "postgres",
             "targetDatabasePassword": "secret",
         },
-        "s3": {
+        "s3Config": {
             "name": "Bucket restore",
             "s3BackupsFilenamePrefix": "bucket-archive",
             "sourceS3AwsEndpoint": "https://source.local",
@@ -41,11 +43,11 @@ def test_recovery_rule_api_lifecycle(client) -> None:
     created = create_response.json()
     assert created["name"] == "Combined recovery"
     assert created["enabled"] is True
-    assert created["db"]["name"] == "Primary DB restore"
-    assert created["s3"]["name"] == "Bucket restore"
-    assert created["eventWatcherStatus"] == "waiting_for_baseline"
-    assert created["lastPolledAt"] is None
-    assert created["lastErrorMessage"] is None
+    assert created["dbConfig"]["name"] == "Primary DB restore"
+    assert created["s3Config"]["name"] == "Bucket restore"
+    assert created["watcher"]["status"] == "waiting_for_baseline"
+    assert created["watcher"]["lastPolledAt"] is None
+    assert created["watcher"]["lastErrorMessage"] is None
 
     list_response = client.get("/api/recovery-rules")
     assert list_response.status_code == 200
@@ -55,12 +57,12 @@ def test_recovery_rule_api_lifecycle(client) -> None:
         "/api/recovery-rules/1",
         json={
             "name": "Combined recovery updated",
-            "s3": {"targetS3AwsBucketSubfolderName": "processed"},
+            "s3Config": {"targetS3AwsBucketSubfolderName": "processed"},
         },
     )
     assert update_response.status_code == 200
     assert update_response.json()["name"] == "Combined recovery updated"
-    assert update_response.json()["s3"]["targetS3AwsBucketSubfolderName"] == "processed"
+    assert update_response.json()["s3Config"]["targetS3AwsBucketSubfolderName"] == "processed"
 
     disable_response = client.post("/api/recovery-rules/1/disable")
     assert disable_response.status_code == 200
@@ -80,8 +82,8 @@ def test_recovery_rule_manual_run_starts_both_jobs(client, fake_kube) -> None:
     response = client.post("/api/recovery-rules/1/run")
 
     assert response.status_code == 200
-    assert ("default", "db-restorer-1", "manual") in fake_kube.created_jobs
-    assert ("default", "s3-restorer-2", "manual") in fake_kube.created_jobs
+    assert ("default", RecoveryEventRuleService._db_release_name(1), "manual") in fake_kube.created_jobs
+    assert ("default", RecoveryEventRuleService._s3_release_name(1), "manual") in fake_kube.created_jobs
 
 
 def test_recovery_rule_manual_db_run_starts_only_db_job(client, fake_kube) -> None:
@@ -90,7 +92,7 @@ def test_recovery_rule_manual_db_run_starts_only_db_job(client, fake_kube) -> No
     response = client.post("/api/recovery-rules/1/run/db")
 
     assert response.status_code == 200
-    assert fake_kube.created_jobs == [("default", "db-restorer-1", "manual")]
+    assert fake_kube.created_jobs == [("default", RecoveryEventRuleService._db_release_name(1), "manual")]
 
 
 def test_recovery_rule_manual_s3_run_starts_only_s3_job(client, fake_kube) -> None:
@@ -99,10 +101,10 @@ def test_recovery_rule_manual_s3_run_starts_only_s3_job(client, fake_kube) -> No
     response = client.post("/api/recovery-rules/1/run/s3")
 
     assert response.status_code == 200
-    assert fake_kube.created_jobs == [("default", "s3-restorer-2", "manual")]
+    assert fake_kube.created_jobs == [("default", RecoveryEventRuleService._s3_release_name(1), "manual")]
 
 
-def test_recovery_rule_managed_tasks_are_hidden_from_public_tasks(client) -> None:
+def test_recovery_rule_has_no_hidden_public_tasks(client) -> None:
     assert client.post("/api/recovery-rules", json=build_recovery_rule_payload()).status_code == 201
 
     response = client.get("/api/tasks")
