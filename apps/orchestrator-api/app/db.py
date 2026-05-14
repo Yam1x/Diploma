@@ -949,12 +949,12 @@ def _upgrade_task_schema() -> None:
                     last_error_message
                 )
                 SELECT
-                    'task', s.task_id, s.last_tuple_ins, s.last_tuple_upd, s.last_tuple_del, s.stats_reset_at,
+                    'TASK', s.task_id, s.last_tuple_ins, s.last_tuple_upd, s.last_tuple_del, s.stats_reset_at,
                     s.last_observed_state_hash, s.last_polled_at, s.last_change_detected_at, s.last_event_triggered_at,
                     s.last_error_at, s.last_error_message
                 FROM task_event_watch_states s
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM data_change_watch_states d WHERE d.owner_type = 'task' AND d.owner_id = s.task_id
+                    SELECT 1 FROM data_change_watch_states d WHERE d.owner_type::text = 'TASK' AND d.owner_id = s.task_id
                 )
                 """
             )
@@ -968,12 +968,12 @@ def _upgrade_task_schema() -> None:
                     last_error_at, last_error_message
                 )
                 SELECT
-                    'backup_rule', s.rule_id, s.last_tuple_ins, s.last_tuple_upd, s.last_tuple_del, s.stats_reset_at,
+                    'BACKUP_RULE', s.rule_id, s.last_tuple_ins, s.last_tuple_upd, s.last_tuple_del, s.stats_reset_at,
                     s.last_observed_state_hash, s.last_polled_at, s.last_db_change_at, s.last_s3_change_at,
                     s.last_triggered_at, s.last_error_at, s.last_error_message
                 FROM backup_event_rule_states s
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM data_change_watch_states d WHERE d.owner_type = 'backup_rule' AND d.owner_id = s.rule_id
+                    SELECT 1 FROM data_change_watch_states d WHERE d.owner_type::text = 'BACKUP_RULE' AND d.owner_id = s.rule_id
                 )
                 """
             )
@@ -986,12 +986,12 @@ def _upgrade_task_schema() -> None:
                     last_s3_empty_at, last_db_triggered_at, last_s3_triggered_at, last_error_at, last_error_message
                 )
                 SELECT
-                    'recovery_rule', s.rule_id, s.last_db_is_empty, s.last_s3_is_empty, s.last_polled_at,
+                    'RECOVERY_RULE', s.rule_id, s.last_db_is_empty, s.last_s3_is_empty, s.last_polled_at,
                     s.last_db_empty_at, s.last_s3_empty_at, s.last_db_triggered_at, s.last_s3_triggered_at,
                     s.last_error_at, s.last_error_message
                 FROM recovery_event_rule_states s
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM empty_state_watch_states d WHERE d.owner_type = 'recovery_rule' AND d.owner_id = s.rule_id
+                    SELECT 1 FROM empty_state_watch_states d WHERE d.owner_type::text = 'RECOVERY_RULE' AND d.owner_id = s.rule_id
                 )
                 """
             )
