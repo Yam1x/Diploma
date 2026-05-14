@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -17,8 +17,10 @@ class Notification(Base):
     severity: Mapped[str] = mapped_column(String(16), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True, index=True)
-    job_run_id: Mapped[int | None] = mapped_column(ForeignKey("task_job_runs.id"), nullable=True, index=True)
+    resource_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    resource_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    run_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    run_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     link_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

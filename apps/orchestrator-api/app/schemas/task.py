@@ -16,8 +16,9 @@ class TaskRequestBase(BaseModel):
     triggerMode: Literal["manual", "scheduled", "event_based"] = "scheduled"
 
 
-class DbTaskCreate(TaskRequestBase):
-    serviceType: Literal["db_backupper"]
+class DbBackupTaskConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     dbBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
     databaseHost: str = Field(min_length=1, max_length=255)
     databaseName: str = Field(min_length=1, max_length=120)
@@ -29,8 +30,9 @@ class DbTaskCreate(TaskRequestBase):
     destinationAwsSecretAccessKey: str = Field(min_length=1)
 
 
-class S3TaskCreate(TaskRequestBase):
-    serviceType: Literal["s3_backupper"]
+class S3BackupTaskConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     s3BackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
     sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
     sourceS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
@@ -43,8 +45,9 @@ class S3TaskCreate(TaskRequestBase):
     destinationS3AwsSecretAccessKey: str = Field(min_length=1)
 
 
-class EnvBackupperTaskCreate(TaskRequestBase):
-    serviceType: Literal["env_backupper"]
+class EnvBackupTaskConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     envBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
     destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
     destinationAwsBucketName: str = Field(min_length=1, max_length=120)
@@ -52,8 +55,9 @@ class EnvBackupperTaskCreate(TaskRequestBase):
     destinationAwsSecretAccessKey: str = Field(min_length=1)
 
 
-class DbRestorerTaskCreate(TaskRequestBase):
-    serviceType: Literal["db_restorer"]
+class DbRestoreTaskConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     dbBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
     sourceAwsEndpoint: str = Field(min_length=1, max_length=255)
     sourceAwsBucketName: str = Field(min_length=1, max_length=120)
@@ -65,8 +69,9 @@ class DbRestorerTaskCreate(TaskRequestBase):
     targetDatabasePassword: str = Field(min_length=1)
 
 
-class S3RestorerTaskCreate(TaskRequestBase):
-    serviceType: Literal["s3_restorer"]
+class S3RestoreTaskConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     s3BackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
     sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
     sourceS3AwsBucketName: str = Field(min_length=1, max_length=120)
@@ -79,19 +84,56 @@ class S3RestorerTaskCreate(TaskRequestBase):
     targetS3AwsSecretAccessKey: str = Field(min_length=1)
 
 
+class EnvRestoreTaskConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    envBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
+    sourceAwsEndpoint: str = Field(min_length=1, max_length=255)
+    sourceAwsBucketName: str = Field(min_length=1, max_length=120)
+    sourceAwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    sourceAwsSecretAccessKey: str = Field(min_length=1)
+
+
+class EnvSyncTaskConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    envRepository: str = Field(min_length=1, max_length=255)
+    pathToHelmfile: str = Field(min_length=1, max_length=255)
+
+
+class DbTaskCreate(TaskRequestBase):
+    serviceType: Literal["db_backupper"]
+    config: DbBackupTaskConfigInput
+
+
+class S3TaskCreate(TaskRequestBase):
+    serviceType: Literal["s3_backupper"]
+    config: S3BackupTaskConfigInput
+
+
+class EnvBackupperTaskCreate(TaskRequestBase):
+    serviceType: Literal["env_backupper"]
+    config: EnvBackupTaskConfigInput
+
+
+class DbRestorerTaskCreate(TaskRequestBase):
+    serviceType: Literal["db_restorer"]
+    config: DbRestoreTaskConfigInput
+
+
+class S3RestorerTaskCreate(TaskRequestBase):
+    serviceType: Literal["s3_restorer"]
+    config: S3RestoreTaskConfigInput
+
+
 class EnvRestorerTaskCreate(TaskRequestBase):
     serviceType: Literal["env_restorer"]
-    envBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
-    destinationAwsBucketName: str = Field(min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str = Field(min_length=1)
+    config: EnvRestoreTaskConfigInput
 
 
 class EnvSynchronizerTaskCreate(TaskRequestBase):
     serviceType: Literal["env_synchronizer"]
-    envRepository: str = Field(min_length=1, max_length=255)
-    pathToHelmfile: str = Field(min_length=1, max_length=255)
+    config: EnvSyncTaskConfigInput
 
 
 TaskCreate: TypeAlias = Annotated[
@@ -106,15 +148,9 @@ TaskCreate: TypeAlias = Annotated[
 ]
 
 
-class DbTaskUpdate(BaseModel):
+class DbBackupTaskConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    serviceType: Literal["db_backupper"]
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    namespace: str | None = Field(default=None, min_length=1, max_length=120)
-    enabled: bool | None = None
-    schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
     dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
     databaseHost: str | None = Field(default=None, min_length=1, max_length=255)
     databaseName: str | None = Field(default=None, min_length=1, max_length=120)
@@ -126,15 +162,9 @@ class DbTaskUpdate(BaseModel):
     destinationAwsSecretAccessKey: str | None = None
 
 
-class S3TaskUpdate(BaseModel):
+class S3BackupTaskConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    serviceType: Literal["s3_backupper"]
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    namespace: str | None = Field(default=None, min_length=1, max_length=120)
-    enabled: bool | None = None
-    schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
     s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
     sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
     sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
@@ -147,15 +177,9 @@ class S3TaskUpdate(BaseModel):
     destinationS3AwsSecretAccessKey: str | None = None
 
 
-class EnvBackupperTaskUpdate(BaseModel):
+class EnvBackupTaskConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    serviceType: Literal["env_backupper"]
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    namespace: str | None = Field(default=None, min_length=1, max_length=120)
-    enabled: bool | None = None
-    schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
     envBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
     destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
     destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
@@ -163,15 +187,9 @@ class EnvBackupperTaskUpdate(BaseModel):
     destinationAwsSecretAccessKey: str | None = None
 
 
-class DbRestorerTaskUpdate(BaseModel):
+class DbRestoreTaskConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    serviceType: Literal["db_restorer"]
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    namespace: str | None = Field(default=None, min_length=1, max_length=120)
-    enabled: bool | None = None
-    schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
     dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
     sourceAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
     sourceAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
@@ -183,15 +201,9 @@ class DbRestorerTaskUpdate(BaseModel):
     targetDatabasePassword: str | None = None
 
 
-class S3RestorerTaskUpdate(BaseModel):
+class S3RestoreTaskConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    serviceType: Literal["s3_restorer"]
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    namespace: str | None = Field(default=None, min_length=1, max_length=120)
-    enabled: bool | None = None
-    schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
     s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
     sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
     sourceS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
@@ -204,6 +216,83 @@ class S3RestorerTaskUpdate(BaseModel):
     targetS3AwsSecretAccessKey: str | None = None
 
 
+class EnvRestoreTaskConfigUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    envBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceAwsSecretAccessKey: str | None = None
+
+
+class EnvSyncTaskConfigUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    envRepository: str | None = Field(default=None, min_length=1, max_length=255)
+    pathToHelmfile: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+class DbTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["db_backupper"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    config: DbBackupTaskConfigUpdate | None = None
+
+
+class S3TaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["s3_backupper"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    config: S3BackupTaskConfigUpdate | None = None
+
+
+class EnvBackupperTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["env_backupper"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    config: EnvBackupTaskConfigUpdate | None = None
+
+
+class DbRestorerTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["db_restorer"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    config: DbRestoreTaskConfigUpdate | None = None
+
+
+class S3RestorerTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    serviceType: Literal["s3_restorer"]
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    namespace: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+    schedule: str | None = Field(default=None, min_length=1, max_length=120)
+    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    config: S3RestoreTaskConfigUpdate | None = None
+
+
 class EnvRestorerTaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -213,11 +302,7 @@ class EnvRestorerTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    envBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str | None = None
+    config: EnvRestoreTaskConfigUpdate | None = None
 
 
 class EnvSynchronizerTaskUpdate(BaseModel):
@@ -229,8 +314,7 @@ class EnvSynchronizerTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    envRepository: str | None = Field(default=None, min_length=1, max_length=255)
-    pathToHelmfile: str | None = Field(default=None, min_length=1, max_length=255)
+    config: EnvSyncTaskConfigUpdate | None = None
 
 
 TaskUpdate: TypeAlias = Annotated[
@@ -243,6 +327,13 @@ TaskUpdate: TypeAlias = Annotated[
     | EnvSynchronizerTaskUpdate,
     Field(discriminator="serviceType"),
 ]
+
+
+class EventWatcherState(BaseModel):
+    status: str
+    lastDetectedAt: datetime | None
+    lastTriggeredAt: datetime | None
+    lastMessage: str | None
 
 
 class TaskSummaryBase(BaseModel):
@@ -263,47 +354,7 @@ class TaskSummaryBase(BaseModel):
     updatedAt: datetime
 
 
-class DbTaskSummary(TaskSummaryBase):
-    serviceType: Literal["db_backupper"]
-
-
-class S3TaskSummary(TaskSummaryBase):
-    serviceType: Literal["s3_backupper"]
-
-
-class EnvBackupperTaskSummary(TaskSummaryBase):
-    serviceType: Literal["env_backupper"]
-
-
-class DbRestorerTaskSummary(TaskSummaryBase):
-    serviceType: Literal["db_restorer"]
-
-
-class S3RestorerTaskSummary(TaskSummaryBase):
-    serviceType: Literal["s3_restorer"]
-
-
-class EnvRestorerTaskSummary(TaskSummaryBase):
-    serviceType: Literal["env_restorer"]
-
-
-class EnvSynchronizerTaskSummary(TaskSummaryBase):
-    serviceType: Literal["env_synchronizer"]
-
-
-TaskSummary: TypeAlias = Annotated[
-    DbTaskSummary
-    | S3TaskSummary
-    | EnvBackupperTaskSummary
-    | DbRestorerTaskSummary
-    | S3RestorerTaskSummary
-    | EnvRestorerTaskSummary
-    | EnvSynchronizerTaskSummary,
-    Field(discriminator="serviceType"),
-]
-
-
-class DbTaskDetail(DbTaskSummary):
+class DbBackupTaskConfigDetail(BaseModel):
     dbBackupsFilenamePrefix: str
     databaseHost: str
     databaseName: str
@@ -313,13 +364,9 @@ class DbTaskDetail(DbTaskSummary):
     destinationAwsAccessKeyId: str
     hasDatabasePassword: bool
     hasDestinationAwsSecretAccessKey: bool
-    eventWatcherStatus: str
-    lastEventDetectedAt: datetime | None
-    lastEventTriggeredAt: datetime | None
-    lastEventMessage: str | None
 
 
-class S3TaskDetail(S3TaskSummary):
+class S3BackupTaskConfigDetail(BaseModel):
     s3BackupsFilenamePrefix: str
     sourceS3AwsEndpoint: str
     sourceS3AwsAccessKeyId: str
@@ -330,13 +377,9 @@ class S3TaskDetail(S3TaskSummary):
     destinationS3AwsBucketName: str
     hasSourceS3AwsSecretAccessKey: bool
     hasDestinationS3AwsSecretAccessKey: bool
-    eventWatcherStatus: str
-    lastEventDetectedAt: datetime | None
-    lastEventTriggeredAt: datetime | None
-    lastEventMessage: str | None
 
 
-class EnvBackupperTaskDetail(EnvBackupperTaskSummary):
+class EnvBackupTaskConfigDetail(BaseModel):
     envBackupsFilenamePrefix: str
     destinationAwsEndpoint: str
     destinationAwsBucketName: str
@@ -344,7 +387,7 @@ class EnvBackupperTaskDetail(EnvBackupperTaskSummary):
     hasDestinationAwsSecretAccessKey: bool
 
 
-class DbRestorerTaskDetail(DbRestorerTaskSummary):
+class DbRestoreTaskConfigDetail(BaseModel):
     dbBackupsFilenamePrefix: str
     sourceAwsEndpoint: str
     sourceAwsBucketName: str
@@ -356,7 +399,7 @@ class DbRestorerTaskDetail(DbRestorerTaskSummary):
     hasTargetDatabasePassword: bool
 
 
-class S3RestorerTaskDetail(S3RestorerTaskSummary):
+class S3RestoreTaskConfigDetail(BaseModel):
     s3BackupsFilenamePrefix: str
     sourceS3AwsEndpoint: str
     sourceS3AwsBucketName: str
@@ -369,17 +412,54 @@ class S3RestorerTaskDetail(S3RestorerTaskSummary):
     hasTargetS3AwsSecretAccessKey: bool
 
 
-class EnvRestorerTaskDetail(EnvRestorerTaskSummary):
+class EnvRestoreTaskConfigDetail(BaseModel):
     envBackupsFilenamePrefix: str
-    destinationAwsEndpoint: str
-    destinationAwsBucketName: str
-    destinationAwsAccessKeyId: str
-    hasDestinationAwsSecretAccessKey: bool
+    sourceAwsEndpoint: str
+    sourceAwsBucketName: str
+    sourceAwsAccessKeyId: str
+    hasSourceAwsSecretAccessKey: bool
 
 
-class EnvSynchronizerTaskDetail(EnvSynchronizerTaskSummary):
+class EnvSyncTaskConfigDetail(BaseModel):
     envRepository: str
     pathToHelmfile: str
+
+
+class DbTaskDetail(TaskSummaryBase):
+    serviceType: Literal["db_backupper"]
+    config: DbBackupTaskConfigDetail
+    watcher: EventWatcherState | None = None
+
+
+class S3TaskDetail(TaskSummaryBase):
+    serviceType: Literal["s3_backupper"]
+    config: S3BackupTaskConfigDetail
+    watcher: EventWatcherState | None = None
+
+
+class EnvBackupperTaskDetail(TaskSummaryBase):
+    serviceType: Literal["env_backupper"]
+    config: EnvBackupTaskConfigDetail
+
+
+class DbRestorerTaskDetail(TaskSummaryBase):
+    serviceType: Literal["db_restorer"]
+    config: DbRestoreTaskConfigDetail
+
+
+class S3RestorerTaskDetail(TaskSummaryBase):
+    serviceType: Literal["s3_restorer"]
+    config: S3RestoreTaskConfigDetail
+
+
+class EnvRestorerTaskDetail(TaskSummaryBase):
+    serviceType: Literal["env_restorer"]
+    config: EnvRestoreTaskConfigDetail
+
+
+class EnvSynchronizerTaskDetail(TaskSummaryBase):
+    serviceType: Literal["env_synchronizer"]
+    config: EnvSyncTaskConfigDetail
 
 
 TaskDetail: TypeAlias = Annotated[
@@ -392,6 +472,9 @@ TaskDetail: TypeAlias = Annotated[
     | EnvSynchronizerTaskDetail,
     Field(discriminator="serviceType"),
 ]
+
+
+TaskSummary: TypeAlias = TaskSummaryBase
 
 
 class HealthResponse(BaseModel):

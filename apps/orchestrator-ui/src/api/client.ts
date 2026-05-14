@@ -572,45 +572,293 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+type BackendNotificationItem = {
+  id: number;
+  kind: string;
+  severity: "info" | "success" | "warning" | "error";
+  title: string;
+  message: string;
+  resourceType: string | null;
+  resourceId: number | null;
+  runType: string | null;
+  runId: number | null;
+  linkPath: string | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+};
+
+type BackendTaskDetail = TaskSummaryBase & {
+  config: Record<string, unknown>;
+  watcher?: {
+    status: string;
+    lastDetectedAt: string | null;
+    lastTriggeredAt: string | null;
+    lastMessage: string | null;
+  } | null;
+};
+
+type BackendRuleSummary = {
+  id: number;
+  name: string;
+  namespace: string;
+  enabled: boolean;
+  dbConfig: { name: string };
+  s3Config: { name: string };
+  watcher: Record<string, string | null>;
+  updatedAt: string;
+};
+
+type BackendRuleDetail = BackendRuleSummary & {
+  dbConfig: Record<string, unknown>;
+  s3Config: Record<string, unknown>;
+};
+
+function toTaskApiPayload(payload: TaskPayload) {
+  const { serviceType, name, namespace, enabled, schedule, triggerMode, ...config } = payload;
+  return { serviceType, name, namespace, enabled, schedule, triggerMode, config };
+}
+
+function fromTaskApiDetail(task: BackendTaskDetail): TaskDetail {
+  if (task.serviceType === "db_backupper") {
+    return {
+      ...task,
+      dbBackupsFilenamePrefix: String(task.config.dbBackupsFilenamePrefix ?? ""),
+      databaseHost: String(task.config.databaseHost ?? ""),
+      databaseName: String(task.config.databaseName ?? ""),
+      databaseUsername: String(task.config.databaseUsername ?? ""),
+      destinationAwsEndpoint: String(task.config.destinationAwsEndpoint ?? ""),
+      destinationAwsBucketName: String(task.config.destinationAwsBucketName ?? ""),
+      destinationAwsAccessKeyId: String(task.config.destinationAwsAccessKeyId ?? ""),
+      hasDatabasePassword: Boolean(task.config.hasDatabasePassword),
+      hasDestinationAwsSecretAccessKey: Boolean(task.config.hasDestinationAwsSecretAccessKey),
+      eventWatcherStatus: task.watcher?.status ?? "scheduled",
+      lastEventDetectedAt: task.watcher?.lastDetectedAt ?? null,
+      lastEventTriggeredAt: task.watcher?.lastTriggeredAt ?? null,
+      lastEventMessage: task.watcher?.lastMessage ?? null,
+    } as DbTaskDetail;
+  }
+  if (task.serviceType === "s3_backupper") {
+    return {
+      ...task,
+      s3BackupsFilenamePrefix: String(task.config.s3BackupsFilenamePrefix ?? ""),
+      sourceS3AwsEndpoint: String(task.config.sourceS3AwsEndpoint ?? ""),
+      sourceS3AwsAccessKeyId: String(task.config.sourceS3AwsAccessKeyId ?? ""),
+      sourceS3AwsBucketName: String(task.config.sourceS3AwsBucketName ?? ""),
+      sourceS3AwsBucketSubfolderName: String(task.config.sourceS3AwsBucketSubfolderName ?? ""),
+      destinationS3AwsEndpoint: String(task.config.destinationS3AwsEndpoint ?? ""),
+      destinationS3AwsAccessKeyId: String(task.config.destinationS3AwsAccessKeyId ?? ""),
+      destinationS3AwsBucketName: String(task.config.destinationS3AwsBucketName ?? ""),
+      hasSourceS3AwsSecretAccessKey: Boolean(task.config.hasSourceS3AwsSecretAccessKey),
+      hasDestinationS3AwsSecretAccessKey: Boolean(task.config.hasDestinationS3AwsSecretAccessKey),
+      eventWatcherStatus: task.watcher?.status ?? "scheduled",
+      lastEventDetectedAt: task.watcher?.lastDetectedAt ?? null,
+      lastEventTriggeredAt: task.watcher?.lastTriggeredAt ?? null,
+      lastEventMessage: task.watcher?.lastMessage ?? null,
+    } as S3TaskDetail;
+  }
+  if (task.serviceType === "env_backupper") {
+    return {
+      ...task,
+      envBackupsFilenamePrefix: String(task.config.envBackupsFilenamePrefix ?? ""),
+      destinationAwsEndpoint: String(task.config.destinationAwsEndpoint ?? ""),
+      destinationAwsBucketName: String(task.config.destinationAwsBucketName ?? ""),
+      destinationAwsAccessKeyId: String(task.config.destinationAwsAccessKeyId ?? ""),
+      hasDestinationAwsSecretAccessKey: Boolean(task.config.hasDestinationAwsSecretAccessKey),
+    } as EnvBackupperTaskDetail;
+  }
+  if (task.serviceType === "db_restorer") {
+    return {
+      ...task,
+      dbBackupsFilenamePrefix: String(task.config.dbBackupsFilenamePrefix ?? ""),
+      sourceAwsEndpoint: String(task.config.sourceAwsEndpoint ?? ""),
+      sourceAwsBucketName: String(task.config.sourceAwsBucketName ?? ""),
+      sourceAwsAccessKeyId: String(task.config.sourceAwsAccessKeyId ?? ""),
+      targetDatabaseHost: String(task.config.targetDatabaseHost ?? ""),
+      targetDatabaseName: String(task.config.targetDatabaseName ?? ""),
+      targetDatabaseUsername: String(task.config.targetDatabaseUsername ?? ""),
+      hasSourceAwsSecretAccessKey: Boolean(task.config.hasSourceAwsSecretAccessKey),
+      hasTargetDatabasePassword: Boolean(task.config.hasTargetDatabasePassword),
+    } as DbRestorerTaskDetail;
+  }
+  if (task.serviceType === "s3_restorer") {
+    return {
+      ...task,
+      s3BackupsFilenamePrefix: String(task.config.s3BackupsFilenamePrefix ?? ""),
+      sourceS3AwsEndpoint: String(task.config.sourceS3AwsEndpoint ?? ""),
+      sourceS3AwsBucketName: String(task.config.sourceS3AwsBucketName ?? ""),
+      sourceS3AwsAccessKeyId: String(task.config.sourceS3AwsAccessKeyId ?? ""),
+      targetS3AwsEndpoint: String(task.config.targetS3AwsEndpoint ?? ""),
+      targetS3AwsBucketName: String(task.config.targetS3AwsBucketName ?? ""),
+      targetS3AwsBucketSubfolderName: String(task.config.targetS3AwsBucketSubfolderName ?? ""),
+      targetS3AwsAccessKeyId: String(task.config.targetS3AwsAccessKeyId ?? ""),
+      hasSourceS3AwsSecretAccessKey: Boolean(task.config.hasSourceS3AwsSecretAccessKey),
+      hasTargetS3AwsSecretAccessKey: Boolean(task.config.hasTargetS3AwsSecretAccessKey),
+    } as S3RestorerTaskDetail;
+  }
+  if (task.serviceType === "env_restorer") {
+    return {
+      ...task,
+      envBackupsFilenamePrefix: String(task.config.envBackupsFilenamePrefix ?? ""),
+      destinationAwsEndpoint: String(task.config.sourceAwsEndpoint ?? ""),
+      destinationAwsBucketName: String(task.config.sourceAwsBucketName ?? ""),
+      destinationAwsAccessKeyId: String(task.config.sourceAwsAccessKeyId ?? ""),
+      hasDestinationAwsSecretAccessKey: Boolean(task.config.hasSourceAwsSecretAccessKey),
+    } as EnvRestorerTaskDetail;
+  }
+  return {
+    ...task,
+    envRepository: String(task.config.envRepository ?? ""),
+    pathToHelmfile: String(task.config.pathToHelmfile ?? ""),
+  } as EnvSynchronizerTaskDetail;
+}
+
+function toEventRuleApiPayload(payload: BackupEventRulePayload | BackupEventRuleUpdatePayload) {
+  const mapped: Record<string, unknown> = { ...payload };
+  if ("db" in mapped) {
+    mapped.dbConfig = mapped.db;
+    delete mapped.db;
+  }
+  if ("s3" in mapped) {
+    mapped.s3Config = mapped.s3;
+    delete mapped.s3;
+  }
+  return mapped;
+}
+
+function fromEventRuleApi(rule: BackendRuleSummary | BackendRuleDetail): BackupEventRuleSummary | BackupEventRuleDetail {
+  const base = {
+    id: rule.id,
+    name: rule.name,
+    namespace: rule.namespace,
+    enabled: rule.enabled,
+    dbName: rule.dbConfig.name,
+    s3Name: rule.s3Config.name,
+    eventWatcherStatus: String(rule.watcher.status ?? "disabled"),
+    updatedAt: rule.updatedAt,
+  };
+  if (!("dbBackupsFilenamePrefix" in rule.dbConfig)) {
+    return { ...base, lastTriggeredAt: rule.watcher.lastTriggeredAt ?? null } as BackupEventRuleSummary;
+  }
+  return {
+    ...base,
+    lastTriggeredAt: (rule.watcher.lastTriggeredAt as string | null) ?? null,
+    db: rule.dbConfig as BackupEventRuleDbDetail,
+    s3: rule.s3Config as BackupEventRuleS3Detail,
+    lastPolledAt: (rule.watcher.lastPolledAt as string | null) ?? null,
+    lastDbChangeAt: (rule.watcher.lastDbChangeAt as string | null) ?? null,
+    lastS3ChangeAt: (rule.watcher.lastS3ChangeAt as string | null) ?? null,
+    lastErrorAt: (rule.watcher.lastErrorAt as string | null) ?? null,
+    lastErrorMessage: (rule.watcher.lastErrorMessage as string | null) ?? null,
+  } as BackupEventRuleDetail;
+}
+
+function toRecoveryRuleApiPayload(payload: RecoveryEventRulePayload | RecoveryEventRuleUpdatePayload) {
+  const mapped: Record<string, unknown> = { ...payload };
+  if ("db" in mapped) {
+    mapped.dbConfig = mapped.db;
+    delete mapped.db;
+  }
+  if ("s3" in mapped) {
+    mapped.s3Config = mapped.s3;
+    delete mapped.s3;
+  }
+  return mapped;
+}
+
+function fromRecoveryRuleApi(rule: BackendRuleSummary | BackendRuleDetail): RecoveryEventRuleSummary | RecoveryEventRuleDetail {
+  const base = {
+    id: rule.id,
+    name: rule.name,
+    namespace: rule.namespace,
+    enabled: rule.enabled,
+    dbName: rule.dbConfig.name,
+    s3Name: rule.s3Config.name,
+    eventWatcherStatus: String(rule.watcher.status ?? "disabled"),
+    lastPolledAt: (rule.watcher.lastPolledAt as string | null) ?? null,
+    lastDbEmptyAt: (rule.watcher.lastDbEmptyAt as string | null) ?? null,
+    lastS3EmptyAt: (rule.watcher.lastS3EmptyAt as string | null) ?? null,
+    lastDbTriggeredAt: (rule.watcher.lastDbTriggeredAt as string | null) ?? null,
+    lastS3TriggeredAt: (rule.watcher.lastS3TriggeredAt as string | null) ?? null,
+    lastErrorAt: (rule.watcher.lastErrorAt as string | null) ?? null,
+    lastErrorMessage: (rule.watcher.lastErrorMessage as string | null) ?? null,
+    updatedAt: rule.updatedAt,
+  };
+  if (!("dbBackupsFilenamePrefix" in rule.dbConfig)) {
+    return base as RecoveryEventRuleSummary;
+  }
+  return { ...base, db: rule.dbConfig as RecoveryEventRuleDbDetail, s3: rule.s3Config as RecoveryEventRuleS3Detail } as RecoveryEventRuleDetail;
+}
+
+function fromNotificationApi(item: BackendNotificationItem): NotificationItem {
+  return {
+    id: item.id,
+    kind: item.kind,
+    severity: item.severity,
+    title: item.title,
+    message: item.message,
+    taskId: item.resourceType === "task" ? item.resourceId : null,
+    jobRunId: item.runType === "task_job_run" ? item.runId : null,
+    linkPath: item.linkPath,
+    isRead: item.isRead,
+    readAt: item.readAt,
+    createdAt: item.createdAt,
+  };
+}
+
 export const api = {
   getDashboardStats: () => request<DashboardStatsResponse>("/stats/overview"),
   listNotifications: (limit = 20, unreadOnly = false) =>
-    request<NotificationsResponse>(`/notifications?limit=${limit}&unreadOnly=${String(unreadOnly)}`),
+    request<{ unreadCount: number; items: BackendNotificationItem[] }>(`/notifications?limit=${limit}&unreadOnly=${String(unreadOnly)}`).then((response) => ({
+      unreadCount: response.unreadCount,
+      items: response.items.map(fromNotificationApi),
+    })),
   markNotificationRead: (notificationId: number) => request<void>(`/notifications/${notificationId}/read`, { method: "POST" }),
   markAllNotificationsRead: () => request<void>("/notifications/read-all", { method: "POST" }),
   listTasks: () => request<TaskSummary[]>("/tasks"),
-  getTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}`),
-  listEventRules: () => request<BackupEventRuleSummary[]>("/event-rules"),
-  getEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}`),
+  getTask: (taskId: string) => request<BackendTaskDetail>(`/tasks/${taskId}`).then(fromTaskApiDetail),
+  listEventRules: () => request<BackendRuleSummary[]>("/event-rules").then((items) => items.map((item) => fromEventRuleApi(item) as BackupEventRuleSummary)),
+  getEventRule: (ruleId: string) => request<BackendRuleDetail>(`/event-rules/${ruleId}`).then((item) => fromEventRuleApi(item) as BackupEventRuleDetail),
   createEventRule: (payload: BackupEventRulePayload) =>
-    request<BackupEventRuleDetail>("/event-rules", { method: "POST", body: JSON.stringify(payload) }),
+    request<BackendRuleDetail>("/event-rules", { method: "POST", body: JSON.stringify(toEventRuleApiPayload(payload)) }).then(
+      (item) => fromEventRuleApi(item) as BackupEventRuleDetail,
+    ),
   updateEventRule: (ruleId: string, payload: BackupEventRuleUpdatePayload) =>
-    request<BackupEventRuleDetail>(`/event-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  enableEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/enable`, { method: "POST" }),
-  runEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/run`, { method: "POST" }),
-  disableEventRule: (ruleId: string) => request<BackupEventRuleDetail>(`/event-rules/${ruleId}/disable`, { method: "POST" }),
+    request<BackendRuleDetail>(`/event-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(toEventRuleApiPayload(payload)) }).then(
+      (item) => fromEventRuleApi(item) as BackupEventRuleDetail,
+    ),
+  enableEventRule: (ruleId: string) => request<BackendRuleDetail>(`/event-rules/${ruleId}/enable`, { method: "POST" }).then((item) => fromEventRuleApi(item) as BackupEventRuleDetail),
+  runEventRule: (ruleId: string) => request<BackendRuleDetail>(`/event-rules/${ruleId}/run`, { method: "POST" }).then((item) => fromEventRuleApi(item) as BackupEventRuleDetail),
+  disableEventRule: (ruleId: string) => request<BackendRuleDetail>(`/event-rules/${ruleId}/disable`, { method: "POST" }).then((item) => fromEventRuleApi(item) as BackupEventRuleDetail),
   deleteEventRule: (ruleId: string) => request<void>(`/event-rules/${ruleId}`, { method: "DELETE" }),
-  listRecoveryRules: () => request<RecoveryEventRuleSummary[]>("/recovery-rules"),
-  getRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}`),
+  listRecoveryRules: () =>
+    request<BackendRuleSummary[]>("/recovery-rules").then((items) => items.map((item) => fromRecoveryRuleApi(item) as RecoveryEventRuleSummary)),
+  getRecoveryRule: (ruleId: string) =>
+    request<BackendRuleDetail>(`/recovery-rules/${ruleId}`).then((item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail),
   createRecoveryRule: (payload: RecoveryEventRulePayload) =>
-    request<RecoveryEventRuleDetail>("/recovery-rules", { method: "POST", body: JSON.stringify(payload) }),
+    request<BackendRuleDetail>("/recovery-rules", { method: "POST", body: JSON.stringify(toRecoveryRuleApiPayload(payload)) }).then(
+      (item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail,
+    ),
   updateRecoveryRule: (ruleId: string, payload: RecoveryEventRuleUpdatePayload) =>
-    request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  enableRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/enable`, { method: "POST" }),
-  runRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/run`, { method: "POST" }),
-  runRecoveryRuleDb: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/run/db`, { method: "POST" }),
-  runRecoveryRuleS3: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/run/s3`, { method: "POST" }),
-  disableRecoveryRule: (ruleId: string) => request<RecoveryEventRuleDetail>(`/recovery-rules/${ruleId}/disable`, { method: "POST" }),
+    request<BackendRuleDetail>(`/recovery-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(toRecoveryRuleApiPayload(payload)) }).then(
+      (item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail,
+    ),
+  enableRecoveryRule: (ruleId: string) => request<BackendRuleDetail>(`/recovery-rules/${ruleId}/enable`, { method: "POST" }).then((item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail),
+  runRecoveryRule: (ruleId: string) => request<BackendRuleDetail>(`/recovery-rules/${ruleId}/run`, { method: "POST" }).then((item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail),
+  runRecoveryRuleDb: (ruleId: string) => request<BackendRuleDetail>(`/recovery-rules/${ruleId}/run/db`, { method: "POST" }).then((item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail),
+  runRecoveryRuleS3: (ruleId: string) => request<BackendRuleDetail>(`/recovery-rules/${ruleId}/run/s3`, { method: "POST" }).then((item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail),
+  disableRecoveryRule: (ruleId: string) => request<BackendRuleDetail>(`/recovery-rules/${ruleId}/disable`, { method: "POST" }).then((item) => fromRecoveryRuleApi(item) as RecoveryEventRuleDetail),
   deleteRecoveryRule: (ruleId: string) => request<void>(`/recovery-rules/${ruleId}`, { method: "DELETE" }),
   listTaskJobRuns: (taskId: string) => request<TaskJobRunsResponse>(`/tasks/${taskId}/job-runs`),
   getTaskJobRunLogs: (taskId: string, runId: number) => request<JobRunLogsResponse>(`/tasks/${taskId}/job-runs/${runId}/logs`),
-  createTask: (payload: TaskPayload) => request<TaskDetail>("/tasks", { method: "POST", body: JSON.stringify(payload) }),
+  createTask: (payload: TaskPayload) =>
+    request<BackendTaskDetail>("/tasks", { method: "POST", body: JSON.stringify(toTaskApiPayload(payload)) }).then(fromTaskApiDetail),
   updateTask: (taskId: string, payload: TaskPayload) =>
-    request<TaskDetail>(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  enableTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/enable`, { method: "POST" }),
-  runTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/run`, { method: "POST" }),
-  disableTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/disable`, { method: "POST" }),
-  refreshTask: (taskId: string) => request<TaskDetail>(`/tasks/${taskId}/refresh`, { method: "POST" }),
+    request<BackendTaskDetail>(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(toTaskApiPayload(payload)) }).then(fromTaskApiDetail),
+  enableTask: (taskId: string) => request<BackendTaskDetail>(`/tasks/${taskId}/enable`, { method: "POST" }).then(fromTaskApiDetail),
+  runTask: (taskId: string) => request<BackendTaskDetail>(`/tasks/${taskId}/run`, { method: "POST" }).then(fromTaskApiDetail),
+  disableTask: (taskId: string) => request<BackendTaskDetail>(`/tasks/${taskId}/disable`, { method: "POST" }).then(fromTaskApiDetail),
+  refreshTask: (taskId: string) => request<BackendTaskDetail>(`/tasks/${taskId}/refresh`, { method: "POST" }).then(fromTaskApiDetail),
   deleteTask: (taskId: string) => request<void>(`/tasks/${taskId}`, { method: "DELETE" }),
   listNamespaces: () => request<{ namespaces: string[] }>("/namespaces"),
   listServiceDiscovery: (namespace: string) =>

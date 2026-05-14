@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.event_rule import BackupEventRule
 from app.models.notification import Notification
 from app.models.recovery_rule import RecoveryEventRule
+from app.models.runtime import RuleJobRun
 from app.models.task import Task, TaskJobRun
 from app.schemas.notification import NotificationItem, NotificationsResponse
 
@@ -21,24 +22,14 @@ class NotificationService:
         query = self.db.query(Notification)
         if unread_only:
             query = query.filter(Notification.is_read.is_(False))
-
-        items = (
-            query.order_by(Notification.created_at.desc(), Notification.id.desc())
-            .limit(limit)
-            .all()
-        )
+        items = query.order_by(Notification.created_at.desc(), Notification.id.desc()).limit(limit).all()
         unread_count = self.db.query(Notification).filter(Notification.is_read.is_(False)).count()
-
-        return NotificationsResponse(
-            unreadCount=unread_count,
-            items=[self._to_item(notification) for notification in items],
-        )
+        return NotificationsResponse(unreadCount=unread_count, items=[self._to_item(item) for item in items])
 
     def mark_read(self, notification_id: int) -> None:
         notification = self.db.query(Notification).filter(Notification.id == notification_id).one_or_none()
         if notification is None:
             raise HTTPException(status_code=404, detail="Notification not found")
-
         if not notification.is_read:
             notification.is_read = True
             notification.read_at = datetime.now(timezone.utc)
@@ -46,16 +37,12 @@ class NotificationService:
 
     def mark_all_read(self) -> None:
         now = datetime.now(timezone.utc)
-        notifications = self.db.query(Notification).filter(Notification.is_read.is_(False)).all()
-
-        if not notifications:
-            return
-
-        for notification in notifications:
-            notification.is_read = True
-            notification.read_at = now
-
-        self.db.commit()
+        items = self.db.query(Notification).filter(Notification.is_read.is_(False)).all()
+        for item in items:
+            item.is_read = True
+            item.read_at = now
+        if items:
+            self.db.commit()
 
     def create_notification(
         self,
@@ -65,22 +52,25 @@ class NotificationService:
         severity: str,
         title: str,
         message: str,
-        task_id: int | None = None,
-        job_run_id: int | None = None,
+        resource_type: str | None = None,
+        resource_id: int | None = None,
+        run_type: str | None = None,
+        run_id: int | None = None,
         link_path: str | None = None,
     ) -> Notification:
         existing = self.db.query(Notification).filter(Notification.event_key == event_key).one_or_none()
         if existing is not None:
             return existing
-
         notification = Notification(
             event_key=event_key,
             kind=kind,
             severity=severity,
             title=title,
             message=message,
-            task_id=task_id,
-            job_run_id=job_run_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            run_type=run_type,
+            run_id=run_id,
             link_path=link_path,
             is_read=False,
         )
@@ -90,27 +80,29 @@ class NotificationService:
         return notification
 
     def notify_task_deploy_failed(self, task: Task) -> None:
-        message = task.last_apply_message or "Не удалось применить release"
+        message = task.last_apply_message or "Failed to apply release"
         self.create_notification(
             event_key=self._event_key("task", task.id, "deploy-failed", message),
             kind="task_deploy_failed",
             severity="error",
-            title=f"Ошибка деплоя: {task.name}",
+            title=f"Deploy failed: {task.name}",
             message=message,
-            task_id=task.id,
-            link_path=self._task_link(task),
+            resource_type="task",
+            resource_id=task.id,
+            link_path=f"/tasks/{task.id}",
         )
 
     def notify_task_missing(self, task: Task) -> None:
-        message = task.last_apply_message or "Release не найден"
+        message = task.last_apply_message or "Release not found"
         self.create_notification(
             event_key=self._event_key("task", task.id, "missing", message),
             kind="task_missing",
             severity="warning",
-            title=f"Release не найден: {task.name}",
+            title=f"Release missing: {task.name}",
             message=message,
-            task_id=task.id,
-            link_path=self._task_link(task),
+            resource_type="task",
+            resource_id=task.id,
+            link_path=f"/tasks/{task.id}",
         )
 
     def notify_task_attention_required(self, task: Task, reason: str) -> None:
@@ -118,10 +110,11 @@ class NotificationService:
             event_key=self._event_key("task", task.id, "attention", reason),
             kind="task_attention_required",
             severity="warning",
-            title=f"Требуется внимание: {task.name}",
-            message=f"Задача включена, но требует проверки. Причина: {reason}.",
-            task_id=task.id,
-            link_path=self._task_link(task),
+            title=f"Task needs attention: {task.name}",
+            message=f"Task is enabled but needs review. Reason: {reason}.",
+            resource_type="task",
+            resource_id=task.id,
+            link_path=f"/tasks/{task.id}",
         )
 
     def notify_manual_run_started(self, task: Task, run: TaskJobRun) -> None:
@@ -129,11 +122,13 @@ class NotificationService:
             event_key=self._event_key("task", task.id, "manual-run-started", run.job_name),
             kind="task_manual_run_started",
             severity="info",
-            title=f"Ручной запуск начат: {task.name}",
-            message=f"Создан job {run.job_name}.",
-            task_id=task.id,
-            job_run_id=run.id,
-            link_path=self._task_link(task),
+            title=f"Manual run started: {task.name}",
+            message=f"Created job {run.job_name}.",
+            resource_type="task",
+            resource_id=task.id,
+            run_type="task_job_run",
+            run_id=run.id,
+            link_path=f"/tasks/{task.id}",
         )
 
     def notify_event_run_started(self, task: Task, run: TaskJobRun) -> None:
@@ -141,11 +136,13 @@ class NotificationService:
             event_key=self._event_key("task", task.id, "event-run-started", run.job_name),
             kind="task_event_run_started",
             severity="info",
-            title=f"Событийный запуск начат: {task.name}",
-            message=f"Создан job {run.job_name}.",
-            task_id=task.id,
-            job_run_id=run.id,
-            link_path=self._task_link(task),
+            title=f"Event run started: {task.name}",
+            message=f"Created job {run.job_name}.",
+            resource_type="task",
+            resource_id=task.id,
+            run_type="task_job_run",
+            run_id=run.id,
+            link_path=f"/tasks/{task.id}",
         )
 
     def notify_event_watcher_issue(self, task: Task, message: str) -> None:
@@ -153,10 +150,11 @@ class NotificationService:
             event_key=self._event_key("task", task.id, "event-watcher-issue", message),
             kind="task_event_watcher_issue",
             severity="warning",
-            title=f"Проблема event watcher: {task.name}",
+            title=f"Event watcher issue: {task.name}",
             message=message,
-            task_id=task.id,
-            link_path=self._task_link(task),
+            resource_type="task",
+            resource_id=task.id,
+            link_path=f"/tasks/{task.id}",
         )
 
     def notify_backup_event_rule_run_started(
@@ -166,14 +164,19 @@ class NotificationService:
         trigger_type: str,
         db_job_name: str,
         s3_job_name: str,
+        run: RuleJobRun,
     ) -> None:
-        trigger_label = "вручную" if trigger_type == "manual" else "по событию"
+        trigger_label = "manually" if trigger_type == "manual" else "by event"
         self.create_notification(
             event_key=self._event_key("backup-event-rule", rule.id, "run-started", trigger_type, db_job_name, s3_job_name),
             kind="backup_event_rule_run_started",
             severity="info",
-            title=f"Combined backup запущен: {rule.name}",
-            message=f"DB job {db_job_name} и S3 job {s3_job_name} запущены {trigger_label}.",
+            title=f"Combined backup started: {rule.name}",
+            message=f"DB job {db_job_name} and S3 job {s3_job_name} started {trigger_label}.",
+            resource_type="backup_rule",
+            resource_id=rule.id,
+            run_type="rule_job_run",
+            run_id=run.id,
             link_path=f"/event-rules/{rule.id}",
         )
 
@@ -182,8 +185,10 @@ class NotificationService:
             event_key=self._event_key("backup-event-rule", rule.id, "issue", message),
             kind="backup_event_rule_issue",
             severity="warning",
-            title=f"Проблема event rule: {rule.name}",
+            title=f"Event rule issue: {rule.name}",
             message=message,
+            resource_type="backup_rule",
+            resource_id=rule.id,
             link_path=f"/event-rules/{rule.id}",
         )
 
@@ -194,16 +199,20 @@ class NotificationService:
         trigger_type: str,
         db_job_name: str | None,
         s3_job_name: str | None,
+        run: RuleJobRun,
     ) -> None:
-        trigger_label = "вручную" if trigger_type == "manual" else "по событию"
+        trigger_label = "manually" if trigger_type == "manual" else "by event"
         parts = [part for part in [f"DB job {db_job_name}" if db_job_name else None, f"S3 job {s3_job_name}" if s3_job_name else None] if part]
-        message = ", ".join(parts) if parts else "jobs created"
         self.create_notification(
             event_key=self._event_key("recovery-event-rule", rule.id, "run-started", trigger_type, db_job_name, s3_job_name),
             kind="recovery_event_rule_run_started",
             severity="info",
-            title=f"Combined recovery запущен: {rule.name}",
-            message=f"{message} запущены {trigger_label}.",
+            title=f"Combined recovery started: {rule.name}",
+            message=f"{', '.join(parts) if parts else 'Jobs'} started {trigger_label}.",
+            resource_type="recovery_rule",
+            resource_id=rule.id,
+            run_type="rule_job_run",
+            run_id=run.id,
             link_path=f"/recovery-rules/{rule.id}",
         )
 
@@ -212,29 +221,30 @@ class NotificationService:
             event_key=self._event_key("recovery-event-rule", rule.id, "issue", message),
             kind="recovery_event_rule_issue",
             severity="warning",
-            title=f"Проблема recovery rule: {rule.name}",
+            title=f"Recovery rule issue: {rule.name}",
             message=message,
+            resource_type="recovery_rule",
+            resource_id=rule.id,
             link_path=f"/recovery-rules/{rule.id}",
         )
 
     def notify_job_run_status(self, task: Task, run: TaskJobRun) -> None:
         if run.status not in {"failed", "succeeded"}:
             return
-
         kind = "job_run_failed" if run.status == "failed" else "job_run_succeeded"
         severity = "error" if run.status == "failed" else "success"
-        title = f"Запуск завершился с ошибкой: {task.name}" if run.status == "failed" else f"Запуск завершился успешно: {task.name}"
-        message = f"Job {run.job_name} завершился со статусом {run.status}."
-
+        title = f"Run failed: {task.name}" if run.status == "failed" else f"Run succeeded: {task.name}"
         self.create_notification(
             event_key=self._event_key("job-run", run.namespace, run.job_name, run.status),
             kind=kind,
             severity=severity,
             title=title,
-            message=message,
-            task_id=task.id,
-            job_run_id=run.id,
-            link_path=self._task_link(task),
+            message=f"Job {run.job_name} finished with status {run.status}.",
+            resource_type="task",
+            resource_id=task.id,
+            run_type="task_job_run",
+            run_id=run.id,
+            link_path=f"/tasks/{task.id}",
         )
 
     @staticmethod
@@ -245,21 +255,15 @@ class NotificationService:
             severity=notification.severity,
             title=notification.title,
             message=notification.message,
-            taskId=notification.task_id,
-            jobRunId=notification.job_run_id,
+            resourceType=notification.resource_type,
+            resourceId=notification.resource_id,
+            runType=notification.run_type,
+            runId=notification.run_id,
             linkPath=notification.link_path,
             isRead=notification.is_read,
             readAt=notification.read_at,
             createdAt=notification.created_at,
         )
-
-    @staticmethod
-    def _task_link(task: Task) -> str:
-        if task.managed_by_rule_id is not None:
-            return f"/event-rules/{task.managed_by_rule_id}"
-        if task.managed_by_recovery_rule_id is not None:
-            return f"/recovery-rules/{task.managed_by_recovery_rule_id}"
-        return f"/tasks/{task.id}"
 
     @staticmethod
     def _event_key(*parts: object) -> str:

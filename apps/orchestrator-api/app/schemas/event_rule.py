@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class BackupEventRuleDbConfig(BaseModel):
+class BackupEventRuleDbConfigInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=120)
@@ -20,22 +20,7 @@ class BackupEventRuleDbConfig(BaseModel):
     destinationAwsSecretAccessKey: str = Field(min_length=1)
 
 
-class BackupEventRuleDbUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    databaseHost: str | None = Field(default=None, min_length=1, max_length=255)
-    databaseName: str | None = Field(default=None, min_length=1, max_length=120)
-    databaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
-    databasePassword: str | None = None
-    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str | None = None
-
-
-class BackupEventRuleS3Config(BaseModel):
+class BackupEventRuleS3ConfigInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=120)
@@ -51,7 +36,22 @@ class BackupEventRuleS3Config(BaseModel):
     destinationS3AwsSecretAccessKey: str = Field(min_length=1)
 
 
-class BackupEventRuleS3Update(BaseModel):
+class BackupEventRuleDbConfigUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    databaseHost: str | None = Field(default=None, min_length=1, max_length=255)
+    databaseName: str | None = Field(default=None, min_length=1, max_length=120)
+    databaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
+    databasePassword: str | None = None
+    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationAwsSecretAccessKey: str | None = None
+
+
+class BackupEventRuleS3ConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
@@ -73,8 +73,8 @@ class BackupEventRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     namespace: str = Field(min_length=1, max_length=120)
     enabled: bool = False
-    db: BackupEventRuleDbConfig
-    s3: BackupEventRuleS3Config
+    dbConfig: BackupEventRuleDbConfigInput
+    s3Config: BackupEventRuleS3ConfigInput
 
 
 class BackupEventRuleUpdate(BaseModel):
@@ -83,14 +83,15 @@ class BackupEventRuleUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
-    db: BackupEventRuleDbUpdate | None = None
-    s3: BackupEventRuleS3Update | None = None
+    dbConfig: BackupEventRuleDbConfigUpdate | None = None
+    s3Config: BackupEventRuleS3ConfigUpdate | None = None
 
 
-class BackupEventRuleDbDetail(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class BackupEventRuleComponentDetail(BaseModel):
     name: str
+
+
+class BackupEventRuleDbConfigDetail(BackupEventRuleComponentDetail):
     dbBackupsFilenamePrefix: str
     databaseHost: str
     databaseName: str
@@ -102,10 +103,7 @@ class BackupEventRuleDbDetail(BaseModel):
     hasDestinationAwsSecretAccessKey: bool
 
 
-class BackupEventRuleS3Detail(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    name: str
+class BackupEventRuleS3ConfigDetail(BackupEventRuleComponentDetail):
     s3BackupsFilenamePrefix: str
     sourceS3AwsEndpoint: str
     sourceS3AwsAccessKeyId: str
@@ -118,6 +116,16 @@ class BackupEventRuleS3Detail(BaseModel):
     hasDestinationS3AwsSecretAccessKey: bool
 
 
+class BackupEventRuleWatcher(BaseModel):
+    status: str
+    lastPolledAt: datetime | None
+    lastDbChangeAt: datetime | None
+    lastS3ChangeAt: datetime | None
+    lastTriggeredAt: datetime | None
+    lastErrorAt: datetime | None
+    lastErrorMessage: str | None
+
+
 class BackupEventRuleSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -125,18 +133,12 @@ class BackupEventRuleSummary(BaseModel):
     name: str
     namespace: str
     enabled: bool
-    dbName: str
-    s3Name: str
-    eventWatcherStatus: str
-    lastTriggeredAt: datetime | None
+    dbConfig: BackupEventRuleComponentDetail
+    s3Config: BackupEventRuleComponentDetail
+    watcher: BackupEventRuleWatcher
     updatedAt: datetime
 
 
 class BackupEventRuleDetail(BackupEventRuleSummary):
-    db: BackupEventRuleDbDetail
-    s3: BackupEventRuleS3Detail
-    lastPolledAt: datetime | None
-    lastDbChangeAt: datetime | None
-    lastS3ChangeAt: datetime | None
-    lastErrorAt: datetime | None
-    lastErrorMessage: str | None
+    dbConfig: BackupEventRuleDbConfigDetail
+    s3Config: BackupEventRuleS3ConfigDetail

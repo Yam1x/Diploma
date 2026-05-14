@@ -15,8 +15,10 @@ class NotificationItem(BaseModel):
     severity: NotificationSeverity
     title: str
     message: str
-    taskId: int | None
-    jobRunId: int | None
+    resourceType: str | None
+    resourceId: int | None
+    runType: str | None
+    runId: int | None
     linkPath: str | None
     isRead: bool
     readAt: datetime | None

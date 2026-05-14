@@ -28,7 +28,7 @@ class StatsService:
         self.settings = get_settings()
 
     def get_dashboard_stats(self) -> DashboardStatsResponse:
-        tasks = self.db.query(Task).filter(Task.managed_by_rule_id.is_(None), Task.managed_by_recovery_rule_id.is_(None)).order_by(Task.name.asc()).all()
+        tasks = self.db.query(Task).order_by(Task.name.asc()).all()
         self._sync_job_history(tasks)
 
         task_ids = [task.id for task in tasks]
@@ -269,7 +269,7 @@ class StatsService:
         return changed
 
     def _get_task(self, task_id: int) -> Task:
-        task = self.db.query(Task).filter(Task.id == task_id, Task.managed_by_rule_id.is_(None), Task.managed_by_recovery_rule_id.is_(None)).one_or_none()
+        task = self.db.query(Task).filter(Task.id == task_id).one_or_none()
         if task is None:
             raise HTTPException(status_code=404, detail="Task not found")
         return task

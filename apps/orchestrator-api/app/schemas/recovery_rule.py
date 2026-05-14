@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class RecoveryEventRuleDbConfig(BaseModel):
+class RecoveryEventRuleDbConfigInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=120)
@@ -20,22 +20,7 @@ class RecoveryEventRuleDbConfig(BaseModel):
     targetDatabasePassword: str = Field(min_length=1)
 
 
-class RecoveryEventRuleDbUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceAwsSecretAccessKey: str | None = None
-    targetDatabaseHost: str | None = Field(default=None, min_length=1, max_length=255)
-    targetDatabaseName: str | None = Field(default=None, min_length=1, max_length=120)
-    targetDatabaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
-    targetDatabasePassword: str | None = None
-
-
-class RecoveryEventRuleS3Config(BaseModel):
+class RecoveryEventRuleS3ConfigInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=120)
@@ -51,7 +36,22 @@ class RecoveryEventRuleS3Config(BaseModel):
     targetS3AwsSecretAccessKey: str = Field(min_length=1)
 
 
-class RecoveryEventRuleS3Update(BaseModel):
+class RecoveryEventRuleDbConfigUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceAwsSecretAccessKey: str | None = None
+    targetDatabaseHost: str | None = Field(default=None, min_length=1, max_length=255)
+    targetDatabaseName: str | None = Field(default=None, min_length=1, max_length=120)
+    targetDatabaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
+    targetDatabasePassword: str | None = None
+
+
+class RecoveryEventRuleS3ConfigUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
@@ -73,8 +73,8 @@ class RecoveryEventRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     namespace: str = Field(min_length=1, max_length=120)
     enabled: bool = False
-    db: RecoveryEventRuleDbConfig
-    s3: RecoveryEventRuleS3Config
+    dbConfig: RecoveryEventRuleDbConfigInput
+    s3Config: RecoveryEventRuleS3ConfigInput
 
 
 class RecoveryEventRuleUpdate(BaseModel):
@@ -83,14 +83,15 @@ class RecoveryEventRuleUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
-    db: RecoveryEventRuleDbUpdate | None = None
-    s3: RecoveryEventRuleS3Update | None = None
+    dbConfig: RecoveryEventRuleDbConfigUpdate | None = None
+    s3Config: RecoveryEventRuleS3ConfigUpdate | None = None
 
 
-class RecoveryEventRuleDbDetail(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class RecoveryEventRuleComponentDetail(BaseModel):
     name: str
+
+
+class RecoveryEventRuleDbConfigDetail(RecoveryEventRuleComponentDetail):
     dbBackupsFilenamePrefix: str
     sourceAwsEndpoint: str
     sourceAwsBucketName: str
@@ -102,10 +103,7 @@ class RecoveryEventRuleDbDetail(BaseModel):
     hasTargetDatabasePassword: bool
 
 
-class RecoveryEventRuleS3Detail(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    name: str
+class RecoveryEventRuleS3ConfigDetail(RecoveryEventRuleComponentDetail):
     s3BackupsFilenamePrefix: str
     sourceS3AwsEndpoint: str
     sourceS3AwsBucketName: str
@@ -118,16 +116,8 @@ class RecoveryEventRuleS3Detail(BaseModel):
     hasTargetS3AwsSecretAccessKey: bool
 
 
-class RecoveryEventRuleSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    namespace: str
-    enabled: bool
-    dbName: str
-    s3Name: str
-    eventWatcherStatus: str
+class RecoveryEventRuleWatcher(BaseModel):
+    status: str
     lastPolledAt: datetime | None
     lastDbEmptyAt: datetime | None
     lastS3EmptyAt: datetime | None
@@ -135,9 +125,21 @@ class RecoveryEventRuleSummary(BaseModel):
     lastS3TriggeredAt: datetime | None
     lastErrorAt: datetime | None
     lastErrorMessage: str | None
+
+
+class RecoveryEventRuleSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    namespace: str
+    enabled: bool
+    dbConfig: RecoveryEventRuleComponentDetail
+    s3Config: RecoveryEventRuleComponentDetail
+    watcher: RecoveryEventRuleWatcher
     updatedAt: datetime
 
 
 class RecoveryEventRuleDetail(RecoveryEventRuleSummary):
-    db: RecoveryEventRuleDbDetail
-    s3: RecoveryEventRuleS3Detail
+    dbConfig: RecoveryEventRuleDbConfigDetail
+    s3Config: RecoveryEventRuleS3ConfigDetail
