@@ -15,10 +15,10 @@ from app.models.task import ServiceType, Task, TaskJobRun, TaskSecret, TriggerMo
 from app.schemas.recovery_rule import (
     RecoveryEventRuleCreate,
     RecoveryEventRuleDbDetail,
-    RecoveryEventRuleDbUpdateConfig,
+    RecoveryRuleDbUpdateConfig,
     RecoveryEventRuleDetail,
     RecoveryEventRuleS3Detail,
-    RecoveryEventRuleS3UpdateConfig,
+    RecoveryRuleS3UpdateConfig,
     RecoveryEventRuleSummary,
     RecoveryEventRuleUpdate,
 )
