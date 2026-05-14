@@ -9,19 +9,15 @@ def build_db_payload(enabled: bool = False) -> dict:
         "enabled": enabled,
         "schedule": "0 * * * *",
         "triggerMode": "scheduled",
-        "filenamePrefix": "primary",
-        "source": {
-            "host": "postgresql",
-            "name": "app",
-            "username": "postgres",
-            "password": "secret",
-        },
-        "destination": {
-            "endpoint": "https://minio.local",
-            "bucketName": "backups",
-            "accessKeyId": "minio",
-            "secretAccessKey": "minio-secret",
-        },
+        "dbBackupsFilenamePrefix": "primary",
+        "databaseHost": "postgresql",
+        "databaseName": "app",
+        "databaseUsername": "postgres",
+        "databasePassword": "secret",
+        "destinationAwsEndpoint": "https://minio.local",
+        "destinationAwsBucketName": "backups",
+        "destinationAwsAccessKeyId": "minio",
+        "destinationAwsSecretAccessKey": "minio-secret",
     }
 
 
@@ -33,20 +29,16 @@ def build_s3_payload(enabled: bool = False) -> dict:
         "enabled": enabled,
         "schedule": "30 * * * *",
         "triggerMode": "scheduled",
-        "filenamePrefix": "bucket-archive",
-        "source": {
-            "endpoint": "https://source.local",
-            "bucketName": "source-bucket",
-            "accessKeyId": "source-key",
-            "secretAccessKey": "source-secret",
-            "subfolderName": "incoming",
-        },
-        "destination": {
-            "endpoint": "https://destination.local",
-            "bucketName": "destination-bucket",
-            "accessKeyId": "destination-key",
-            "secretAccessKey": "destination-secret",
-        },
+        "s3BackupsFilenamePrefix": "bucket-archive",
+        "sourceS3AwsEndpoint": "https://source.local",
+        "sourceS3AwsAccessKeyId": "source-key",
+        "sourceS3AwsBucketName": "source-bucket",
+        "sourceS3AwsBucketSubfolderName": "incoming",
+        "sourceS3AwsSecretAccessKey": "source-secret",
+        "destinationS3AwsEndpoint": "https://destination.local",
+        "destinationS3AwsAccessKeyId": "destination-key",
+        "destinationS3AwsBucketName": "destination-bucket",
+        "destinationS3AwsSecretAccessKey": "destination-secret",
     }
 
 
@@ -58,13 +50,11 @@ def build_env_backupper_payload(enabled: bool = False) -> dict:
         "enabled": enabled,
         "schedule": "0 2 * * *",
         "triggerMode": "scheduled",
-        "filenamePrefix": "namespace-default",
-        "destination": {
-            "endpoint": "https://minio.local",
-            "bucketName": "backups",
-            "accessKeyId": "minio",
-            "secretAccessKey": "minio-secret",
-        },
+        "envBackupsFilenamePrefix": "namespace-default",
+        "destinationAwsEndpoint": "https://minio.local",
+        "destinationAwsBucketName": "backups",
+        "destinationAwsAccessKeyId": "minio",
+        "destinationAwsSecretAccessKey": "minio-secret",
     }
 
 
@@ -76,13 +66,11 @@ def build_env_restorer_payload(enabled: bool = False) -> dict:
         "enabled": enabled,
         "schedule": None,
         "triggerMode": "manual",
-        "filenamePrefix": "namespace-default",
-        "source": {
-            "endpoint": "https://minio.local",
-            "bucketName": "backups",
-            "accessKeyId": "minio",
-            "secretAccessKey": "minio-secret",
-        },
+        "envBackupsFilenamePrefix": "namespace-default",
+        "destinationAwsEndpoint": "https://minio.local",
+        "destinationAwsBucketName": "backups",
+        "destinationAwsAccessKeyId": "minio",
+        "destinationAwsSecretAccessKey": "minio-secret",
     }
 
 
@@ -94,19 +82,15 @@ def build_db_restorer_payload(enabled: bool = False) -> dict:
         "enabled": enabled,
         "schedule": None,
         "triggerMode": "manual",
-        "filenamePrefix": "primary",
-        "source": {
-            "endpoint": "https://minio.local",
-            "bucketName": "backups",
-            "accessKeyId": "minio",
-            "secretAccessKey": "minio-secret",
-        },
-        "destination": {
-            "host": "postgresql",
-            "name": "app",
-            "username": "postgres",
-            "password": "secret",
-        },
+        "dbBackupsFilenamePrefix": "primary",
+        "sourceAwsEndpoint": "https://minio.local",
+        "sourceAwsBucketName": "backups",
+        "sourceAwsAccessKeyId": "minio",
+        "sourceAwsSecretAccessKey": "minio-secret",
+        "targetDatabaseHost": "postgresql",
+        "targetDatabaseName": "app",
+        "targetDatabaseUsername": "postgres",
+        "targetDatabasePassword": "secret",
     }
 
 
@@ -118,20 +102,16 @@ def build_s3_restorer_payload(enabled: bool = False) -> dict:
         "enabled": enabled,
         "schedule": None,
         "triggerMode": "manual",
-        "filenamePrefix": "bucket-archive",
-        "source": {
-            "endpoint": "https://source.local",
-            "bucketName": "source-bucket",
-            "accessKeyId": "source-key",
-            "secretAccessKey": "source-secret",
-        },
-        "destination": {
-            "endpoint": "https://destination.local",
-            "bucketName": "destination-bucket",
-            "accessKeyId": "destination-key",
-            "secretAccessKey": "destination-secret",
-            "subfolderName": "restored",
-        },
+        "s3BackupsFilenamePrefix": "bucket-archive",
+        "sourceS3AwsEndpoint": "https://source.local",
+        "sourceS3AwsBucketName": "source-bucket",
+        "sourceS3AwsAccessKeyId": "source-key",
+        "sourceS3AwsSecretAccessKey": "source-secret",
+        "targetS3AwsEndpoint": "https://destination.local",
+        "targetS3AwsBucketName": "destination-bucket",
+        "targetS3AwsBucketSubfolderName": "restored",
+        "targetS3AwsAccessKeyId": "destination-key",
+        "targetS3AwsSecretAccessKey": "destination-secret",
     }
 
 
@@ -166,7 +146,7 @@ def test_db_task_api_lifecycle(client, fake_helm) -> None:
 
     detail_response = client.get("/api/tasks/1")
     assert detail_response.status_code == 200
-    assert detail_response.json()["hasSourcePassword"] is True
+    assert detail_response.json()["hasDatabasePassword"] is True
     assert detail_response.json()["eventWatcherStatus"] == "scheduled"
 
     update_response = client.patch(
@@ -209,15 +189,15 @@ def test_s3_task_api_lifecycle(client, fake_helm) -> None:
         "/api/tasks/1",
         json={
             "serviceType": "s3_backupper",
-            "source": {"subfolderName": "processed"},
+            "sourceS3AwsBucketSubfolderName": "processed",
         },
     )
     assert update_response.status_code == 200
-    assert update_response.json()["sourceSubfolderName"] == "processed"
+    assert update_response.json()["sourceS3AwsBucketSubfolderName"] == "processed"
 
     detail_response = client.get("/api/tasks/1")
     assert detail_response.status_code == 200
-    assert detail_response.json()["hasSourceSecret"] is True
+    assert detail_response.json()["hasSourceS3AwsSecretAccessKey"] is True
 
     disable_response = client.post("/api/tasks/1/disable")
     assert disable_response.status_code == 200
@@ -261,18 +241,18 @@ def test_env_backupper_api_lifecycle(client, fake_helm) -> None:
 
     detail_response = client.get("/api/tasks/1")
     assert detail_response.status_code == 200
-    assert detail_response.json()["filenamePrefix"] == "namespace-default"
-    assert detail_response.json()["hasDestinationSecret"] is True
+    assert detail_response.json()["envBackupsFilenamePrefix"] == "namespace-default"
+    assert detail_response.json()["hasDestinationAwsSecretAccessKey"] is True
 
     update_response = client.patch(
         "/api/tasks/1",
         json={
             "serviceType": "env_backupper",
-            "filenamePrefix": "namespace-archive",
+            "envBackupsFilenamePrefix": "namespace-archive",
         },
     )
     assert update_response.status_code == 200
-    assert update_response.json()["filenamePrefix"] == "namespace-archive"
+    assert update_response.json()["envBackupsFilenamePrefix"] == "namespace-archive"
 
 
 def test_env_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
@@ -294,18 +274,18 @@ def test_env_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
 
     detail_response = client.get("/api/tasks/1")
     assert detail_response.status_code == 200
-    assert detail_response.json()["filenamePrefix"] == "namespace-default"
-    assert detail_response.json()["hasSourceSecret"] is True
+    assert detail_response.json()["envBackupsFilenamePrefix"] == "namespace-default"
+    assert detail_response.json()["hasDestinationAwsSecretAccessKey"] is True
 
     update_response = client.patch(
         "/api/tasks/1",
         json={
             "serviceType": "env_restorer",
-            "filenamePrefix": "namespace-archive",
+            "envBackupsFilenamePrefix": "namespace-archive",
         },
     )
     assert update_response.status_code == 200
-    assert update_response.json()["filenamePrefix"] == "namespace-archive"
+    assert update_response.json()["envBackupsFilenamePrefix"] == "namespace-archive"
 
     disable_response = client.post("/api/tasks/1/disable")
     assert disable_response.status_code == 200
@@ -331,18 +311,18 @@ def test_db_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
 
     detail_response = client.get("/api/tasks/1")
     assert detail_response.status_code == 200
-    assert detail_response.json()["hasSourceSecret"] is True
-    assert detail_response.json()["hasDestinationPassword"] is True
+    assert detail_response.json()["hasSourceAwsSecretAccessKey"] is True
+    assert detail_response.json()["hasTargetDatabasePassword"] is True
 
     update_response = client.patch(
         "/api/tasks/1",
         json={
             "serviceType": "db_restorer",
-            "destination": {"name": "restored-app"},
+            "targetDatabaseName": "restored-app",
         },
     )
     assert update_response.status_code == 200
-    assert update_response.json()["destinationName"] == "restored-app"
+    assert update_response.json()["targetDatabaseName"] == "restored-app"
 
 
 def test_s3_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
@@ -364,15 +344,15 @@ def test_s3_restorer_api_lifecycle(client, fake_helm, fake_kube) -> None:
 
     detail_response = client.get("/api/tasks/1")
     assert detail_response.status_code == 200
-    assert detail_response.json()["hasSourceSecret"] is True
-    assert detail_response.json()["hasDestinationSecret"] is True
+    assert detail_response.json()["hasSourceS3AwsSecretAccessKey"] is True
+    assert detail_response.json()["hasTargetS3AwsSecretAccessKey"] is True
 
     update_response = client.patch(
         "/api/tasks/1",
         json={
             "serviceType": "s3_restorer",
-            "destination": {"subfolderName": "restored-v2"},
+            "targetS3AwsBucketSubfolderName": "restored-v2",
         },
     )
     assert update_response.status_code == 200
-    assert update_response.json()["destinationSubfolderName"] == "restored-v2"
+    assert update_response.json()["targetS3AwsBucketSubfolderName"] == "restored-v2"

@@ -5,15 +5,17 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.event_rule import BackupEventRule, BackupEventRuleSecret, BackupEventRuleS3Secret, BackupEventRuleState
+from app.models.event_rule import BackupEventRule, BackupEventRuleState
 from app.models.task import ServiceType, Task, TaskSecret, TriggerMode
 from app.schemas.event_rule import (
     BackupEventRuleCreate,
+    BackupEventRuleDbConfig,
     BackupEventRuleDbDetail,
-    BackupEventRuleDbUpdateConfig,
+    BackupEventRuleDbUpdate,
     BackupEventRuleDetail,
+    BackupEventRuleS3Config,
     BackupEventRuleS3Detail,
-    BackupEventRuleS3UpdateConfig,
+    BackupEventRuleS3Update,
     BackupEventRuleSummary,
     BackupEventRuleUpdate,
 )
@@ -43,33 +45,17 @@ class EventRuleService:
         rule = BackupEventRule(
             name=payload.name,
             namespace=payload.namespace,
-            db_display_name=payload.db.backupsFilenamePrefix,
-            s3_display_name=payload.s3.backupsFilenamePrefix,
+            db_display_name=payload.db.name,
+            s3_display_name=payload.s3.name,
             enabled=False,
-            db_config=self._build_db_config(payload.db),
-            s3_config=self._build_s3_config(payload.s3),
         )
         self.db.add(rule)
         self.db.flush()
 
-        db_task = self._create_managed_task(rule, ServiceType.DB_BACKUPPER, rule.db_config)
-        s3_task = self._create_managed_task(rule, ServiceType.S3_BACKUPPER, rule.s3_config)
+        db_task = self._create_managed_task(rule, ServiceType.DB_BACKUPPER, payload.db)
+        s3_task = self._create_managed_task(rule, ServiceType.S3_BACKUPPER, payload.s3)
         rule.db_task = db_task
         rule.s3_task = s3_task
-
-        db_secret = BackupEventRuleSecret(
-            rule_id=rule.id,
-            database_password_encrypted=payload.db.password,
-            destination_secret_encrypted=payload.db.destinationSecretAccessKey,
-        )
-        s3_secret = BackupEventRuleS3Secret(
-            rule_id=rule.id,
-            source_secret_encrypted=payload.s3.sourceSecretAccessKey,
-            destination_secret_encrypted=payload.s3.destinationSecretAccessKey,
-        )
-        self.db.add(db_secret)
-        self.db.add(s3_secret)
-
         self.db.commit()
         self.db.refresh(rule)
 
@@ -95,23 +81,13 @@ class EventRuleService:
             reset_state = True
             redeploy = True
 
-        if "db" in changes and changes["db"] is not None:
-            db_changes = changes["db"]
-            new_config = {**(rule.db_config or {}), **db_changes}
-            rule.db_config = new_config
-            self._apply_db_config_to_task(rule.db_task, new_config)
-            self._apply_db_secret_to_task(rule.db_task, db_changes)
-            rule.db_display_name = db_changes.get("backupsFilenamePrefix", rule.db_display_name)
+        if "db" in changes:
+            self._apply_db_update(rule, BackupEventRuleDbUpdate(**changes["db"]))
             reset_state = True
             redeploy = True
 
-        if "s3" in changes and changes["s3"] is not None:
-            s3_changes = changes["s3"]
-            new_config = {**(rule.s3_config or {}), **s3_changes}
-            rule.s3_config = new_config
-            self._apply_s3_config_to_task(rule.s3_task, new_config)
-            self._apply_s3_secret_to_task(rule.s3_task, s3_changes)
-            rule.s3_display_name = s3_changes.get("backupsFilenamePrefix", rule.s3_display_name)
+        if "s3" in changes:
+            self._apply_s3_update(rule, BackupEventRuleS3Update(**changes["s3"]))
             reset_state = True
             redeploy = True
 
@@ -157,6 +133,8 @@ class EventRuleService:
         rule = self._get_rule_model(rule_id)
         managed_tasks = [rule.db_task, rule.s3_task]
 
+        # Break the FK cycle between backup_event_rules.{db,s3}_task_id and
+        # tasks.managed_by_rule_id before deleting the managed tasks.
         rule.db_task = None
         rule.s3_task = None
         rule.db_task_id = None
@@ -236,7 +214,12 @@ class EventRuleService:
             s3_job_name=s3_run.job_name,
         )
 
-    def _create_managed_task(self, rule: BackupEventRule, service_type: ServiceType, config: dict) -> Task:
+    def _create_managed_task(
+        self,
+        rule: BackupEventRule,
+        service_type: ServiceType,
+        payload: BackupEventRuleDbConfig | BackupEventRuleS3Config,
+    ) -> Task:
         task = Task(
             name=self._build_managed_task_name(rule.id, service_type),
             namespace=rule.namespace,
@@ -246,66 +229,71 @@ class EventRuleService:
             trigger_mode=TriggerMode.EVENT_BASED.value,
             release_name="pending",
             managed_by_rule_id=rule.id,
-            config=config,
         )
         task.secret = TaskSecret()
         self.db.add(task)
         self.db.flush()
         task.release_name = self.task_service._build_release_name(task.id, service_type)
+
+        if service_type == ServiceType.DB_BACKUPPER:
+            self._apply_db_config_to_task(task, payload)
+        else:
+            self._apply_s3_config_to_task(task, payload)
+
         return task
 
-    def _build_db_config(self, payload: BackupEventRuleCreate) -> dict:
-        return {
-            "filenamePrefix": payload.backupsFilenamePrefix,
-            "source": {
-                "host": payload.host,
-                "name": payload.name,
-                "username": payload.username,
-            },
-            "destination": {
-                "endpoint": payload.destinationEndpoint,
-                "bucketName": payload.destinationBucketName,
-                "accessKeyId": payload.destinationAccessKeyId,
-            },
+    def _apply_db_update(self, rule: BackupEventRule, payload: BackupEventRuleDbUpdate) -> None:
+        changes = payload.model_dump(exclude_unset=True)
+        if "name" in changes:
+            rule.db_display_name = changes["name"]
+        self._apply_db_config_to_task(rule.db_task, payload)
+
+    def _apply_s3_update(self, rule: BackupEventRule, payload: BackupEventRuleS3Update) -> None:
+        changes = payload.model_dump(exclude_unset=True)
+        if "name" in changes:
+            rule.s3_display_name = changes["name"]
+        self._apply_s3_config_to_task(rule.s3_task, payload)
+
+    @staticmethod
+    def _apply_db_config_to_task(task: Task, payload: BackupEventRuleDbConfig | BackupEventRuleDbUpdate) -> None:
+        changes = payload.model_dump(exclude_unset=True)
+        field_map = {
+            "dbBackupsFilenamePrefix": "db_backups_filename_prefix",
+            "databaseHost": "database_host",
+            "databaseName": "database_name",
+            "databaseUsername": "database_username",
+            "destinationAwsEndpoint": "destination_aws_endpoint",
+            "destinationAwsBucketName": "destination_aws_bucket_name",
+            "destinationAwsAccessKeyId": "destination_aws_access_key_id",
         }
+        for source, target in field_map.items():
+            if source in changes:
+                setattr(task, target, changes[source])
+        if "databasePassword" in changes:
+            task.secret.database_password_encrypted = changes["databasePassword"]
+        if "destinationAwsSecretAccessKey" in changes:
+            task.secret.destination_aws_secret_access_key_encrypted = changes["destinationAwsSecretAccessKey"]
 
-    def _build_s3_config(self, payload: BackupEventRuleCreate) -> dict:
-        return {
-            "filenamePrefix": payload.backupsFilenamePrefix,
-            "source": {
-                "endpoint": payload.sourceEndpoint,
-                "bucketName": payload.sourceBucketName,
-                "accessKeyId": payload.sourceAccessKeyId,
-                "subfolderName": payload.sourceSubfolderName,
-            },
-            "destination": {
-                "endpoint": payload.destinationEndpoint,
-                "bucketName": payload.destinationBucketName,
-                "accessKeyId": payload.destinationAccessKeyId,
-            },
+    @staticmethod
+    def _apply_s3_config_to_task(task: Task, payload: BackupEventRuleS3Config | BackupEventRuleS3Update) -> None:
+        changes = payload.model_dump(exclude_unset=True)
+        field_map = {
+            "s3BackupsFilenamePrefix": "s3_backups_filename_prefix",
+            "sourceS3AwsEndpoint": "source_s3_aws_endpoint",
+            "sourceS3AwsAccessKeyId": "source_s3_aws_access_key_id",
+            "sourceS3AwsBucketName": "source_s3_aws_bucket_name",
+            "sourceS3AwsBucketSubfolderName": "source_s3_aws_bucket_subfolder_name",
+            "destinationS3AwsEndpoint": "destination_s3_aws_endpoint",
+            "destinationS3AwsAccessKeyId": "destination_s3_aws_access_key_id",
+            "destinationS3AwsBucketName": "destination_s3_aws_bucket_name",
         }
-
-    @staticmethod
-    def _apply_db_config_to_task(task: Task, config: dict) -> None:
-        task.config = config
-
-    @staticmethod
-    def _apply_s3_config_to_task(task: Task, config: dict) -> None:
-        task.config = config
-
-    @staticmethod
-    def _apply_db_secret_to_task(task: Task, changes: dict) -> None:
-        if "password" in changes and changes["password"] is not None:
-            task.secret.source_secret_encrypted = changes["password"]
-        if "destinationSecretAccessKey" in changes and changes["destinationSecretAccessKey"] is not None:
-            task.secret.destination_secret_encrypted = changes["destinationSecretAccessKey"]
-
-    @staticmethod
-    def _apply_s3_secret_to_task(task: Task, changes: dict) -> None:
-        if "sourceSecretAccessKey" in changes and changes["sourceSecretAccessKey"] is not None:
-            task.secret.source_secret_encrypted = changes["sourceSecretAccessKey"]
-        if "destinationSecretAccessKey" in changes and changes["destinationSecretAccessKey"] is not None:
-            task.secret.destination_secret_encrypted = changes["destinationSecretAccessKey"]
+        for source, target in field_map.items():
+            if source in changes:
+                setattr(task, target, changes[source] or None)
+        if "sourceS3AwsSecretAccessKey" in changes:
+            task.secret.source_s3_aws_secret_access_key_encrypted = changes["sourceS3AwsSecretAccessKey"]
+        if "destinationS3AwsSecretAccessKey" in changes:
+            task.secret.destination_s3_aws_secret_access_key_encrypted = changes["destinationS3AwsSecretAccessKey"]
 
     def _get_rule_model(self, rule_id: int) -> BackupEventRule:
         rule = self.db.query(BackupEventRule).options(*self._rule_load_options()).filter(BackupEventRule.id == rule_id).one_or_none()
@@ -409,45 +397,32 @@ class EventRuleService:
         if db_task is None or s3_task is None:
             raise HTTPException(status_code=409, detail="Backup event rule is not fully configured")
 
-        db_config = db_task.config or {}
-        db_source = db_config.get("source", {})
-        db_dest = db_config.get("destination", {})
-
-        s3_config = s3_task.config or {}
-        s3_source = s3_config.get("source", {})
-        s3_dest = s3_config.get("destination", {})
-
-        db_source_secret = db_task.secret.source_secret_encrypted if db_task.secret else None
-        db_dest_secret = db_task.secret.destination_secret_encrypted if db_task.secret else None
-        s3_source_secret = s3_task.secret.source_secret_encrypted if s3_task.secret else None
-        s3_dest_secret = s3_task.secret.destination_secret_encrypted if s3_task.secret else None
-
         return BackupEventRuleDetail(
             **self._to_summary(rule).model_dump(),
             db=BackupEventRuleDbDetail(
                 name=rule.db_display_name,
-                backupsFilenamePrefix=db_config.get("filenamePrefix", ""),
-                host=db_source.get("host", ""),
-                name=db_source.get("name", ""),
-                username=db_source.get("username", ""),
-                destinationEndpoint=db_dest.get("endpoint", ""),
-                destinationBucketName=db_dest.get("bucketName", ""),
-                destinationAccessKeyId=db_dest.get("accessKeyId", ""),
-                hasPassword=bool(db_source_secret),
-                hasDestinationSecret=bool(db_dest_secret),
+                dbBackupsFilenamePrefix=db_task.db_backups_filename_prefix or "",
+                databaseHost=db_task.database_host or "",
+                databaseName=db_task.database_name or "",
+                databaseUsername=db_task.database_username or "",
+                destinationAwsEndpoint=db_task.destination_aws_endpoint or "",
+                destinationAwsBucketName=db_task.destination_aws_bucket_name or "",
+                destinationAwsAccessKeyId=db_task.destination_aws_access_key_id or "",
+                hasDatabasePassword=bool(db_task.secret.database_password_encrypted),
+                hasDestinationAwsSecretAccessKey=bool(db_task.secret.destination_aws_secret_access_key_encrypted),
             ),
             s3=BackupEventRuleS3Detail(
                 name=rule.s3_display_name,
-                backupsFilenamePrefix=s3_config.get("filenamePrefix", ""),
-                sourceEndpoint=s3_source.get("endpoint", ""),
-                sourceBucketName=s3_source.get("bucketName", ""),
-                sourceAccessKeyId=s3_source.get("accessKeyId", ""),
-                sourceSubfolderName=s3_source.get("subfolderName", ""),
-                destinationEndpoint=s3_dest.get("endpoint", ""),
-                destinationBucketName=s3_dest.get("bucketName", ""),
-                destinationAccessKeyId=s3_dest.get("accessKeyId", ""),
-                hasSourceSecret=bool(s3_source_secret),
-                hasDestinationSecret=bool(s3_dest_secret),
+                s3BackupsFilenamePrefix=s3_task.s3_backups_filename_prefix or "",
+                sourceS3AwsEndpoint=s3_task.source_s3_aws_endpoint or "",
+                sourceS3AwsAccessKeyId=s3_task.source_s3_aws_access_key_id or "",
+                sourceS3AwsBucketName=s3_task.source_s3_aws_bucket_name or "",
+                sourceS3AwsBucketSubfolderName=s3_task.source_s3_aws_bucket_subfolder_name or "",
+                destinationS3AwsEndpoint=s3_task.destination_s3_aws_endpoint or "",
+                destinationS3AwsAccessKeyId=s3_task.destination_s3_aws_access_key_id or "",
+                destinationS3AwsBucketName=s3_task.destination_s3_aws_bucket_name or "",
+                hasSourceS3AwsSecretAccessKey=bool(s3_task.secret.source_s3_aws_secret_access_key_encrypted),
+                hasDestinationS3AwsSecretAccessKey=bool(s3_task.secret.destination_s3_aws_secret_access_key_encrypted),
             ),
             lastPolledAt=state.last_polled_at if state else None,
             lastDbChangeAt=state.last_db_change_at if state else None,

@@ -5,54 +5,66 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class RecoveryRuleDbSourceConfig(BaseModel):
-    backupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    sourceEndpoint: str = Field(min_length=1, max_length=255)
-    sourceBucketName: str = Field(min_length=1, max_length=120)
-    sourceAccessKeyId: str = Field(min_length=1, max_length=255)
-    sourceSecretAccessKey: str = Field(min_length=1)
-    destinationHost: str = Field(min_length=1, max_length=255)
-    destinationName: str = Field(min_length=1, max_length=120)
-    destinationUsername: str = Field(min_length=1, max_length=120)
-    destinationPassword: str = Field(min_length=1)
+class RecoveryEventRuleDbConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    dbBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
+    sourceAwsEndpoint: str = Field(min_length=1, max_length=255)
+    sourceAwsBucketName: str = Field(min_length=1, max_length=120)
+    sourceAwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    sourceAwsSecretAccessKey: str = Field(min_length=1)
+    targetDatabaseHost: str = Field(min_length=1, max_length=255)
+    targetDatabaseName: str = Field(min_length=1, max_length=120)
+    targetDatabaseUsername: str = Field(min_length=1, max_length=120)
+    targetDatabasePassword: str = Field(min_length=1)
 
 
-class RecoveryRuleDbUpdateConfig(BaseModel):
-    backupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceSecretAccessKey: str | None = None
-    destinationHost: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationUsername: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationPassword: str | None = None
+class RecoveryEventRuleDbUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceAwsSecretAccessKey: str | None = None
+    targetDatabaseHost: str | None = Field(default=None, min_length=1, max_length=255)
+    targetDatabaseName: str | None = Field(default=None, min_length=1, max_length=120)
+    targetDatabaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
+    targetDatabasePassword: str | None = None
 
 
-class RecoveryRuleS3SourceConfig(BaseModel):
-    backupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    sourceEndpoint: str = Field(min_length=1, max_length=255)
-    sourceBucketName: str = Field(min_length=1, max_length=120)
-    sourceAccessKeyId: str = Field(min_length=1, max_length=255)
-    sourceSecretAccessKey: str = Field(min_length=1)
-    destinationEndpoint: str = Field(min_length=1, max_length=255)
-    destinationBucketName: str = Field(min_length=1, max_length=120)
-    destinationSubfolderName: str | None = Field(default=None, max_length=255)
-    destinationAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationSecretAccessKey: str = Field(min_length=1)
+class RecoveryEventRuleS3Config(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    s3BackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
+    sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
+    sourceS3AwsBucketName: str = Field(min_length=1, max_length=120)
+    sourceS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    sourceS3AwsSecretAccessKey: str = Field(min_length=1)
+    targetS3AwsEndpoint: str = Field(min_length=1, max_length=255)
+    targetS3AwsBucketName: str = Field(min_length=1, max_length=120)
+    targetS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
+    targetS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    targetS3AwsSecretAccessKey: str = Field(min_length=1)
 
 
-class RecoveryRuleS3UpdateConfig(BaseModel):
-    backupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceSecretAccessKey: str | None = None
-    destinationEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationSubfolderName: str | None = Field(default=None, max_length=255)
-    destinationAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationSecretAccessKey: str | None = None
+class RecoveryEventRuleS3Update(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsSecretAccessKey: str | None = None
+    targetS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    targetS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    targetS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
+    targetS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    targetS3AwsSecretAccessKey: str | None = None
 
 
 class RecoveryEventRuleCreate(BaseModel):
@@ -61,8 +73,8 @@ class RecoveryEventRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     namespace: str = Field(min_length=1, max_length=120)
     enabled: bool = False
-    db: RecoveryRuleDbSourceConfig
-    s3: RecoveryRuleS3SourceConfig
+    db: RecoveryEventRuleDbConfig
+    s3: RecoveryEventRuleS3Config
 
 
 class RecoveryEventRuleUpdate(BaseModel):
@@ -71,39 +83,39 @@ class RecoveryEventRuleUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
-    db: RecoveryRuleDbUpdateConfig | None = None
-    s3: RecoveryRuleS3UpdateConfig | None = None
+    db: RecoveryEventRuleDbUpdate | None = None
+    s3: RecoveryEventRuleS3Update | None = None
 
 
 class RecoveryEventRuleDbDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     name: str
-    backupsFilenamePrefix: str
-    sourceEndpoint: str
-    sourceBucketName: str
-    sourceAccessKeyId: str
-    destinationHost: str
-    destinationName: str
-    destinationUsername: str
-    hasSourceSecret: bool
-    hasDestinationPassword: bool
+    dbBackupsFilenamePrefix: str
+    sourceAwsEndpoint: str
+    sourceAwsBucketName: str
+    sourceAwsAccessKeyId: str
+    targetDatabaseHost: str
+    targetDatabaseName: str
+    targetDatabaseUsername: str
+    hasSourceAwsSecretAccessKey: bool
+    hasTargetDatabasePassword: bool
 
 
 class RecoveryEventRuleS3Detail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     name: str
-    backupsFilenamePrefix: str
-    sourceEndpoint: str
-    sourceBucketName: str
-    sourceAccessKeyId: str
-    destinationEndpoint: str
-    destinationBucketName: str
-    destinationSubfolderName: str
-    destinationAccessKeyId: str
-    hasSourceSecret: bool
-    hasDestinationSecret: bool
+    s3BackupsFilenamePrefix: str
+    sourceS3AwsEndpoint: str
+    sourceS3AwsBucketName: str
+    sourceS3AwsAccessKeyId: str
+    targetS3AwsEndpoint: str
+    targetS3AwsBucketName: str
+    targetS3AwsBucketSubfolderName: str
+    targetS3AwsAccessKeyId: str
+    hasSourceS3AwsSecretAccessKey: bool
+    hasTargetS3AwsSecretAccessKey: bool
 
 
 class RecoveryEventRuleSummary(BaseModel):

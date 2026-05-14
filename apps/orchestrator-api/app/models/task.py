@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -35,7 +35,25 @@ class Task(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     schedule: Mapped[str | None] = mapped_column(String(120), nullable=True)
     trigger_mode: Mapped[str] = mapped_column(String(20), nullable=False, default=TriggerMode.SCHEDULED.value)
-    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    db_backups_filename_prefix: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    database_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    database_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    database_username: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    destination_aws_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    destination_aws_bucket_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    destination_aws_access_key_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    s3_backups_filename_prefix: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_s3_aws_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_s3_aws_access_key_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_s3_aws_bucket_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_s3_aws_bucket_subfolder_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    destination_s3_aws_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    destination_s3_aws_access_key_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    destination_s3_aws_bucket_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    target_s3_aws_bucket_subfolder_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    env_backups_filename_prefix: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    env_repository: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    path_to_helmfile: Mapped[str | None] = mapped_column(String(255), nullable=True)
     managed_by_rule_id: Mapped[int | None] = mapped_column(ForeignKey("backup_event_rules.id"), nullable=True, index=True)
     managed_by_recovery_rule_id: Mapped[int | None] = mapped_column(ForeignKey("recovery_event_rules.id"), nullable=True, index=True)
     release_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
@@ -45,7 +63,7 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    secret: Mapped["TaskSecret | None"] = relationship(back_populates="task", uselist=False, cascade="all, delete-orphan")
+    secret: Mapped["TaskSecret"] = relationship(back_populates="task", uselist=False, cascade="all, delete-orphan")
     job_runs: Mapped[list["TaskJobRun"]] = relationship(back_populates="task", cascade="all, delete-orphan")
     event_watch_state: Mapped["TaskEventWatchState | None"] = relationship(
         back_populates="task",
@@ -58,8 +76,10 @@ class TaskSecret(Base):
     __tablename__ = "task_secrets"
 
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), primary_key=True)
-    source_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
-    destination_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    database_password_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    destination_aws_secret_access_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_s3_aws_secret_access_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    destination_s3_aws_secret_access_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     task: Mapped[Task] = relationship(back_populates="secret")
 

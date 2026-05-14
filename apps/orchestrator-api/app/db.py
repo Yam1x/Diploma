@@ -24,9 +24,9 @@ def get_db():
 
 
 def init_db() -> None:
-    from app.models.event_rule import BackupEventRule, BackupEventRuleSecret, BackupEventRuleS3Secret, BackupEventRuleState  # noqa: F401
+    from app.models.event_rule import BackupEventRule, BackupEventRuleState  # noqa: F401
     from app.models.notification import Notification  # noqa: F401
-    from app.models.recovery_rule import RecoveryEventRule, RecoveryEventRuleSecret, RecoveryEventRuleS3Secret, RecoveryEventRuleState  # noqa: F401
+    from app.models.recovery_rule import RecoveryEventRule, RecoveryEventRuleState  # noqa: F401
     from app.models.task import Task, TaskEventWatchState, TaskJobRun, TaskSecret  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
@@ -59,63 +59,12 @@ def _upgrade_task_schema() -> None:
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'env_backupper'"))
             connection.execute(text(f"ALTER TYPE {enum_type_name} ADD VALUE IF NOT EXISTS 'env_restorer'"))
 
-        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS config JSONB"))
-        connection.execute(text("ALTER TABLE backup_event_rules ADD COLUMN IF NOT EXISTS db_config JSONB"))
-        connection.execute(text("ALTER TABLE backup_event_rules ADD COLUMN IF NOT EXISTS s3_config JSONB"))
-        connection.execute(text("ALTER TABLE recovery_event_rules ADD COLUMN IF NOT EXISTS db_config JSONB"))
-        connection.execute(text("ALTER TABLE recovery_event_rules ADD COLUMN IF NOT EXISTS s3_config JSONB"))
-
-        connection.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS backup_event_rule_secrets (
-                    rule_id INTEGER PRIMARY KEY REFERENCES backup_event_rules(id),
-                    database_password_encrypted TEXT,
-                    destination_secret_encrypted TEXT
-                )
-                """
-            )
-        )
-        connection.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS backup_event_rule_s3_secrets (
-                    rule_id INTEGER PRIMARY KEY REFERENCES backup_event_rules(id),
-                    source_secret_encrypted TEXT,
-                    destination_secret_encrypted TEXT
-                )
-                """
-            )
-        )
-        connection.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS recovery_event_rule_secrets (
-                    rule_id INTEGER PRIMARY KEY REFERENCES recovery_event_rules(id),
-                    source_secret_encrypted TEXT,
-                    destination_secret_encrypted TEXT
-                )
-                """
-            )
-        )
-        connection.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS recovery_event_rule_s3_secrets (
-                    rule_id INTEGER PRIMARY KEY REFERENCES recovery_event_rules(id),
-                    source_secret_encrypted TEXT,
-                    destination_secret_encrypted TEXT
-                )
-                """
-            )
-        )
-        connection.execute(text("ALTER TABLE task_secrets DROP COLUMN IF EXISTS database_password_encrypted"))
-        connection.execute(text("ALTER TABLE task_secrets DROP COLUMN IF EXISTS destination_aws_secret_access_key_encrypted"))
-        connection.execute(text("ALTER TABLE task_secrets DROP COLUMN IF EXISTS source_s3_aws_secret_access_key_encrypted"))
-        connection.execute(text("ALTER TABLE task_secrets DROP COLUMN IF EXISTS destination_s3_aws_secret_access_key_encrypted"))
-        connection.execute(text("ALTER TABLE task_secrets ADD COLUMN IF NOT EXISTS source_secret_encrypted TEXT"))
-        connection.execute(text("ALTER TABLE task_secrets ADD COLUMN IF NOT EXISTS destination_secret_encrypted TEXT"))
-
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_repository VARCHAR(255)"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS path_to_helmfile VARCHAR(255)"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS target_s3_aws_bucket_subfolder_name VARCHAR(255)"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS env_backups_filename_prefix VARCHAR(120)"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trigger_mode VARCHAR(20) NOT NULL DEFAULT 'scheduled'"))
+        connection.execute(text("ALTER TABLE tasks ALTER COLUMN schedule DROP NOT NULL"))
         connection.execute(
             text(
                 """

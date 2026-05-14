@@ -5,54 +5,66 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class EventRuleDbSourceConfig(BaseModel):
-    backupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    host: str = Field(min_length=1, max_length=255)
+class BackupEventRuleDbConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=120)
-    username: str = Field(min_length=1, max_length=120)
-    password: str = Field(min_length=1)
-    destinationEndpoint: str = Field(min_length=1, max_length=255)
-    destinationBucketName: str = Field(min_length=1, max_length=120)
-    destinationAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationSecretAccessKey: str = Field(min_length=1)
+    dbBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
+    databaseHost: str = Field(min_length=1, max_length=255)
+    databaseName: str = Field(min_length=1, max_length=120)
+    databaseUsername: str = Field(min_length=1, max_length=120)
+    databasePassword: str = Field(min_length=1)
+    destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
+    destinationAwsBucketName: str = Field(min_length=1, max_length=120)
+    destinationAwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    destinationAwsSecretAccessKey: str = Field(min_length=1)
 
 
-class EventRuleDbUpdateConfig(BaseModel):
-    backupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    host: str | None = Field(default=None, min_length=1, max_length=255)
+class BackupEventRuleDbUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    username: str | None = Field(default=None, min_length=1, max_length=120)
-    password: str | None = None
-    destinationEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationSecretAccessKey: str | None = None
+    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    databaseHost: str | None = Field(default=None, min_length=1, max_length=255)
+    databaseName: str | None = Field(default=None, min_length=1, max_length=120)
+    databaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
+    databasePassword: str | None = None
+    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationAwsSecretAccessKey: str | None = None
 
 
-class EventRuleS3SourceConfig(BaseModel):
-    backupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    sourceEndpoint: str = Field(min_length=1, max_length=255)
-    sourceBucketName: str = Field(min_length=1, max_length=120)
-    sourceAccessKeyId: str = Field(min_length=1, max_length=255)
-    sourceSecretAccessKey: str = Field(min_length=1)
-    sourceSubfolderName: str | None = Field(default=None, max_length=255)
-    destinationEndpoint: str = Field(min_length=1, max_length=255)
-    destinationBucketName: str = Field(min_length=1, max_length=120)
-    destinationAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationSecretAccessKey: str = Field(min_length=1)
+class BackupEventRuleS3Config(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    s3BackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
+    sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
+    sourceS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    sourceS3AwsBucketName: str = Field(min_length=1, max_length=120)
+    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
+    sourceS3AwsSecretAccessKey: str = Field(min_length=1)
+    destinationS3AwsEndpoint: str = Field(min_length=1, max_length=255)
+    destinationS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
+    destinationS3AwsBucketName: str = Field(min_length=1, max_length=120)
+    destinationS3AwsSecretAccessKey: str = Field(min_length=1)
 
 
-class EventRuleS3UpdateConfig(BaseModel):
-    backupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceSecretAccessKey: str | None = None
-    sourceSubfolderName: str | None = Field(default=None, max_length=255)
-    destinationEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationSecretAccessKey: str | None = None
+class BackupEventRuleS3Update(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    sourceS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
+    sourceS3AwsSecretAccessKey: str | None = None
+    destinationS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
+    destinationS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
+    destinationS3AwsSecretAccessKey: str | None = None
 
 
 class BackupEventRuleCreate(BaseModel):
@@ -61,8 +73,8 @@ class BackupEventRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     namespace: str = Field(min_length=1, max_length=120)
     enabled: bool = False
-    db: EventRuleDbSourceConfig
-    s3: EventRuleS3SourceConfig
+    db: BackupEventRuleDbConfig
+    s3: BackupEventRuleS3Config
 
 
 class BackupEventRuleUpdate(BaseModel):
@@ -71,39 +83,39 @@ class BackupEventRuleUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
-    db: EventRuleDbUpdateConfig | None = None
-    s3: EventRuleS3UpdateConfig | None = None
+    db: BackupEventRuleDbUpdate | None = None
+    s3: BackupEventRuleS3Update | None = None
 
 
 class BackupEventRuleDbDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     name: str
-    backupsFilenamePrefix: str
-    host: str
+    dbBackupsFilenamePrefix: str
+    databaseHost: str
     databaseName: str
-    username: str
-    destinationEndpoint: str
-    destinationBucketName: str
-    destinationAccessKeyId: str
-    hasPassword: bool
-    hasDestinationSecret: bool
+    databaseUsername: str
+    destinationAwsEndpoint: str
+    destinationAwsBucketName: str
+    destinationAwsAccessKeyId: str
+    hasDatabasePassword: bool
+    hasDestinationAwsSecretAccessKey: bool
 
 
 class BackupEventRuleS3Detail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     name: str
-    backupsFilenamePrefix: str
-    sourceEndpoint: str
-    sourceBucketName: str
-    sourceAccessKeyId: str
-    sourceSubfolderName: str
-    destinationEndpoint: str
-    destinationBucketName: str
-    destinationAccessKeyId: str
-    hasSourceSecret: bool
-    hasDestinationSecret: bool
+    s3BackupsFilenamePrefix: str
+    sourceS3AwsEndpoint: str
+    sourceS3AwsAccessKeyId: str
+    sourceS3AwsBucketName: str
+    sourceS3AwsBucketSubfolderName: str
+    destinationS3AwsEndpoint: str
+    destinationS3AwsAccessKeyId: str
+    destinationS3AwsBucketName: str
+    hasSourceS3AwsSecretAccessKey: bool
+    hasDestinationS3AwsSecretAccessKey: bool
 
 
 class BackupEventRuleSummary(BaseModel):
