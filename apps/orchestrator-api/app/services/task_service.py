@@ -29,7 +29,7 @@ from app.schemas.task import (
     DbTaskCreate,
     DbTaskDetail,
     DbTaskUpdate,
-    DbRestorerTaskConfigDetail,
+    DbRestoreTaskConfigDetail,
     DbRestorerTaskCreate,
     DbRestorerTaskDetail,
     DbRestorerTaskUpdate,
@@ -1008,7 +1008,7 @@ class TaskService:
             config = task.db_restore_config
             return DbRestorerTaskDetail(
                 **summary.model_dump(),
-                config=DbRestorerTaskConfigDetail(
+                config=DbRestoreTaskConfigDetail(
                     dbBackupsFilenamePrefix=config.db_backups_filename_prefix,
                     sourceAwsEndpoint=config.source_aws_endpoint,
                     sourceAwsBucketName=config.source_aws_bucket_name,
