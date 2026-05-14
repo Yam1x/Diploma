@@ -6,6 +6,35 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class DatabaseSourceConfig(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    name: str = Field(min_length=1, max_length=120)
+    username: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1)
+
+
+class S3SourceConfig(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=255)
+    bucketName: str = Field(min_length=1, max_length=120)
+    accessKeyId: str = Field(min_length=1, max_length=255)
+    secretAccessKey: str = Field(min_length=1)
+    subfolderName: str | None = Field(default=None, max_length=255)
+
+
+class S3DestinationConfig(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=255)
+    bucketName: str = Field(min_length=1, max_length=120)
+    accessKeyId: str = Field(min_length=1, max_length=255)
+    secretAccessKey: str = Field(min_length=1)
+
+
+class DatabaseDestinationConfig(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    name: str = Field(min_length=1, max_length=120)
+    username: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1)
+
+
 class TaskRequestBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -18,79 +47,47 @@ class TaskRequestBase(BaseModel):
 
 class DbTaskCreate(TaskRequestBase):
     serviceType: Literal["db_backupper"]
-    dbBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    databaseHost: str = Field(min_length=1, max_length=255)
-    databaseName: str = Field(min_length=1, max_length=120)
-    databaseUsername: str = Field(min_length=1, max_length=120)
-    databasePassword: str = Field(min_length=1)
-    destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
-    destinationAwsBucketName: str = Field(min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str = Field(min_length=1)
+    filenamePrefix: str = Field(min_length=1, max_length=120)
+    source: DatabaseSourceConfig
+    destination: S3DestinationConfig
 
 
 class S3TaskCreate(TaskRequestBase):
     serviceType: Literal["s3_backupper"]
-    s3BackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
-    sourceS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    sourceS3AwsBucketName: str = Field(min_length=1, max_length=120)
-    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
-    sourceS3AwsSecretAccessKey: str = Field(min_length=1)
-    destinationS3AwsEndpoint: str = Field(min_length=1, max_length=255)
-    destinationS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationS3AwsBucketName: str = Field(min_length=1, max_length=120)
-    destinationS3AwsSecretAccessKey: str = Field(min_length=1)
+    filenamePrefix: str = Field(min_length=1, max_length=120)
+    source: S3SourceConfig
+    destination: S3DestinationConfig
 
 
 class EnvBackupperTaskCreate(TaskRequestBase):
     serviceType: Literal["env_backupper"]
-    envBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
-    destinationAwsBucketName: str = Field(min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str = Field(min_length=1)
+    filenamePrefix: str = Field(min_length=1, max_length=120)
+    destination: S3DestinationConfig
 
 
 class DbRestorerTaskCreate(TaskRequestBase):
     serviceType: Literal["db_restorer"]
-    dbBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    sourceAwsEndpoint: str = Field(min_length=1, max_length=255)
-    sourceAwsBucketName: str = Field(min_length=1, max_length=120)
-    sourceAwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    sourceAwsSecretAccessKey: str = Field(min_length=1)
-    targetDatabaseHost: str = Field(min_length=1, max_length=255)
-    targetDatabaseName: str = Field(min_length=1, max_length=120)
-    targetDatabaseUsername: str = Field(min_length=1, max_length=120)
-    targetDatabasePassword: str = Field(min_length=1)
+    filenamePrefix: str = Field(min_length=1, max_length=120)
+    source: S3SourceConfig
+    destination: DatabaseDestinationConfig
 
 
 class S3RestorerTaskCreate(TaskRequestBase):
     serviceType: Literal["s3_restorer"]
-    s3BackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    sourceS3AwsEndpoint: str = Field(min_length=1, max_length=255)
-    sourceS3AwsBucketName: str = Field(min_length=1, max_length=120)
-    sourceS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    sourceS3AwsSecretAccessKey: str = Field(min_length=1)
-    targetS3AwsEndpoint: str = Field(min_length=1, max_length=255)
-    targetS3AwsBucketName: str = Field(min_length=1, max_length=120)
-    targetS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
-    targetS3AwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    targetS3AwsSecretAccessKey: str = Field(min_length=1)
+    filenamePrefix: str = Field(min_length=1, max_length=120)
+    source: S3SourceConfig
+    destination: S3SourceConfig
 
 
 class EnvRestorerTaskCreate(TaskRequestBase):
     serviceType: Literal["env_restorer"]
-    envBackupsFilenamePrefix: str = Field(min_length=1, max_length=120)
-    destinationAwsEndpoint: str = Field(min_length=1, max_length=255)
-    destinationAwsBucketName: str = Field(min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str = Field(min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str = Field(min_length=1)
+    filenamePrefix: str = Field(min_length=1, max_length=120)
+    source: S3DestinationConfig
 
 
 class EnvSynchronizerTaskCreate(TaskRequestBase):
     serviceType: Literal["env_synchronizer"]
-    envRepository: str = Field(min_length=1, max_length=255)
+    repository: str = Field(min_length=1, max_length=255)
     pathToHelmfile: str = Field(min_length=1, max_length=255)
 
 
@@ -115,15 +112,9 @@ class DbTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    databaseHost: str | None = Field(default=None, min_length=1, max_length=255)
-    databaseName: str | None = Field(default=None, min_length=1, max_length=120)
-    databaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
-    databasePassword: str | None = None
-    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str | None = None
+    filenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    source: DatabaseSourceConfig | None = None
+    destination: S3DestinationConfig | None = None
 
 
 class S3TaskUpdate(BaseModel):
@@ -135,16 +126,9 @@ class S3TaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
-    sourceS3AwsSecretAccessKey: str | None = None
-    destinationS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationS3AwsSecretAccessKey: str | None = None
+    filenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    source: S3SourceConfig | None = None
+    destination: S3DestinationConfig | None = None
 
 
 class EnvBackupperTaskUpdate(BaseModel):
@@ -156,11 +140,8 @@ class EnvBackupperTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    envBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str | None = None
+    filenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    destination: S3DestinationConfig | None = None
 
 
 class DbRestorerTaskUpdate(BaseModel):
@@ -172,15 +153,9 @@ class DbRestorerTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    dbBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceAwsSecretAccessKey: str | None = None
-    targetDatabaseHost: str | None = Field(default=None, min_length=1, max_length=255)
-    targetDatabaseName: str | None = Field(default=None, min_length=1, max_length=120)
-    targetDatabaseUsername: str | None = Field(default=None, min_length=1, max_length=120)
-    targetDatabasePassword: str | None = None
+    filenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    source: S3SourceConfig | None = None
+    destination: DatabaseDestinationConfig | None = None
 
 
 class S3RestorerTaskUpdate(BaseModel):
@@ -192,16 +167,9 @@ class S3RestorerTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    s3BackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    sourceS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    sourceS3AwsSecretAccessKey: str | None = None
-    targetS3AwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    targetS3AwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    targetS3AwsBucketSubfolderName: str | None = Field(default=None, max_length=255)
-    targetS3AwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    targetS3AwsSecretAccessKey: str | None = None
+    filenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    source: S3SourceConfig | None = None
+    destination: S3SourceConfig | None = None
 
 
 class EnvRestorerTaskUpdate(BaseModel):
@@ -213,11 +181,8 @@ class EnvRestorerTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    envBackupsFilenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsEndpoint: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsBucketName: str | None = Field(default=None, min_length=1, max_length=120)
-    destinationAwsAccessKeyId: str | None = Field(default=None, min_length=1, max_length=255)
-    destinationAwsSecretAccessKey: str | None = None
+    filenamePrefix: str | None = Field(default=None, min_length=1, max_length=120)
+    source: S3DestinationConfig | None = None
 
 
 class EnvSynchronizerTaskUpdate(BaseModel):
@@ -229,7 +194,7 @@ class EnvSynchronizerTaskUpdate(BaseModel):
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
     triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
-    envRepository: str | None = Field(default=None, min_length=1, max_length=255)
+    repository: str | None = Field(default=None, min_length=1, max_length=255)
     pathToHelmfile: str | None = Field(default=None, min_length=1, max_length=255)
 
 
@@ -304,15 +269,15 @@ TaskSummary: TypeAlias = Annotated[
 
 
 class DbTaskDetail(DbTaskSummary):
-    dbBackupsFilenamePrefix: str
-    databaseHost: str
-    databaseName: str
-    databaseUsername: str
-    destinationAwsEndpoint: str
-    destinationAwsBucketName: str
-    destinationAwsAccessKeyId: str
-    hasDatabasePassword: bool
-    hasDestinationAwsSecretAccessKey: bool
+    filenamePrefix: str
+    sourceHost: str
+    sourceName: str
+    sourceUsername: str
+    destinationEndpoint: str
+    destinationBucketName: str
+    destinationAccessKeyId: str
+    hasSourcePassword: bool
+    hasDestinationSecret: bool
     eventWatcherStatus: str
     lastEventDetectedAt: datetime | None
     lastEventTriggeredAt: datetime | None
@@ -320,16 +285,16 @@ class DbTaskDetail(DbTaskSummary):
 
 
 class S3TaskDetail(S3TaskSummary):
-    s3BackupsFilenamePrefix: str
-    sourceS3AwsEndpoint: str
-    sourceS3AwsAccessKeyId: str
-    sourceS3AwsBucketName: str
-    sourceS3AwsBucketSubfolderName: str
-    destinationS3AwsEndpoint: str
-    destinationS3AwsAccessKeyId: str
-    destinationS3AwsBucketName: str
-    hasSourceS3AwsSecretAccessKey: bool
-    hasDestinationS3AwsSecretAccessKey: bool
+    filenamePrefix: str
+    sourceEndpoint: str
+    sourceAccessKeyId: str
+    sourceBucketName: str
+    sourceSubfolderName: str
+    destinationEndpoint: str
+    destinationAccessKeyId: str
+    destinationBucketName: str
+    hasSourceSecret: bool
+    hasDestinationSecret: bool
     eventWatcherStatus: str
     lastEventDetectedAt: datetime | None
     lastEventTriggeredAt: datetime | None
@@ -337,48 +302,48 @@ class S3TaskDetail(S3TaskSummary):
 
 
 class EnvBackupperTaskDetail(EnvBackupperTaskSummary):
-    envBackupsFilenamePrefix: str
-    destinationAwsEndpoint: str
-    destinationAwsBucketName: str
-    destinationAwsAccessKeyId: str
-    hasDestinationAwsSecretAccessKey: bool
+    filenamePrefix: str
+    destinationEndpoint: str
+    destinationBucketName: str
+    destinationAccessKeyId: str
+    hasDestinationSecret: bool
 
 
 class DbRestorerTaskDetail(DbRestorerTaskSummary):
-    dbBackupsFilenamePrefix: str
-    sourceAwsEndpoint: str
-    sourceAwsBucketName: str
-    sourceAwsAccessKeyId: str
-    targetDatabaseHost: str
-    targetDatabaseName: str
-    targetDatabaseUsername: str
-    hasSourceAwsSecretAccessKey: bool
-    hasTargetDatabasePassword: bool
+    filenamePrefix: str
+    sourceEndpoint: str
+    sourceBucketName: str
+    sourceAccessKeyId: str
+    destinationHost: str
+    destinationName: str
+    destinationUsername: str
+    hasSourceSecret: bool
+    hasDestinationPassword: bool
 
 
 class S3RestorerTaskDetail(S3RestorerTaskSummary):
-    s3BackupsFilenamePrefix: str
-    sourceS3AwsEndpoint: str
-    sourceS3AwsBucketName: str
-    sourceS3AwsAccessKeyId: str
-    targetS3AwsEndpoint: str
-    targetS3AwsBucketName: str
-    targetS3AwsBucketSubfolderName: str
-    targetS3AwsAccessKeyId: str
-    hasSourceS3AwsSecretAccessKey: bool
-    hasTargetS3AwsSecretAccessKey: bool
+    filenamePrefix: str
+    sourceEndpoint: str
+    sourceBucketName: str
+    sourceAccessKeyId: str
+    destinationEndpoint: str
+    destinationBucketName: str
+    destinationSubfolderName: str
+    destinationAccessKeyId: str
+    hasSourceSecret: bool
+    hasDestinationSecret: bool
 
 
 class EnvRestorerTaskDetail(EnvRestorerTaskSummary):
-    envBackupsFilenamePrefix: str
-    destinationAwsEndpoint: str
-    destinationAwsBucketName: str
-    destinationAwsAccessKeyId: str
-    hasDestinationAwsSecretAccessKey: bool
+    filenamePrefix: str
+    sourceEndpoint: str
+    sourceBucketName: str
+    sourceAccessKeyId: str
+    hasSourceSecret: bool
 
 
 class EnvSynchronizerTaskDetail(EnvSynchronizerTaskSummary):
-    envRepository: str
+    repository: str
     pathToHelmfile: str
 
 

@@ -7,29 +7,27 @@ def build_recovery_rule_payload(enabled: bool = True) -> dict:
         "namespace": "default",
         "enabled": enabled,
         "db": {
-            "name": "Primary DB restore",
-            "dbBackupsFilenamePrefix": "primary",
-            "sourceAwsEndpoint": "https://minio.local",
-            "sourceAwsBucketName": "backups",
-            "sourceAwsAccessKeyId": "minio",
-            "sourceAwsSecretAccessKey": "minio-secret",
-            "targetDatabaseHost": "postgresql",
-            "targetDatabaseName": "app",
-            "targetDatabaseUsername": "postgres",
-            "targetDatabasePassword": "secret",
+            "backupsFilenamePrefix": "primary",
+            "sourceEndpoint": "https://minio.local",
+            "sourceBucketName": "backups",
+            "sourceAccessKeyId": "minio",
+            "sourceSecretAccessKey": "minio-secret",
+            "destinationHost": "postgresql",
+            "destinationName": "app",
+            "destinationUsername": "postgres",
+            "destinationPassword": "secret",
         },
         "s3": {
-            "name": "Bucket restore",
-            "s3BackupsFilenamePrefix": "bucket-archive",
-            "sourceS3AwsEndpoint": "https://source.local",
-            "sourceS3AwsBucketName": "source-bucket",
-            "sourceS3AwsAccessKeyId": "source-key",
-            "sourceS3AwsSecretAccessKey": "source-secret",
-            "targetS3AwsEndpoint": "https://destination.local",
-            "targetS3AwsBucketName": "destination-bucket",
-            "targetS3AwsBucketSubfolderName": "incoming",
-            "targetS3AwsAccessKeyId": "destination-key",
-            "targetS3AwsSecretAccessKey": "destination-secret",
+            "backupsFilenamePrefix": "bucket-archive",
+            "sourceEndpoint": "https://source.local",
+            "sourceBucketName": "source-bucket",
+            "sourceAccessKeyId": "source-key",
+            "sourceSecretAccessKey": "source-secret",
+            "destinationEndpoint": "https://destination.local",
+            "destinationBucketName": "destination-bucket",
+            "destinationSubfolderName": "incoming",
+            "destinationAccessKeyId": "destination-key",
+            "destinationSecretAccessKey": "destination-secret",
         },
     }
 
@@ -41,8 +39,8 @@ def test_recovery_rule_api_lifecycle(client) -> None:
     created = create_response.json()
     assert created["name"] == "Combined recovery"
     assert created["enabled"] is True
-    assert created["db"]["name"] == "Primary DB restore"
-    assert created["s3"]["name"] == "Bucket restore"
+    assert created["db"]["destinationName"] == "app"
+    assert created["s3"]["destinationBucketName"] == "destination-bucket"
     assert created["eventWatcherStatus"] == "waiting_for_baseline"
     assert created["lastPolledAt"] is None
     assert created["lastErrorMessage"] is None
@@ -55,12 +53,12 @@ def test_recovery_rule_api_lifecycle(client) -> None:
         "/api/recovery-rules/1",
         json={
             "name": "Combined recovery updated",
-            "s3": {"targetS3AwsBucketSubfolderName": "processed"},
+            "s3": {"destinationSubfolderName": "processed"},
         },
     )
     assert update_response.status_code == 200
     assert update_response.json()["name"] == "Combined recovery updated"
-    assert update_response.json()["s3"]["targetS3AwsBucketSubfolderName"] == "processed"
+    assert update_response.json()["s3"]["destinationSubfolderName"] == "processed"
 
     disable_response = client.post("/api/recovery-rules/1/disable")
     assert disable_response.status_code == 200

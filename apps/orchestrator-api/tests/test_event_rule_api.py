@@ -7,29 +7,27 @@ def build_rule_payload(enabled: bool = True) -> dict:
         "namespace": "default",
         "enabled": enabled,
         "db": {
-            "name": "Primary DB",
-            "dbBackupsFilenamePrefix": "primary",
-            "databaseHost": "postgresql",
-            "databaseName": "app",
-            "databaseUsername": "postgres",
-            "databasePassword": "secret",
-            "destinationAwsEndpoint": "https://minio.local",
-            "destinationAwsBucketName": "backups",
-            "destinationAwsAccessKeyId": "minio",
-            "destinationAwsSecretAccessKey": "minio-secret",
+            "backupsFilenamePrefix": "primary",
+            "host": "postgresql",
+            "name": "app",
+            "username": "postgres",
+            "password": "secret",
+            "destinationEndpoint": "https://minio.local",
+            "destinationBucketName": "backups",
+            "destinationAccessKeyId": "minio",
+            "destinationSecretAccessKey": "minio-secret",
         },
         "s3": {
-            "name": "Bucket archive",
-            "s3BackupsFilenamePrefix": "bucket-archive",
-            "sourceS3AwsEndpoint": "https://source.local",
-            "sourceS3AwsAccessKeyId": "source-key",
-            "sourceS3AwsBucketName": "source-bucket",
-            "sourceS3AwsBucketSubfolderName": "incoming",
-            "sourceS3AwsSecretAccessKey": "source-secret",
-            "destinationS3AwsEndpoint": "https://destination.local",
-            "destinationS3AwsAccessKeyId": "destination-key",
-            "destinationS3AwsBucketName": "destination-bucket",
-            "destinationS3AwsSecretAccessKey": "destination-secret",
+            "backupsFilenamePrefix": "bucket-archive",
+            "sourceEndpoint": "https://source.local",
+            "sourceBucketName": "source-bucket",
+            "sourceAccessKeyId": "source-key",
+            "sourceSecretAccessKey": "source-secret",
+            "sourceSubfolderName": "incoming",
+            "destinationEndpoint": "https://destination.local",
+            "destinationBucketName": "destination-bucket",
+            "destinationAccessKeyId": "destination-key",
+            "destinationSecretAccessKey": "destination-secret",
         },
     }
 
@@ -41,8 +39,8 @@ def test_event_rule_api_lifecycle(client) -> None:
     created = create_response.json()
     assert created["name"] == "Combined backup"
     assert created["enabled"] is True
-    assert created["db"]["name"] == "Primary DB"
-    assert created["s3"]["name"] == "Bucket archive"
+    assert created["db"]["databaseName"] == "app"
+    assert created["s3"]["sourceBucketName"] == "source-bucket"
     assert created["eventWatcherStatus"] == "waiting_for_baseline"
 
     list_response = client.get("/api/event-rules")
@@ -53,7 +51,7 @@ def test_event_rule_api_lifecycle(client) -> None:
         "/api/event-rules/1",
         json={
             "name": "Combined backup updated",
-            "db": {"databaseName": "app_updated"},
+            "db": {"name": "app_updated"},
         },
     )
     assert update_response.status_code == 200
