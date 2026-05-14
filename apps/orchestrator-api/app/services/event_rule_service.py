@@ -10,10 +10,10 @@ from app.models.task import ServiceType, Task, TaskSecret, TriggerMode
 from app.schemas.event_rule import (
     BackupEventRuleCreate,
     BackupEventRuleDbDetail,
-    EventRuleDbUpdateConfig,
+    BackupEventRuleDbUpdateConfig,
     BackupEventRuleDetail,
     BackupEventRuleS3Detail,
-    EventRuleS3UpdateConfig,
+    BackupEventRuleS3UpdateConfig,
     BackupEventRuleSummary,
     BackupEventRuleUpdate,
 )
@@ -428,7 +428,7 @@ class EventRuleService:
                 name=rule.db_display_name,
                 backupsFilenamePrefix=db_config.get("filenamePrefix", ""),
                 host=db_source.get("host", ""),
-                databaseName=db_source.get("name", ""),
+                name=db_source.get("name", ""),
                 username=db_source.get("username", ""),
                 destinationEndpoint=db_dest.get("endpoint", ""),
                 destinationBucketName=db_dest.get("bucketName", ""),
