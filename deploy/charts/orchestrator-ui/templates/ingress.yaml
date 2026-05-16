@@ -2,7 +2,29 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: diploma-orchestrator
+  name: diploma-orchestrator-ui
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /orchestrator(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: diploma-orchestrator-ui
+                port:
+                  number: {{ .Values.service.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: diploma-orchestrator-api
   namespace: {{ .Release.Namespace }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
@@ -10,13 +32,6 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          - path: /orchestrator
-            pathType: Prefix
-            backend:
-              service:
-                name: diploma-orchestrator-ui
-                port:
-                  number: {{ .Values.service.port }}
           - path: /api
             pathType: Prefix
             backend:
