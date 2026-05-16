@@ -10,7 +10,7 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          - path: /
+          - path: /orchestrator
             pathType: Prefix
             backend:
               service:
