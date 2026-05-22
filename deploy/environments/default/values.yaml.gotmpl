@@ -5,7 +5,7 @@ postgresql:
     postgresPassword: postgres
     database: orchestrator
   service:
-    host: postgresql
+    host: diploma-orchestrator-postgresql
     port: 5432
 
 minio:
@@ -13,7 +13,7 @@ minio:
     rootUser: admin
     rootPassword: minio123456
   service:
-    host: minio
+    host: diploma-orchestrator-minio
     port: 9000
   defaultBuckets: backups
   region: us-east-1
