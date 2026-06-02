@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/yam1x/diploma-orchestrator-api
   tag: "latest"
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 service:
   port: 8000
@@ -15,71 +15,71 @@ config:
       registry: "ghcr.io"
       repository: "yam1x/diploma-db-backupper"
       tag: "latest"
-      pullPolicy: "Always"
+      pullPolicy: "IfNotPresent"
     chart:
-      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      repositoryUrl: ""
       ref: "master"
-      path: "diploma-db-backupper/ci"
+      path: "/opt/diploma-charts/diploma-db-backupper/ci"
   dbRestorer:
     image:
       registry: "ghcr.io"
       repository: "yam1x/diploma-db-restorer"
       tag: "latest"
-      pullPolicy: "Always"
+      pullPolicy: "IfNotPresent"
     chart:
-      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      repositoryUrl: ""
       ref: "master"
-      path: "diploma-db-restorer/ci"
+      path: "/opt/diploma-charts/diploma-db-restorer/ci"
   s3Backupper:
     image:
       registry: "ghcr.io"
       repository: "yam1x/diploma-s3-backupper"
       tag: "latest"
-      pullPolicy: "Always"
+      pullPolicy: "IfNotPresent"
     chart:
-      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      repositoryUrl: ""
       ref: "master"
-      path: "diploma-s3-backupper/ci"
+      path: "/opt/diploma-charts/diploma-s3-backupper/ci"
   s3Restorer:
     image:
       registry: "ghcr.io"
       repository: "yam1x/diploma-s3-restorer"
       tag: "latest"
-      pullPolicy: "Always"
+      pullPolicy: "IfNotPresent"
     chart:
-      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      repositoryUrl: ""
       ref: "master"
-      path: "diploma-s3-restorer/ci"
+      path: "/opt/diploma-charts/diploma-s3-restorer/ci"
   envBackupper:
     image:
       registry: "ghcr.io"
       repository: "yam1x/diploma-env-backupper"
       tag: "latest"
-      pullPolicy: "Always"
+      pullPolicy: "IfNotPresent"
     chart:
-      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      repositoryUrl: ""
       ref: "master"
-      path: "diploma-env-backupper/ci"
+      path: "/opt/diploma-charts/diploma-env-backupper/ci"
   envRestorer:
     image:
       registry: "ghcr.io"
       repository: "yam1x/diploma-env-restorer"
       tag: "latest"
-      pullPolicy: "Always"
+      pullPolicy: "IfNotPresent"
     chart:
-      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      repositoryUrl: ""
       ref: "master"
-      path: "diploma-env-restorer/ci"
+      path: "/opt/diploma-charts/diploma-env-restorer/ci"
   envSynchronizer:
     image:
       registry: "ghcr.io"
       repository: "yam1x/diploma-env-synchronizer"
       tag: "latest"
-      pullPolicy: "Always"
+      pullPolicy: "IfNotPresent"
     chart:
-      repositoryUrl: "https://github.com/Yam1x/Diploma.git"
+      repositoryUrl: ""
       ref: "master"
-      path: "diploma-env-synchronizer/ci"
+      path: "/opt/diploma-charts/diploma-env-synchronizer/ci"
   minio:
     endpointUrl: {{ printf "http://%s:%v" .StateValues.minio.service.host .StateValues.minio.service.port | quote }}
     accessKeyId: {{ .StateValues.minio.auth.rootUser | quote }}

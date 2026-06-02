@@ -21,9 +21,9 @@ class HelmClient:
         chart_path: str | None = None,
     ) -> None:
         settings = get_settings()
-        self.chart_repository_url = chart_repository_url or settings.db_backupper_chart_repository_url
-        self.chart_ref = chart_ref or settings.db_backupper_chart_ref
-        self.chart_path = Path(chart_path or settings.db_backupper_chart_path)
+        self.chart_repository_url = settings.db_backupper_chart_repository_url if chart_repository_url is None else chart_repository_url
+        self.chart_ref = settings.db_backupper_chart_ref if chart_ref is None else chart_ref
+        self.chart_path = Path(settings.db_backupper_chart_path if chart_path is None else chart_path)
 
     def upgrade_install(
         self,
@@ -34,32 +34,24 @@ class HelmClient:
         chart_ref: str | None = None,
         chart_path: str | None = None,
     ) -> str:
-        repository_url = chart_repository_url or self.chart_repository_url
-        chart_ref_value = chart_ref or self.chart_ref
+        repository_url = self.chart_repository_url if chart_repository_url is None else chart_repository_url
+        chart_ref_value = self.chart_ref if chart_ref is None else chart_ref
         chart_path_value = Path(chart_path) if chart_path is not None else self.chart_path
 
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as handle:
             yaml.safe_dump(values, handle, sort_keys=False)
             values_path = handle.name
         try:
+            if not repository_url:
+                return self._run_upgrade_install(release_name, namespace, values_path, chart_path_value)
+
             with tempfile.TemporaryDirectory() as checkout_dir:
                 checkout_path = Path(checkout_dir)
                 self._clone_chart_source(checkout_path, repository_url, chart_ref_value)
                 resolved_chart_path = checkout_path / chart_path_value
                 if not resolved_chart_path.exists():
                     raise HelmError(f"Backup chart path not found: {resolved_chart_path}")
-                command = [
-                    "helm",
-                    "upgrade",
-                    "--install",
-                    release_name,
-                    str(resolved_chart_path),
-                    "--namespace",
-                    namespace,
-                    "-f",
-                    values_path,
-                ]
-                return self._run(command)
+                return self._run_upgrade_install(release_name, namespace, values_path, resolved_chart_path)
         finally:
             Path(values_path).unlink(missing_ok=True)
 
@@ -102,3 +94,20 @@ class HelmClient:
             str(checkout_path),
         ]
         self._run(command)
+
+    def _run_upgrade_install(self, release_name: str, namespace: str, values_path: str, chart_path: Path) -> str:
+        if not chart_path.exists():
+            raise HelmError(f"Backup chart path not found: {chart_path}")
+
+        command = [
+            "helm",
+            "upgrade",
+            "--install",
+            release_name,
+            str(chart_path),
+            "--namespace",
+            namespace,
+            "-f",
+            values_path,
+        ]
+        return self._run(command)

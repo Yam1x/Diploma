@@ -16,6 +16,13 @@ COPY apps/orchestrator-api/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY apps/orchestrator-api /app
+COPY diploma-db-backupper/ci /opt/diploma-charts/diploma-db-backupper/ci
+COPY diploma-db-restorer/ci /opt/diploma-charts/diploma-db-restorer/ci
+COPY diploma-s3-backupper/ci /opt/diploma-charts/diploma-s3-backupper/ci
+COPY diploma-s3-restorer/ci /opt/diploma-charts/diploma-s3-restorer/ci
+COPY diploma-env-backupper/ci /opt/diploma-charts/diploma-env-backupper/ci
+COPY diploma-env-restorer/ci /opt/diploma-charts/diploma-env-restorer/ci
+COPY diploma-env-synchronizer/ci /opt/diploma-charts/diploma-env-synchronizer/ci
 
 EXPOSE 8000
 
