@@ -45,7 +45,6 @@ from app.schemas.task import (
     EnvSynchronizerTaskCreate,
     EnvSynchronizerTaskDetail,
     EnvSynchronizerTaskUpdate,
-    EventWatcherState,
     S3BackupTaskConfigDetail,
     S3RestoreTaskConfigDetail,
     S3RestorerTaskCreate,
@@ -169,9 +168,7 @@ class TaskService:
             raise HTTPException(status_code=400, detail="Task must be deployed before running it manually")
 
         try:
-            if task.trigger_mode == TriggerMode.EVENT_BASED.value and self._supports_event_mode(task.service_type):
-                self.create_triggered_job_run(task, trigger_type="manual")
-            elif task.service_type in {ServiceType.DB_RESTORER, ServiceType.S3_RESTORER, ServiceType.ENV_RESTORER}:
+            if task.service_type in {ServiceType.DB_RESTORER, ServiceType.S3_RESTORER, ServiceType.ENV_RESTORER}:
                 job_name = self.kube.create_job(
                     task.namespace,
                     task.release_name,
@@ -265,9 +262,7 @@ class TaskService:
         self.db.commit()
 
     def create_event_job_run(self, task: Task) -> TaskJobRun:
-        if task.trigger_mode != TriggerMode.EVENT_BASED.value or not self._supports_event_mode(task.service_type):
-            raise ValueError("Event-based job runs are supported only for event-capable tasks in event mode")
-        return self.create_triggered_job_run(task, trigger_type="event")
+        raise ValueError("Event-based job runs are not supported for standalone tasks")
 
     def create_triggered_job_run(self, task: Task, trigger_type: str) -> TaskJobRun:
         if trigger_type not in {"manual", "event"}:
@@ -955,8 +950,6 @@ class TaskService:
 
     def _to_detail(self, task: Task) -> TaskDetail:
         summary = self._to_summary(task)
-        watch_state = self._get_data_watch_state(WatchOwnerType.TASK, task.id)
-        watcher = self._to_event_watcher(task, watch_state) if task.service_type in {ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER} else None
         if task.service_type == ServiceType.DB_BACKUPPER:
             config = task.db_backup_config
             return DbTaskDetail(
@@ -972,7 +965,6 @@ class TaskService:
                     hasDatabasePassword=bool(config.database_password_encrypted),
                     hasDestinationAwsSecretAccessKey=bool(config.destination_aws_secret_access_key_encrypted),
                 ),
-                watcher=watcher,
             )
         if task.service_type == ServiceType.S3_BACKUPPER:
             config = task.s3_backup_config
@@ -990,7 +982,6 @@ class TaskService:
                     hasSourceS3AwsSecretAccessKey=bool(config.source_s3_aws_secret_access_key_encrypted),
                     hasDestinationS3AwsSecretAccessKey=bool(config.destination_s3_aws_secret_access_key_encrypted),
                 ),
-                watcher=watcher,
             )
         if task.service_type == ServiceType.ENV_BACKUPPER:
             config = task.env_backup_config
@@ -1055,31 +1046,6 @@ class TaskService:
             config=EnvSyncTaskConfigDetail(envRepository=config.env_repository, pathToHelmfile=config.path_to_helmfile),
         )
 
-    def _to_event_watcher(self, task: Task, state: DataChangeWatchState | None) -> EventWatcherState:
-        return EventWatcherState(
-            status=self._resolve_event_watcher_status(task, state),
-            lastDetectedAt=state.last_change_detected_at if state else None,
-            lastTriggeredAt=state.last_triggered_at if state else None,
-            lastMessage=state.last_error_message if state else None,
-        )
-
-    def _resolve_event_watcher_status(self, task: Task, state: DataChangeWatchState | None) -> str:
-        if task.trigger_mode != TriggerMode.EVENT_BASED.value:
-            return "scheduled"
-        if not task.enabled:
-            return "disabled"
-        if state is None or state.last_polled_at is None:
-            return "waiting_for_baseline"
-        if state.last_error_at and state.last_error_at >= state.last_polled_at:
-            return "error"
-        if state.last_change_detected_at and (state.last_triggered_at is None or state.last_change_detected_at > state.last_triggered_at):
-            return "pending"
-        cooldown_cutoff = datetime.now(timezone.utc).timestamp() - self.settings.event_watcher_cooldown_seconds
-        event_triggered_at = self._normalize_datetime(state.last_triggered_at)
-        if event_triggered_at and event_triggered_at.timestamp() >= cooldown_cutoff:
-            return "cooldown"
-        return "watching"
-
     def _get_data_watch_state(self, owner_type: WatchOwnerType, owner_id: int) -> DataChangeWatchState | None:
         return (
             self.db.query(DataChangeWatchState)
@@ -1090,8 +1056,6 @@ class TaskService:
     @staticmethod
     def _public_schedule(task: Task) -> str | None:
         if task.trigger_mode == TriggerMode.MANUAL.value or TaskService._is_public_manual_task_type(task.service_type):
-            return None
-        if task.trigger_mode == TriggerMode.EVENT_BASED.value and TaskService._supports_event_mode(task.service_type):
             return None
         return task.schedule
 
@@ -1106,9 +1070,6 @@ class TaskService:
         if task.trigger_mode == TriggerMode.MANUAL.value or TaskService._is_public_manual_task_type(task.service_type):
             task.schedule = None
             return
-        if task.trigger_mode == TriggerMode.EVENT_BASED.value and TaskService._supports_event_mode(task.service_type):
-            task.schedule = None
-            return
         if task.schedule:
             return
         raise HTTPException(status_code=400, detail="Schedule is required for scheduled tasks")
@@ -1120,13 +1081,13 @@ class TaskService:
             raise HTTPException(status_code=400, detail="Manual trigger mode is required for db_restorer, s3_restorer, and env_restorer tasks")
         if normalized == TriggerMode.MANUAL and not TaskService._is_public_manual_task_type(service_type):
             raise HTTPException(status_code=400, detail="Manual trigger mode is supported only for restorer tasks")
-        if normalized == TriggerMode.EVENT_BASED and not TaskService._supports_event_mode(service_type):
-            raise HTTPException(status_code=400, detail="Event-based trigger mode is supported only for db_backupper, s3_backupper, db_restorer, and s3_restorer tasks")
+        if normalized == TriggerMode.EVENT_BASED:
+            raise HTTPException(status_code=400, detail="Event-based trigger mode is not supported for standalone tasks; use event rules instead")
         return normalized
 
     @staticmethod
     def _supports_event_mode(service_type: ServiceType) -> bool:
-        return service_type in {ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER, ServiceType.DB_RESTORER, ServiceType.S3_RESTORER}
+        return False
 
     @staticmethod
     def _is_public_manual_task_type(service_type: ServiceType) -> bool:

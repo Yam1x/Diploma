@@ -179,7 +179,7 @@ test("renders s3 restore task details", async () => {
   expect(screen.getByText("destination-bucket")).toBeInTheDocument();
 });
 
-test("renders event-based db watcher details", async () => {
+test("renders scheduled db backup details without watcher card", async () => {
   api.getTask.mockResolvedValue({
     id: 4,
     name: "Primary DB",
@@ -187,7 +187,7 @@ test("renders event-based db watcher details", async () => {
     enabled: true,
     serviceType: "db_backupper",
     schedule: "0 * * * *",
-    triggerMode: "event_based",
+    triggerMode: "scheduled",
     deployed: true,
     releaseName: "db-backupper-4",
     lastApplyStatus: "deployed",
@@ -203,10 +203,6 @@ test("renders event-based db watcher details", async () => {
     destinationAwsAccessKeyId: "minio",
     hasDatabasePassword: true,
     hasDestinationAwsSecretAccessKey: true,
-    eventWatcherStatus: "watching",
-    lastEventDetectedAt: new Date().toISOString(),
-    lastEventTriggeredAt: new Date().toISOString(),
-    lastEventMessage: null,
   });
 
   render(
@@ -218,6 +214,6 @@ test("renders event-based db watcher details", async () => {
   );
 
   expect(await screen.findByText("Primary DB")).toBeInTheDocument();
-  expect(screen.getByText("Event watcher")).toBeInTheDocument();
-  expect(screen.getByText("По событию + cron fallback")).toBeInTheDocument();
+  expect(screen.queryByText("Event watcher")).not.toBeInTheDocument();
+  expect(screen.getAllByText("По расписанию").length).toBeGreaterThan(0);
 });

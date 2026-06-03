@@ -644,7 +644,6 @@ export function TaskFormFields({
             onChange={(event) => onChange({ ...value, triggerMode: event.target.value as TaskPayload["triggerMode"] })}
           >
             <option value="scheduled">По расписанию</option>
-            <option value="event_based">По событию</option>
           </select>
         </label>
       ) : null}
@@ -671,9 +670,6 @@ export function TaskFormFields({
       {renderSchedule()}
       {renderManualAlert()}
 
-      {value.serviceType === "db_backupper" && value.triggerMode === "event_based" ? (
-        <div className="alert">Event Rules управляют event-based запуском DB backup задач. Для обычного CronJob оставьте режим "По расписанию".</div>
-      ) : null}
 
       {renderDbBackupperFields()}
       {renderS3BackupperFields()}

@@ -10,7 +10,7 @@ CREATE_ADAPTER = TypeAdapter(TaskCreate)
 UPDATE_ADAPTER = TypeAdapter(TaskUpdate)
 
 
-def test_db_task_create_schema_accepts_db_payload() -> None:
+def test_db_task_create_schema_rejects_event_based_trigger_mode() -> None:
     payload = {
         "serviceType": "db_backupper",
         "name": "Primary DB",
@@ -31,11 +31,8 @@ def test_db_task_create_schema_accepts_db_payload() -> None:
         },
     }
 
-    result = CREATE_ADAPTER.validate_python(payload)
-
-    assert result.serviceType == "db_backupper"
-    assert result.config.dbBackupsFilenamePrefix == "primary"
-    assert result.triggerMode == "event_based"
+    with pytest.raises(ValidationError):
+        CREATE_ADAPTER.validate_python(payload)
 
 
 def test_s3_task_update_schema_accepts_s3_payload() -> None:

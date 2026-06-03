@@ -30,7 +30,7 @@ beforeEach(() => {
       deployed: true,
       serviceType: "db_backupper",
       schedule: "0 * * * *",
-      triggerMode: "event_based",
+      triggerMode: "scheduled",
       releaseName: "db-backupper-1",
       lastApplyStatus: "deployed",
       lastApplyMessage: "ok",
@@ -80,6 +80,6 @@ test("renders task list with trigger modes", async () => {
 
   expect(await screen.findByText("Primary DB")).toBeInTheDocument();
   expect(screen.getByText("Bucket restore")).toBeInTheDocument();
-  expect(screen.getByText("По событию")).toBeInTheDocument();
+  expect(screen.getByText("По расписанию")).toBeInTheDocument();
   expect(screen.getAllByText("Вручную").length).toBeGreaterThan(0);
 });

@@ -274,12 +274,12 @@ def test_validate_required_s3_secrets_requires_both_keys(service) -> None:
     assert "Source S3 AWS secret access key" in exc.value.detail
 
 
-def test_validate_trigger_mode_rejects_event_based_for_env_tasks(service) -> None:
+def test_validate_trigger_mode_rejects_event_based_for_standalone_backup_tasks(service) -> None:
     with pytest.raises(HTTPException) as exc:
-        service._validate_trigger_mode(ServiceType.ENV_BACKUPPER, TriggerMode.EVENT_BASED.value)
+        service._validate_trigger_mode(ServiceType.DB_BACKUPPER, TriggerMode.EVENT_BASED.value)
 
     assert exc.value.status_code == 400
-    assert "Event-based trigger mode is supported only" in exc.value.detail
+    assert "Event-based trigger mode is not supported for standalone tasks" in exc.value.detail
 
 
 def test_validate_trigger_mode_requires_manual_for_public_restorers(service) -> None:

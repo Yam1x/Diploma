@@ -13,7 +13,7 @@ function formatTaskTriggerMode(task: TaskDetail) {
   if (isManualRecoveryTask(task)) {
     return "Вручную";
   }
-  return task.triggerMode === "event_based" ? "По событию + cron fallback" : "По расписанию";
+  return "По расписанию";
 }
 
 function formatBoolean(value: boolean) {
@@ -198,28 +198,6 @@ function renderTaskParameters(task: TaskDetail) {
   );
 }
 
-function renderWatcherCard(task: TaskDetail) {
-  if (task.serviceType !== "db_backupper" && task.serviceType !== "s3_backupper") {
-    return null;
-  }
-
-  return (
-    <article className="card">
-      <h3>Event watcher</h3>
-      <dl>
-        <dt>Статус</dt>
-        <dd>{task.eventWatcherStatus}</dd>
-        <dt>Последнее событие</dt>
-        <dd>{formatDate(task.lastEventDetectedAt)}</dd>
-        <dt>Последний trigger</dt>
-        <dd>{formatDate(task.lastEventTriggeredAt)}</dd>
-        <dt>Сообщение</dt>
-        <dd>{task.lastEventMessage ?? "Нет"}</dd>
-      </dl>
-    </article>
-  );
-}
-
 export function TaskDetailsPage() {
   const { taskId } = useParams();
   const navigate = useNavigate();
@@ -394,7 +372,6 @@ export function TaskDetailsPage() {
         </article>
 
         {renderTaskParameters(task)}
-        {renderWatcherCard(task)}
       </div>
 
       <article className="card table-wrap">

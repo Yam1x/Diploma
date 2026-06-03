@@ -42,6 +42,8 @@ class DataChangeWatchState(Base):
     last_change_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_db_change_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_s3_change_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_db_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_s3_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

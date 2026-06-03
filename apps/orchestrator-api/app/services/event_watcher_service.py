@@ -70,22 +70,9 @@ class EventWatcherService:
             task_service = TaskService(db=db, kube=self.kube, notifications=notifications)
             event_rule_service = EventRuleService(db=db, notifications=notifications, task_service=task_service)
             recovery_rule_service = RecoveryEventRuleService(db=db, notifications=notifications, task_service=task_service)
-            tasks = self._load_tasks(db)
             backup_rules = self._load_backup_rules(db)
             recovery_rules = self._load_recovery_rules(db)
             jobs_by_namespace: dict[str, list[dict]] = {}
-
-            for task in tasks:
-                try:
-                    jobs = jobs_by_namespace.get(task.namespace)
-                    if jobs is None:
-                        jobs = self.kube.list_jobs(task.namespace)
-                        jobs_by_namespace[task.namespace] = jobs
-                    self._process_task(db, task, jobs, task_service, notifications)
-                except KubernetesError as exc:
-                    self._mark_task_error(db, task, notifications, f"Kubernetes error: {exc}")
-                except Exception as exc:
-                    self._mark_task_error(db, task, notifications, str(exc))
 
             for rule in backup_rules:
                 try:
@@ -105,19 +92,6 @@ class EventWatcherService:
 
             db.commit()
 
-    def _load_tasks(self, db: Session) -> list[Task]:
-        return (
-            db.query(Task)
-            .options(joinedload(Task.db_backup_config), joinedload(Task.s3_backup_config))
-            .filter(
-                Task.enabled.is_(True),
-                Task.trigger_mode == TriggerMode.EVENT_BASED.value,
-                Task.service_type.in_([ServiceType.DB_BACKUPPER, ServiceType.S3_BACKUPPER]),
-            )
-            .order_by(Task.id.asc())
-            .all()
-        )
-
     def _load_backup_rules(self, db: Session) -> list[BackupEventRule]:
         return (
             db.query(BackupEventRule)
@@ -135,45 +109,6 @@ class EventWatcherService:
             .order_by(RecoveryEventRule.id.asc())
             .all()
         )
-
-    def _process_task(self, db: Session, task: Task, jobs: list[dict], task_service: TaskService, notifications: NotificationService) -> None:
-        now = datetime.now(timezone.utc)
-        state = self._ensure_data_watch_state(db, WatchOwnerType.TASK, task.id)
-        state.last_polled_at = now
-        state.last_error_message = None
-
-        if task.service_type == ServiceType.DB_BACKUPPER:
-            config = task.db_backup_config
-            counters = self._read_database_counters(config)
-            if self._should_rebaseline_db(state, counters):
-                self._update_db_baseline(state, counters)
-                return
-            changed = self._has_counter_increase(state, counters)
-            self._update_db_baseline(state, counters)
-        else:
-            config = task.s3_backup_config
-            observed_state_hash = self._read_s3_state_hash(config)
-            if state.last_observed_state_hash is None:
-                state.last_observed_state_hash = observed_state_hash
-                return
-            changed = observed_state_hash != state.last_observed_state_hash
-            state.last_observed_state_hash = observed_state_hash
-
-        if changed:
-            state.last_change_detected_at = now
-
-        if not self._has_pending_change(state):
-            return
-        if self._has_active_job(task.release_name, jobs):
-            return
-        if not self._cooldown_elapsed(state, now):
-            return
-        try:
-            task_service.create_event_job_run(task)
-        except Exception as exc:
-            self._mark_task_error(db, task, notifications, f"Failed to create event job: {exc}")
-            return
-        state.last_triggered_at = now
 
     def _process_backup_rule(
         self,
@@ -203,19 +138,19 @@ class EventWatcherService:
             state.last_db_change_at = now
         if s3_changed:
             state.last_s3_change_at = now
-        if not db_changed or not s3_changed:
+        if not db_changed and not s3_changed:
             return
 
         jobs = jobs_by_namespace.get(rule.namespace)
         if jobs is None:
             jobs = self.kube.list_jobs(rule.namespace)
             jobs_by_namespace[rule.namespace] = jobs
-        if self._has_active_job(service._db_release_name(rule.id), jobs) or self._has_active_job(service._s3_release_name(rule.id), jobs):
-            return
-        if not self._cooldown_elapsed(state, now):
+        run_db = db_changed and not self._has_active_job(service._db_release_name(rule.id), jobs) and self._component_cooldown_elapsed(state.last_db_triggered_at, now)
+        run_s3 = s3_changed and not self._has_active_job(service._s3_release_name(rule.id), jobs) and self._component_cooldown_elapsed(state.last_s3_triggered_at, now)
+        if not run_db and not run_s3:
             return
         try:
-            service._start_rule_jobs(rule, trigger_type="event")
+            service._start_rule_jobs(rule, trigger_type="event", run_db=run_db, run_s3=run_s3)
         except HTTPException:
             return
         state.last_triggered_at = now
@@ -269,14 +204,6 @@ class EventWatcherService:
                 service._start_rule_jobs(rule, trigger_type="event", run_db=False, run_s3=True)
             except HTTPException:
                 return
-
-    def _mark_task_error(self, db: Session, task: Task, notifications: NotificationService, message: str) -> None:
-        now = datetime.now(timezone.utc)
-        state = self._ensure_data_watch_state(db, WatchOwnerType.TASK, task.id)
-        state.last_polled_at = now
-        state.last_error_at = now
-        state.last_error_message = message
-        notifications.notify_event_watcher_issue(task, message)
 
     @staticmethod
     def _ensure_data_watch_state(db: Session, owner_type: WatchOwnerType, owner_id: int) -> DataChangeWatchState:

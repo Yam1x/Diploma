@@ -8,7 +8,7 @@ export type ServiceType =
   | "s3_restorer"
   | "env_restorer"
   | "env_synchronizer";
-export type TriggerMode = "manual" | "scheduled" | "event_based";
+export type TriggerMode = "manual" | "scheduled";
 
 export type EventRuleWatcherStatus = "disabled" | "waiting_for_baseline" | "watching" | "cooldown" | "error";
 export type RecoveryRuleWatcherStatus =
@@ -200,10 +200,6 @@ export type DbTaskDetail = DbTaskSummary & {
   destinationAwsAccessKeyId: string;
   hasDatabasePassword: boolean;
   hasDestinationAwsSecretAccessKey: boolean;
-  eventWatcherStatus: string;
-  lastEventDetectedAt: string | null;
-  lastEventTriggeredAt: string | null;
-  lastEventMessage: string | null;
 };
 
 export type S3TaskDetail = S3TaskSummary & {
@@ -217,10 +213,6 @@ export type S3TaskDetail = S3TaskSummary & {
   destinationS3AwsBucketName: string;
   hasSourceS3AwsSecretAccessKey: boolean;
   hasDestinationS3AwsSecretAccessKey: boolean;
-  eventWatcherStatus: string;
-  lastEventDetectedAt: string | null;
-  lastEventTriggeredAt: string | null;
-  lastEventMessage: string | null;
 };
 
 export type EnvBackupperTaskDetail = EnvBackupperTaskSummary & {
@@ -632,10 +624,6 @@ function fromTaskApiDetail(task: BackendTaskDetail): TaskDetail {
       destinationAwsAccessKeyId: String(task.config.destinationAwsAccessKeyId ?? ""),
       hasDatabasePassword: Boolean(task.config.hasDatabasePassword),
       hasDestinationAwsSecretAccessKey: Boolean(task.config.hasDestinationAwsSecretAccessKey),
-      eventWatcherStatus: task.watcher?.status ?? "scheduled",
-      lastEventDetectedAt: task.watcher?.lastDetectedAt ?? null,
-      lastEventTriggeredAt: task.watcher?.lastTriggeredAt ?? null,
-      lastEventMessage: task.watcher?.lastMessage ?? null,
     } as DbTaskDetail;
   }
   if (task.serviceType === "s3_backupper") {
@@ -651,10 +639,6 @@ function fromTaskApiDetail(task: BackendTaskDetail): TaskDetail {
       destinationS3AwsBucketName: String(task.config.destinationS3AwsBucketName ?? ""),
       hasSourceS3AwsSecretAccessKey: Boolean(task.config.hasSourceS3AwsSecretAccessKey),
       hasDestinationS3AwsSecretAccessKey: Boolean(task.config.hasDestinationS3AwsSecretAccessKey),
-      eventWatcherStatus: task.watcher?.status ?? "scheduled",
-      lastEventDetectedAt: task.watcher?.lastDetectedAt ?? null,
-      lastEventTriggeredAt: task.watcher?.lastTriggeredAt ?? null,
-      lastEventMessage: task.watcher?.lastMessage ?? null,
     } as S3TaskDetail;
   }
   if (task.serviceType === "env_backupper") {

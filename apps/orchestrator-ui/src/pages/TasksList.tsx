@@ -13,7 +13,7 @@ function formatTaskTriggerMode(task: TaskSummary) {
   if (isManualRecoveryTask(task)) {
     return "Вручную";
   }
-  return task.triggerMode === "event_based" ? "По событию" : "По расписанию";
+  return "По расписанию";
 }
 
 function formatBoolean(value: boolean) {

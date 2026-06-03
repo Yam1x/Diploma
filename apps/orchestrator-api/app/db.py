@@ -212,6 +212,8 @@ def _upgrade_task_schema() -> None:
                     last_polled_at TIMESTAMPTZ NULL,
                     last_db_change_at TIMESTAMPTZ NULL,
                     last_s3_change_at TIMESTAMPTZ NULL,
+                    last_db_triggered_at TIMESTAMPTZ NULL,
+                    last_s3_triggered_at TIMESTAMPTZ NULL,
                     last_triggered_at TIMESTAMPTZ NULL,
                     last_error_at TIMESTAMPTZ NULL,
                     last_error_message TEXT NULL,
@@ -221,6 +223,8 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
+        connection.execute(text("ALTER TABLE backup_event_rule_states ADD COLUMN IF NOT EXISTS last_db_triggered_at TIMESTAMPTZ NULL"))
+        connection.execute(text("ALTER TABLE backup_event_rule_states ADD COLUMN IF NOT EXISTS last_s3_triggered_at TIMESTAMPTZ NULL"))
         connection.execute(
             text(
                 """
@@ -665,6 +669,8 @@ def _upgrade_task_schema() -> None:
                 """
             )
         )
+        connection.execute(text("ALTER TABLE data_change_watch_states ADD COLUMN IF NOT EXISTS last_db_triggered_at TIMESTAMPTZ NULL"))
+        connection.execute(text("ALTER TABLE data_change_watch_states ADD COLUMN IF NOT EXISTS last_s3_triggered_at TIMESTAMPTZ NULL"))
         connection.execute(
             text(
                 """
@@ -964,13 +970,13 @@ def _upgrade_task_schema() -> None:
                 """
                 INSERT INTO data_change_watch_states (
                     owner_type, owner_id, last_tuple_ins, last_tuple_upd, last_tuple_del, stats_reset_at,
-                    last_observed_state_hash, last_polled_at, last_db_change_at, last_s3_change_at, last_triggered_at,
-                    last_error_at, last_error_message
+                    last_observed_state_hash, last_polled_at, last_db_change_at, last_s3_change_at,
+                    last_db_triggered_at, last_s3_triggered_at, last_triggered_at, last_error_at, last_error_message
                 )
                 SELECT
                     'BACKUP_RULE', s.rule_id, s.last_tuple_ins, s.last_tuple_upd, s.last_tuple_del, s.stats_reset_at,
                     s.last_observed_state_hash, s.last_polled_at, s.last_db_change_at, s.last_s3_change_at,
-                    s.last_triggered_at, s.last_error_at, s.last_error_message
+                    s.last_db_triggered_at, s.last_s3_triggered_at, s.last_triggered_at, s.last_error_at, s.last_error_message
                 FROM backup_event_rule_states s
                 WHERE NOT EXISTS (
                     SELECT 1 FROM data_change_watch_states d WHERE d.owner_type::text = 'BACKUP_RULE' AND d.owner_id = s.rule_id

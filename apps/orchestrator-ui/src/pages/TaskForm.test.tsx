@@ -342,9 +342,7 @@ test("keeps existing s3 restore secrets when edit form leaves them empty", async
   expect(payload).not.toHaveProperty("targetS3AwsSecretAccessKey");
 });
 
-test("allows switching db backup task to event-based mode", async () => {
-  const user = userEvent.setup();
-
+test("db backup task form does not offer event-based mode", async () => {
   render(
     <MemoryRouter initialEntries={["/tasks/new/db-backupper"]}>
       <Routes>
@@ -354,7 +352,5 @@ test("allows switching db backup task to event-based mode", async () => {
   );
 
   await waitFor(() => expect(api.listNamespaces).toHaveBeenCalled());
-  await user.selectOptions(screen.getAllByRole("combobox")[0], "event_based");
-
-  expect(screen.getByText(/Event Rules/i)).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: /по событию/i })).not.toBeInTheDocument();
 });

@@ -103,36 +103,43 @@ class EnvSyncTaskConfigInput(BaseModel):
 
 class DbTaskCreate(TaskRequestBase):
     serviceType: Literal["db_backupper"]
+    triggerMode: Literal["scheduled"] = "scheduled"
     config: DbBackupTaskConfigInput
 
 
 class S3TaskCreate(TaskRequestBase):
     serviceType: Literal["s3_backupper"]
+    triggerMode: Literal["scheduled"] = "scheduled"
     config: S3BackupTaskConfigInput
 
 
 class EnvBackupperTaskCreate(TaskRequestBase):
     serviceType: Literal["env_backupper"]
+    triggerMode: Literal["scheduled"] = "scheduled"
     config: EnvBackupTaskConfigInput
 
 
 class DbRestorerTaskCreate(TaskRequestBase):
     serviceType: Literal["db_restorer"]
+    triggerMode: Literal["manual"] = "manual"
     config: DbRestoreTaskConfigInput
 
 
 class S3RestorerTaskCreate(TaskRequestBase):
     serviceType: Literal["s3_restorer"]
+    triggerMode: Literal["manual"] = "manual"
     config: S3RestoreTaskConfigInput
 
 
 class EnvRestorerTaskCreate(TaskRequestBase):
     serviceType: Literal["env_restorer"]
+    triggerMode: Literal["manual"] = "manual"
     config: EnvRestoreTaskConfigInput
 
 
 class EnvSynchronizerTaskCreate(TaskRequestBase):
     serviceType: Literal["env_synchronizer"]
+    triggerMode: Literal["scheduled"] = "scheduled"
     config: EnvSyncTaskConfigInput
 
 
@@ -241,7 +248,7 @@ class DbTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    triggerMode: Literal["scheduled"] | None = None
     config: DbBackupTaskConfigUpdate | None = None
 
 
@@ -253,7 +260,7 @@ class S3TaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    triggerMode: Literal["scheduled"] | None = None
     config: S3BackupTaskConfigUpdate | None = None
 
 
@@ -265,7 +272,7 @@ class EnvBackupperTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    triggerMode: Literal["scheduled"] | None = None
     config: EnvBackupTaskConfigUpdate | None = None
 
 
@@ -277,7 +284,7 @@ class DbRestorerTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    triggerMode: Literal["manual"] | None = None
     config: DbRestoreTaskConfigUpdate | None = None
 
 
@@ -289,7 +296,7 @@ class S3RestorerTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    triggerMode: Literal["manual"] | None = None
     config: S3RestoreTaskConfigUpdate | None = None
 
 
@@ -301,7 +308,7 @@ class EnvRestorerTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    triggerMode: Literal["manual"] | None = None
     config: EnvRestoreTaskConfigUpdate | None = None
 
 
@@ -313,7 +320,7 @@ class EnvSynchronizerTaskUpdate(BaseModel):
     namespace: str | None = Field(default=None, min_length=1, max_length=120)
     enabled: bool | None = None
     schedule: str | None = Field(default=None, min_length=1, max_length=120)
-    triggerMode: Literal["manual", "scheduled", "event_based"] | None = None
+    triggerMode: Literal["scheduled"] | None = None
     config: EnvSyncTaskConfigUpdate | None = None
 
 
@@ -329,13 +336,6 @@ TaskUpdate: TypeAlias = Annotated[
 ]
 
 
-class EventWatcherState(BaseModel):
-    status: str
-    lastDetectedAt: datetime | None
-    lastTriggeredAt: datetime | None
-    lastMessage: str | None
-
-
 class TaskSummaryBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -345,7 +345,7 @@ class TaskSummaryBase(BaseModel):
     enabled: bool
     serviceType: Literal["db_backupper", "s3_backupper", "env_backupper", "db_restorer", "s3_restorer", "env_restorer", "env_synchronizer"]
     schedule: str | None
-    triggerMode: Literal["manual", "scheduled", "event_based"]
+    triggerMode: Literal["manual", "scheduled"]
     deployed: bool
     releaseName: str
     lastApplyStatus: str | None
@@ -428,13 +428,11 @@ class EnvSyncTaskConfigDetail(BaseModel):
 class DbTaskDetail(TaskSummaryBase):
     serviceType: Literal["db_backupper"]
     config: DbBackupTaskConfigDetail
-    watcher: EventWatcherState | None = None
 
 
 class S3TaskDetail(TaskSummaryBase):
     serviceType: Literal["s3_backupper"]
     config: S3BackupTaskConfigDetail
-    watcher: EventWatcherState | None = None
 
 
 class EnvBackupperTaskDetail(TaskSummaryBase):

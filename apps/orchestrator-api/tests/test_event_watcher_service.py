@@ -91,101 +91,7 @@ def get_backup_rule_state(db_session, rule_id: int) -> DataChangeWatchState:
     )
 
 
-def test_first_poll_only_initializes_baseline(db_session, fake_kube, monkeypatch) -> None:
-    task = build_db_task()
-    db_session.add(task)
-    db_session.commit()
-
-    service = EventWatcherService(
-        session_factory=SessionFactory(db_session),
-        kube=fake_kube,
-        settings=Settings(event_watcher_enabled=True, event_watcher_cooldown_seconds=600),
-    )
-    monkeypatch.setattr(
-        EventWatcherService,
-        "_read_database_counters",
-        staticmethod(lambda config: DatabaseChangeCounters(10, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc))),
-    )
-
-    service.poll_once()
-
-    state = get_task_state(db_session, task.id)
-    assert state.last_tuple_ins == 10
-    assert state.last_tuple_upd == 3
-    assert state.last_tuple_del == 1
-    assert state.last_change_detected_at is None
-    assert fake_kube.created_jobs == []
-
-
-def test_counter_growth_creates_event_job(db_session, fake_kube, monkeypatch) -> None:
-    task = build_db_task()
-    db_session.add(task)
-    db_session.commit()
-
-    counters = iter(
-        [
-            DatabaseChangeCounters(10, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
-            DatabaseChangeCounters(11, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
-        ]
-    )
-    service = EventWatcherService(
-        session_factory=SessionFactory(db_session),
-        kube=fake_kube,
-        settings=Settings(event_watcher_enabled=True, event_watcher_cooldown_seconds=600),
-    )
-    monkeypatch.setattr(EventWatcherService, "_read_database_counters", staticmethod(lambda config: next(counters)))
-
-    service.poll_once()
-    fake_kube.jobs["default"] = []
-    service.poll_once()
-
-    state = get_task_state(db_session, task.id)
-    assert fake_kube.created_jobs == [("default", "db-backupper-1", "event")]
-    assert state.last_change_detected_at is not None
-    assert state.last_triggered_at is not None
-
-
-def test_changes_during_cooldown_keep_pending_state_without_new_trigger(db_session, fake_kube, monkeypatch) -> None:
-    task = build_db_task()
-    db_session.add(task)
-    db_session.commit()
-
-    counters = iter(
-        [
-            DatabaseChangeCounters(10, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
-            DatabaseChangeCounters(11, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
-            DatabaseChangeCounters(12, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
-            DatabaseChangeCounters(12, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
-        ]
-    )
-    service = EventWatcherService(
-        session_factory=SessionFactory(db_session),
-        kube=fake_kube,
-        settings=Settings(event_watcher_enabled=True, event_watcher_cooldown_seconds=600),
-    )
-    monkeypatch.setattr(EventWatcherService, "_read_database_counters", staticmethod(lambda config: next(counters)))
-
-    service.poll_once()
-    fake_kube.jobs["default"] = []
-    service.poll_once()
-    service.poll_once()
-
-    state = get_task_state(db_session, task.id)
-    assert len(fake_kube.created_jobs) == 1
-    assert state.last_change_detected_at > state.last_triggered_at
-
-    state.last_triggered_at = datetime.now(timezone.utc) - timedelta(seconds=601)
-    db_session.commit()
-    fake_kube.jobs["default"] = []
-
-    service.poll_once()
-
-    db_session.refresh(state)
-    assert len(fake_kube.created_jobs) == 1
-    assert state.last_change_detected_at > state.last_triggered_at
-
-
-def test_stats_reset_rebaselines_without_trigger(db_session, fake_kube, monkeypatch) -> None:
+def test_standalone_event_based_backup_tasks_are_ignored(db_session, fake_kube, monkeypatch) -> None:
     task = build_db_task()
     db_session.add(task)
     db_session.commit()
@@ -206,9 +112,12 @@ def test_stats_reset_rebaselines_without_trigger(db_session, fake_kube, monkeypa
     service.poll_once()
     service.poll_once()
 
-    state = get_task_state(db_session, task.id)
-    assert state.last_tuple_ins == 1
-    assert state.last_change_detected_at is None
+    state = (
+        db_session.query(DataChangeWatchState)
+        .filter(DataChangeWatchState.owner_type == WatchOwnerType.TASK, DataChangeWatchState.owner_id == task.id)
+        .one_or_none()
+    )
+    assert state is None
     assert fake_kube.created_jobs == []
 
 
@@ -268,7 +177,7 @@ def test_combined_rule_first_poll_only_initializes_baselines(db_session, fake_ku
     assert fake_kube.created_jobs == []
 
 
-def test_combined_rule_db_only_change_does_not_trigger(db_session, fake_kube, monkeypatch) -> None:
+def test_combined_rule_db_only_change_triggers_only_db_backup(db_session, fake_kube, monkeypatch) -> None:
     rule = build_combined_rule()
     db_session.add(rule)
     db_session.commit()
@@ -289,15 +198,19 @@ def test_combined_rule_db_only_change_does_not_trigger(db_session, fake_kube, mo
     monkeypatch.setattr(EventWatcherService, "_read_s3_state_hash", lambda self, config: next(s3_hashes))
 
     service.poll_once()
+    fake_kube.jobs["default"] = []
     service.poll_once()
 
     state = get_backup_rule_state(db_session, rule.id)
     assert state.last_db_change_at is not None
     assert state.last_s3_change_at is None
-    assert fake_kube.created_jobs == []
+    assert ("default", EventRuleService._db_release_name(rule.id), "event") in fake_kube.created_jobs
+    assert ("default", EventRuleService._s3_release_name(rule.id), "event") not in fake_kube.created_jobs
+    assert state.last_db_triggered_at is not None
+    assert state.last_s3_triggered_at is None
 
 
-def test_combined_rule_s3_only_change_does_not_trigger(db_session, fake_kube, monkeypatch) -> None:
+def test_combined_rule_s3_only_change_triggers_only_s3_backup(db_session, fake_kube, monkeypatch) -> None:
     rule = build_combined_rule()
     db_session.add(rule)
     db_session.commit()
@@ -318,12 +231,16 @@ def test_combined_rule_s3_only_change_does_not_trigger(db_session, fake_kube, mo
     monkeypatch.setattr(EventWatcherService, "_read_s3_state_hash", lambda self, config: next(s3_hashes))
 
     service.poll_once()
+    fake_kube.jobs["default"] = []
     service.poll_once()
 
     state = get_backup_rule_state(db_session, rule.id)
     assert state.last_db_change_at is None
     assert state.last_s3_change_at is not None
-    assert fake_kube.created_jobs == []
+    assert ("default", EventRuleService._db_release_name(rule.id), "event") not in fake_kube.created_jobs
+    assert ("default", EventRuleService._s3_release_name(rule.id), "event") in fake_kube.created_jobs
+    assert state.last_db_triggered_at is None
+    assert state.last_s3_triggered_at is not None
 
 
 def test_combined_rule_both_changes_in_same_poll_start_both_jobs(db_session, fake_kube, monkeypatch) -> None:
@@ -356,7 +273,7 @@ def test_combined_rule_both_changes_in_same_poll_start_both_jobs(db_session, fak
     assert state.last_triggered_at is not None
 
 
-def test_combined_rule_active_job_blocks_trigger(db_session, fake_kube, monkeypatch) -> None:
+def test_combined_rule_active_db_job_blocks_only_db_trigger(db_session, fake_kube, monkeypatch) -> None:
     rule = build_combined_rule()
     db_session.add(rule)
     db_session.commit()
@@ -380,10 +297,11 @@ def test_combined_rule_active_job_blocks_trigger(db_session, fake_kube, monkeypa
     fake_kube.jobs["default"] = [{"name": f"{EventRuleService._db_release_name(rule.id)}-event-001", "active": 1}]
     service.poll_once()
 
-    assert fake_kube.created_jobs == []
+    assert ("default", EventRuleService._db_release_name(rule.id), "event") not in fake_kube.created_jobs
+    assert ("default", EventRuleService._s3_release_name(rule.id), "event") in fake_kube.created_jobs
 
 
-def test_combined_rule_cooldown_blocks_repeated_trigger(db_session, fake_kube, monkeypatch) -> None:
+def test_combined_rule_component_cooldown_blocks_only_same_component(db_session, fake_kube, monkeypatch) -> None:
     rule = build_combined_rule()
     db_session.add(rule)
     db_session.commit()
@@ -393,10 +311,9 @@ def test_combined_rule_cooldown_blocks_repeated_trigger(db_session, fake_kube, m
             DatabaseChangeCounters(10, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
             DatabaseChangeCounters(11, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
             DatabaseChangeCounters(12, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
-            DatabaseChangeCounters(13, 3, 1, datetime(2026, 4, 12, tzinfo=timezone.utc)),
         ]
     )
-    s3_hashes = iter(["hash-1", "hash-2", "hash-3", "hash-4"])
+    s3_hashes = iter(["hash-1", "hash-1", "hash-2"])
     service = EventWatcherService(
         session_factory=SessionFactory(db_session),
         kube=fake_kube,
@@ -412,18 +329,9 @@ def test_combined_rule_cooldown_blocks_repeated_trigger(db_session, fake_kube, m
     service.poll_once()
 
     state = get_backup_rule_state(db_session, rule.id)
+    assert ("default", EventRuleService._db_release_name(rule.id), "event") in fake_kube.created_jobs
+    assert ("default", EventRuleService._s3_release_name(rule.id), "event") in fake_kube.created_jobs
     assert len(fake_kube.created_jobs) == 2
-    first_triggered_at = state.last_triggered_at
-
-    state.last_triggered_at = datetime.now(timezone.utc) - timedelta(seconds=601)
-    db_session.commit()
-    fake_kube.jobs["default"] = []
-
-    service.poll_once()
-
-    db_session.refresh(state)
-    assert len(fake_kube.created_jobs) == 4
-    assert state.last_triggered_at != first_triggered_at
 
 
 def test_combined_rule_failure_records_error(db_session, fake_kube, monkeypatch) -> None:

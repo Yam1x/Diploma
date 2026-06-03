@@ -226,7 +226,29 @@ def test_env_task_api_rejects_event_based_trigger_mode(client, fake_helm) -> Non
     response = client.post("/api/tasks", json=payload)
 
     assert response.status_code == 400
-    assert "Event-based trigger mode is supported only" in response.json()["detail"]
+    assert "Event-based trigger mode is not supported for standalone tasks" in response.json()["detail"]
+    assert fake_helm.upgrade_calls == []
+
+
+def test_db_task_api_rejects_event_based_trigger_mode(client, fake_helm) -> None:
+    payload = build_db_payload(enabled=True)
+    payload["triggerMode"] = "event_based"
+
+    response = client.post("/api/tasks", json=payload)
+
+    assert response.status_code == 400
+    assert "Event-based trigger mode is not supported for standalone tasks" in response.json()["detail"]
+    assert fake_helm.upgrade_calls == []
+
+
+def test_s3_task_api_rejects_event_based_trigger_mode(client, fake_helm) -> None:
+    payload = build_s3_payload(enabled=True)
+    payload["triggerMode"] = "event_based"
+
+    response = client.post("/api/tasks", json=payload)
+
+    assert response.status_code == 400
+    assert "Event-based trigger mode is not supported for standalone tasks" in response.json()["detail"]
     assert fake_helm.upgrade_calls == []
 
 

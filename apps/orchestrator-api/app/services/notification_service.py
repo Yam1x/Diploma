@@ -162,17 +162,18 @@ class NotificationService:
         rule: BackupEventRule,
         *,
         trigger_type: str,
-        db_job_name: str,
-        s3_job_name: str,
+        db_job_name: str | None,
+        s3_job_name: str | None,
         run: RuleJobRun,
     ) -> None:
         trigger_label = "manually" if trigger_type == "manual" else "by event"
+        parts = [part for part in [f"DB job {db_job_name}" if db_job_name else None, f"S3 job {s3_job_name}" if s3_job_name else None] if part]
         self.create_notification(
             event_key=self._event_key("backup-event-rule", rule.id, "run-started", trigger_type, db_job_name, s3_job_name),
             kind="backup_event_rule_run_started",
             severity="info",
             title=f"Combined backup started: {rule.name}",
-            message=f"DB job {db_job_name} and S3 job {s3_job_name} started {trigger_label}.",
+            message=f"{', '.join(parts) if parts else 'Jobs'} started {trigger_label}.",
             resource_type="backup_rule",
             resource_id=rule.id,
             run_type="rule_job_run",

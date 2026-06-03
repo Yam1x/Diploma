@@ -118,7 +118,7 @@ class EventRuleService:
 
     def run_rule(self, rule_id: int) -> BackupEventRuleDetail:
         rule = self._get_rule_model(rule_id)
-        self._start_rule_jobs(rule, trigger_type="manual")
+        self._start_rule_jobs(rule, trigger_type="manual", run_db=True, run_s3=True)
         self.db.commit()
         return self._to_detail(self._get_rule_model(rule.id))
 
@@ -140,17 +140,29 @@ class EventRuleService:
         self.db.flush()
         self.notifications.notify_backup_event_rule_issue(rule, message)
 
-    def record_successful_trigger(self, rule: BackupEventRule, *, trigger_type: str, db_job_name: str, s3_job_name: str) -> None:
+    def record_successful_trigger(
+        self,
+        rule: BackupEventRule,
+        *,
+        trigger_type: str,
+        scope: RuleRunScope,
+        db_job_name: str | None,
+        s3_job_name: str | None,
+    ) -> None:
         now = datetime.now(timezone.utc)
         state = self._ensure_watch_state(rule.id)
         state.last_polled_at = state.last_polled_at or now
         state.last_error_at = None
         state.last_error_message = None
+        if db_job_name is not None:
+            state.last_db_triggered_at = now
+        if s3_job_name is not None:
+            state.last_s3_triggered_at = now
         state.last_triggered_at = now
         run = RuleJobRun(
             rule_type=RuleRunType.BACKUP,
             rule_id=rule.id,
-            scope=RuleRunScope.BOTH,
+            scope=scope,
             namespace=rule.namespace,
             db_release_name=self._db_release_name(rule.id),
             s3_release_name=self._s3_release_name(rule.id),
@@ -207,33 +219,41 @@ class EventRuleService:
             except HelmError:
                 continue
 
-    def _start_rule_jobs(self, rule: BackupEventRule, *, trigger_type: str) -> None:
+    def _start_rule_jobs(self, rule: BackupEventRule, *, trigger_type: str, run_db: bool, run_s3: bool) -> None:
         self._validate_rule(rule)
-        db_job_name = self.task_service.kube.create_job(
-            rule.namespace,
-            self._db_release_name(rule.id),
-            self.task_service.build_job_spec_for_config(
-                service_type=ServiceType.DB_BACKUPPER,
-                namespace=rule.namespace,
-                schedule=None,
-                release_name=self._db_release_name(rule.id),
-                config=rule.db_config,
-            ),
-            trigger_type=trigger_type,
-        )
-        s3_job_name = self.task_service.kube.create_job(
-            rule.namespace,
-            self._s3_release_name(rule.id),
-            self.task_service.build_job_spec_for_config(
-                service_type=ServiceType.S3_BACKUPPER,
-                namespace=rule.namespace,
-                schedule=None,
-                release_name=self._s3_release_name(rule.id),
-                config=rule.s3_config,
-            ),
-            trigger_type=trigger_type,
-        )
-        self.record_successful_trigger(rule, trigger_type=trigger_type, db_job_name=db_job_name, s3_job_name=s3_job_name)
+        if not run_db and not run_s3:
+            raise HTTPException(status_code=400, detail="At least one backup component must be selected")
+
+        db_job_name: str | None = None
+        s3_job_name: str | None = None
+        if run_db:
+            db_job_name = self.task_service.kube.create_job(
+                rule.namespace,
+                self._db_release_name(rule.id),
+                self.task_service.build_job_spec_for_config(
+                    service_type=ServiceType.DB_BACKUPPER,
+                    namespace=rule.namespace,
+                    schedule=None,
+                    release_name=self._db_release_name(rule.id),
+                    config=rule.db_config,
+                ),
+                trigger_type=trigger_type,
+            )
+        if run_s3:
+            s3_job_name = self.task_service.kube.create_job(
+                rule.namespace,
+                self._s3_release_name(rule.id),
+                self.task_service.build_job_spec_for_config(
+                    service_type=ServiceType.S3_BACKUPPER,
+                    namespace=rule.namespace,
+                    schedule=None,
+                    release_name=self._s3_release_name(rule.id),
+                    config=rule.s3_config,
+                ),
+                trigger_type=trigger_type,
+            )
+        scope = RuleRunScope.BOTH if run_db and run_s3 else RuleRunScope.DB if run_db else RuleRunScope.S3
+        self.record_successful_trigger(rule, trigger_type=trigger_type, scope=scope, db_job_name=db_job_name, s3_job_name=s3_job_name)
 
     def _apply_db_update(self, config: BackupEventRuleDbConfig, payload: BackupEventRuleDbConfigUpdate) -> None:
         self.task_service._apply_fields(
